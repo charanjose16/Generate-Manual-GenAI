@@ -1,6 +1,6 @@
 import os
 import json
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
 from io import BytesIO
 from dotenv import load_dotenv
@@ -48,6 +48,8 @@ def load_product_data():
             "specifications": {},
             "price": "N/A"
         }
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Invalid JSON in data.json: {str(e)}")
 
 # Function to generate structured PDF
 def generate_pdf(product_data, content):
@@ -75,7 +77,6 @@ def generate_pdf(product_data, content):
 
         lines = section_content.split("\n")
         formatted_lines = []
-
         for line in lines:
             line = line.strip()
             # Remove unwanted symbols
@@ -120,19 +121,22 @@ def generate_content_prompts(product_data):
 # API Endpoint to generate the user manual PDF
 @app.get("/generate-manual")
 async def generate_manual():
-    # Load product data from JSON
-    product_data = load_product_data()
+    try:
+        # Load product data from JSON
+        product_data = load_product_data()
 
-    # Generate prompts for each section based on the product data
-    content_prompts = generate_content_prompts(product_data)
+        # Generate prompts for each section based on the product data
+        content_prompts = generate_content_prompts(product_data)
 
-    # Use DSPy to generate content for each section
-    generate_content = Predict(GenerateContent)
-    generated_content = {}
+        # Use DSPy to generate content for each section
+        generate_content = Predict(GenerateContent)
+        generated_content = {}
+        for section, prompt in content_prompts.items():
+            result = generate_content(section_title=section, prompt=prompt, temperature=0.7, max_tokens=500)
+            generated_content[section] = result.output
 
-    for section, prompt in content_prompts.items():
-        result = generate_content(section_title=section, prompt=prompt, temperature=0.7, max_tokens=500)
-        generated_content[section] = result.output
+        # Generate structured PDF with DSPy-generated content for each section
+        pdf_buffer = generate_pdf(product_data, generated_content)
 
     # Generate structured PDF with DSPy-generated content for each section
     pdf_buffer = generate_pdf(product_data, generated_content)
