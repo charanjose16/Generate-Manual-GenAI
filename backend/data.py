@@ -1,6 +1,7 @@
 import os
 import json
 import re
+import logging
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
 from io import BytesIO
@@ -12,6 +13,10 @@ from reportlab.lib.pagesizes import letter, mm
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 # Load environment variables
 load_dotenv()
@@ -29,7 +34,10 @@ try:
         max_tokens=4096,
     )
     dspy.configure(lm=lm)
+
+    logger.info("DSPy configured successfully with Azure OpenAI.")
 except Exception as e:
+    logger.error(f"Failed to configure DSPy: {str(e)}")
     raise RuntimeError(f"Failed to configure DSPy: {str(e)}")
 
 # Define a signature for generating structured content
@@ -43,8 +51,11 @@ class GenerateContent(Signature):
 def load_product_data():
     try:
         with open("data.json", "r", encoding="utf-8") as file:
-            return json.load(file)
+            data = json.load(file)
+            logger.info("Product data loaded successfully.")
+            return data
     except FileNotFoundError:
+        logger.warning("data.json file not found. Using default product data.")
         return {
             "product_name": "Unknown Product",
             "description": "No description available",
@@ -53,6 +64,7 @@ def load_product_data():
             "price": "N/A"
         }
     except json.JSONDecodeError as e:
+        logger.error(f"Invalid JSON in data.json: {str(e)}")
         raise ValueError(f"Invalid JSON in data.json: {str(e)}")
 
 def generate_pdf(product_data, content):
@@ -135,14 +147,12 @@ def generate_pdf(product_data, content):
     doc.build(elements, onFirstPage=add_page_number, onLaterPages=add_page_number)
 
     buffer.seek(0)
+    logger.info("PDF generated successfully.")
     return buffer
-
-
-
-
 
 # Define the content prompts for each section
 def generate_content_prompts(product_data):
+    logger.info("Generating content prompts for each section.")
     return {
         "1. Introduction": f"Write a structured introduction for the following product: {json.dumps(product_data, indent=2)}. Ensure subheadings like 'Product Overview', 'Design and Protection' are included and clearly formatted.",
         "2. Safety Information": "Provide clear safety information for using an industrial motor drive, including warnings and precautions. Use structured subheadings like 'General Warnings' and 'Precautionary Measures'.",
@@ -158,6 +168,8 @@ def generate_content_prompts(product_data):
 @app.get("/generate-manual")
 async def generate_manual():
     try:
+        logger.info("Starting to generate the user manual.")
+        
         # Load product data from JSON
         product_data = load_product_data()
 
@@ -168,13 +180,17 @@ async def generate_manual():
         generate_content = Predict(GenerateContent)
         generated_content = {}
         for section, prompt in content_prompts.items():
+            logger.info(f"Generating content for section: {section}")
             result = generate_content(section_title=section, prompt=prompt, temperature=0.7, max_tokens=500)
             generated_content[section] = result.output
+            logger.info(f"Content generated for section: {section}")
 
         # Generate structured PDF with DSPy-generated content for each section
         pdf_buffer = generate_pdf(product_data, generated_content)
 
         # Stream the PDF back to the client
+        logger.info("Streaming the PDF back to the client.")
         return StreamingResponse(pdf_buffer, media_type="application/pdf", headers={"Content-Disposition": "attachment; filename=user_manual.pdf"})
     except Exception as e:
+        logger.error(f"An error occurred: {str(e)}")
         raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
