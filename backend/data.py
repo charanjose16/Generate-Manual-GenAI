@@ -4,25 +4,37 @@ from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
 from io import BytesIO
 from dotenv import load_dotenv
-from openai import AzureOpenAI
+import dspy
+from dspy import InputField, OutputField
+from dspy import Example, Signature, ChainOfThought, Predict
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 
+# Load environment variables
 load_dotenv()
 
 # FastAPI app
 app = FastAPI()
 
-# Azure OpenAI Client
-client = AzureOpenAI(
+lm = dspy.LM(
+    model="azure/" + os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME"),  # Specify Azure as the provider
     api_key=os.getenv("AZURE_OPENAI_API_KEY"),
-    api_version=os.getenv("AZURE_OPENAI_VERSION"),
-    azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT")
+    api_base=os.getenv("AZURE_OPENAI_ENDPOINT"),
+    temperature=0.7,
+    max_tokens=4096,
 )
+dspy.configure(lm=lm)
 
-# Load product data from data.json
+# Define a signature for generating structured content
+class GenerateContent(Signature):
+    """Generate structured content for a specific section."""
+    section_title: str = InputField(desc="Title of the section")  # Use InputField for input fields
+    prompt: str = InputField(desc="Prompt for generating content")  # Use InputField for input fields
+    output: str = OutputField(desc="Generated content")  # Use OutputField for output fields
+
+# Function to load product data from JSON
 def load_product_data():
     try:
         with open("data.json", "r", encoding="utf-8") as file:
@@ -35,18 +47,6 @@ def load_product_data():
             "specifications": {},
             "price": "N/A"
         }
-
-# Function to generate content using Azure OpenAI
-def generate_openai_content(section_title, prompt):
-    response = client.chat.completions.create(
-        model=os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME"),
-        messages=[
-            {"role": "system", "content": f"Generate structured content for {section_title}."},
-            {"role": "user", "content": prompt}
-        ],
-        max_tokens=500
-    )
-    return response.choices[0].message.content.strip()
 
 # Function to generate structured PDF
 def generate_pdf(product_data, content):
@@ -68,19 +68,16 @@ def generate_pdf(product_data, content):
     elements.append(Spacer(1, 0.3 * inch))
 
     # Generate content for each section
-    for section, prompt in content.items():
+    for section, section_content in content.items():
         elements.append(Paragraph(section, heading_style))  # Bold Section Title
-        section_content = generate_openai_content(section, prompt)
-
-        # Process content: remove unnecessary symbols and format
         lines = section_content.split("\n")
         formatted_lines = []
-        
+
         for line in lines:
             line = line.strip()
             # Remove symbols like "**", "-", "###", "##", "#"
             line = line.replace("**", "").replace("-", "").replace("###", "").replace("##", "").replace("#", "")
-            
+
             if ":" in line and not line.endswith(":"):  # Detects subheadings (e.g., "Product Overview:")
                 subheading, text = line.split(":", 1)
                 formatted_lines.append(Paragraph(subheading.strip(), subheading_style))  # Bold & big subheading
@@ -118,6 +115,14 @@ async def generate_manual():
     # Generate prompts for each section based on the product data
     content_prompts = generate_content_prompts(product_data)
 
-    # Generate structured PDF with Azure OpenAI content for each section
-    pdf_buffer = generate_pdf(product_data, content_prompts)
+    # Use DSPy to generate content for each section
+    generate_content = Predict(GenerateContent)
+    generated_content = {}
+
+    for section, prompt in content_prompts.items():
+        result = generate_content(section_title=section, prompt=prompt, temperature=0.7, max_tokens=500)
+        generated_content[section] = result.output
+
+    # Generate structured PDF with DSPy-generated content for each section
+    pdf_buffer = generate_pdf(product_data, generated_content)
     return StreamingResponse(pdf_buffer, media_type="application/pdf", headers={"Content-Disposition": "attachment; filename=user_manual.pdf"})
