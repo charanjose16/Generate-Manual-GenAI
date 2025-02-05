@@ -1,0 +1,45 @@
+{
+    "product": {
+      "part_number": "174611.00",
+      "catalog_number": "174611.00",
+      "name": "Leeson SM2 Vector NEMA 1 AC Drives",
+      "description": "Leeson SM2 Vector NEMA 1 AC Drives, 3 HP, 208-240 V, 9.6 Amps",
+      "weight": "3.90 LB",
+      "list_price": "$1,374.00",
+      "enclosure_protection": "NEMA® 1 IP31 Enclosure Protection",
+      "key_features": [
+        "Open loop flux vector designs",
+        "Easy to Use Keypad & Display",
+        "Optional remote keypad available",
+        "4 digit LED display",
+        "8 preset speeds",
+        "Process control: PID modes: direct or reverse acting",
+        "Real time monitoring: 8 register fault history, software version drive network ID, DC bus"
+      ],
+      "technical_specifications": {
+        "output_hp": "3 Hp",
+        "voltage": "208-240 V",
+        "phase": "SINGLE PHASE",
+        "protection": "IP20",
+        "output_amps": "9.6 A",
+        "enclosure_material": "Plastic",
+        "series": "Sub-Micro Series"
+      },
+      "general_specifications": {
+        "UPC": "691720365571",
+        "country_of_origin": "United States of America"
+      },
+      "certifications": "N/A",
+      "resources": {
+        "manual": "Operation Manual",
+        "datapack": "DataPack",
+        "performance": "Performance Specs",
+        "certification": "Certification Details"
+      },
+      "availability": {
+        "inventory_status": "Check Inventory",
+        "sales_contact": "Talk to one of our expert sales professionals"
+      }
+    }
+  }
+  
