@@ -1,5 +1,6 @@
 import os
 import json
+import re
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
 from io import BytesIO
@@ -54,7 +55,6 @@ def load_product_data():
     except json.JSONDecodeError as e:
         raise ValueError(f"Invalid JSON in data.json: {str(e)}")
 
-# Function to generate structured PDF
 def generate_pdf(product_data, content):
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter)
@@ -66,13 +66,12 @@ def generate_pdf(product_data, content):
     title_style.fontSize = 18
     title_style.leading = 22  # Line spacing for title
 
-    heading_style = ParagraphStyle("Heading", parent=styles["Heading2"], spaceAfter=12, fontSize=14, bold=True, alignment=1)
+    heading_style = ParagraphStyle("Heading", parent=styles["Heading2"], spaceAfter=8, fontSize=16, bold=True, alignment=1)
     heading_style.fontName = 'Helvetica-Bold'
     heading_style.leading = 18  # Line spacing for headings
     heading_style.textColor = "black"
 
-    # Subheading style: bold, lowercase with capitalized first letter
-    subheading_style = ParagraphStyle("Subheading", parent=styles["Heading3"], spaceAfter=8, fontSize=12, bold=True, alignment=0)
+    subheading_style = ParagraphStyle("Subheading", parent=styles["Heading3"], spaceAfter=6, fontSize=12, bold=True, italic=True, alignment=0)
     subheading_style.fontName = 'Helvetica-Bold'
     subheading_style.leading = 14  # Line spacing for subheadings
 
@@ -80,37 +79,54 @@ def generate_pdf(product_data, content):
     body_style.fontSize = 10
     body_style.leading = 12  # Line spacing for body text
 
+    index_style = ParagraphStyle("Index", parent=styles["BodyText"], spaceAfter=6, fontSize=12, alignment=0)
+    index_style.fontName = 'Helvetica'
+    index_style.leading = 12  # Line spacing for index
+
     elements = []
 
     # Title & Description
-    elements.append(Paragraph(f"USER MANUAL FOR {product_data.get('product_name', 'UNKNOWN PRODUCT')}", title_style))
+    elements.append(Paragraph(f"USER MANUAL FOR {product_data.get('product_name', 'Leeson SM2 Vector NEMA 1 AC Drives')}", title_style))
     elements.append(Spacer(1, 0.3 * inch))
-    elements.append(Paragraph(f"Description: {product_data.get('description', 'No description available')}", body_style))
-    elements.append(Spacer(1, 0.5 * inch))
+ 
 
-    # Generate content for each section
+    # Index with Main Topics Only (No Subtopics)
+    elements.append(Paragraph("INDEX", heading_style))
+    elements.append(Spacer(1, 0.1 * inch))
+
     for section, section_content in content.items():
-        elements.append(PageBreak())  # Start each heading on a new page
+        # Only add main topics (No subtopics or section numbering)
+        elements.append(Paragraph(section.split('.')[0] + ". " + section.split(' ', 1)[1], index_style))  # Add main section (without subtopic numbering)
+
+    elements.append(PageBreak())  # Start content on a new page after the index
+
+    # Generate content for each section (Remove subtopic numbering and only bold+italicize subtopics)
+    for section, section_content in content.items():
         elements.append(Paragraph(section.upper(), heading_style))  # Uppercase Section Title
         lines = section_content.split("\n")
         formatted_lines = []
+        subheading_counter = 1  # Counter for subtopics within each section
+
         for line in lines:
             line = line.strip()
-            # Remove symbols like "**", "-", "###", "##", "#"
+            # Remove symbols like "**", "-", "###", "##", "#", and remove any numbering
             line = line.replace("**", "").replace("-", "").replace("###", "").replace("##", "").replace("#", "")
-            if ":" in line and not line.endswith(":"):  # Detects subheadings (e.g., "Product Overview:")
+            # Remove any leading numbers that might have been incorrectly added
+            line = re.sub(r'^\d+\.', '', line).strip()  # This will remove any numbers like "1.", "2.", etc.
+
+            if ":" in line and not line.endswith(":"):  # Detect subtopics
                 try:
                     subheading, text = line.split(":", 1)
-                    formatted_subheading = subheading.strip().lower().capitalize()  # Capitalize the first letter of subheading
-                    formatted_lines.append(Paragraph(formatted_subheading, subheading_style))  # Bold & formatted subheading
+                    # Remove subtopic numbering and keep only the subheading text
+                    formatted_subheading = f"{subheading.strip().lower().capitalize()}"
+                    formatted_lines.append(Paragraph(formatted_subheading, subheading_style))  # Bold & Italicized subtopic
                     formatted_lines.append(Paragraph(text.strip(), body_style))  # Normal body text
                 except ValueError:
-                    # Fallback if splitting fails
-                    formatted_lines.append(Paragraph(line, body_style))
+                    formatted_lines.append(Paragraph(line, body_style))  # In case of split failure
             else:
                 formatted_lines.append(Paragraph(line, body_style))  # Regular body text
         elements.extend(formatted_lines)
-        elements.append(Spacer(1, 0.2 * inch))  # Space between sections
+        elements.append(PageBreak())  # Start each section on a new page
 
     # Add page numbers
     def add_page_number(canvas, doc):
@@ -120,6 +136,10 @@ def generate_pdf(product_data, content):
 
     buffer.seek(0)
     return buffer
+
+
+
+
 
 # Define the content prompts for each section
 def generate_content_prompts(product_data):
