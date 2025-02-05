@@ -1,6 +1,6 @@
 import os
 import json
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
 from io import BytesIO
 from dotenv import load_dotenv
@@ -18,21 +18,25 @@ load_dotenv()
 # FastAPI app
 app = FastAPI()
 
-lm = dspy.LM(
-    model="azure/" + os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME"),  # Specify Azure as the provider
-    api_key=os.getenv("AZURE_OPENAI_API_KEY"),
-    api_base=os.getenv("AZURE_OPENAI_ENDPOINT"),
-    temperature=0.7,
-    max_tokens=4096,
-)
-dspy.configure(lm=lm)
+# Configure DSPy with Azure OpenAI
+try:
+    lm = dspy.LM(
+        model="azure/" + os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME"),
+        api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+        api_base=os.getenv("AZURE_OPENAI_ENDPOINT"),
+        temperature=0.7,
+        max_tokens=4096,
+    )
+    dspy.configure(lm=lm)
+except Exception as e:
+    raise RuntimeError(f"Failed to configure DSPy: {str(e)}")
 
 # Define a signature for generating structured content
 class GenerateContent(Signature):
     """Generate structured content for a specific section."""
-    section_title: str = InputField(desc="Title of the section")  # Use InputField for input fields
-    prompt: str = InputField(desc="Prompt for generating content")  # Use InputField for input fields
-    output: str = OutputField(desc="Generated content")  # Use OutputField for output fields
+    section_title: str = InputField(desc="Title of the section")
+    prompt: str = InputField(desc="Prompt for generating content")
+    output: str = OutputField(desc="Generated content")
 
 # Function to load product data from JSON
 def load_product_data():
@@ -47,6 +51,8 @@ def load_product_data():
             "specifications": {},
             "price": "N/A"
         }
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Invalid JSON in data.json: {str(e)}")
 
 # Function to generate structured PDF
 def generate_pdf(product_data, content):
@@ -72,24 +78,29 @@ def generate_pdf(product_data, content):
         elements.append(Paragraph(section, heading_style))  # Bold Section Title
         lines = section_content.split("\n")
         formatted_lines = []
-
         for line in lines:
             line = line.strip()
             # Remove symbols like "**", "-", "###", "##", "#"
             line = line.replace("**", "").replace("-", "").replace("###", "").replace("##", "").replace("#", "")
-
             if ":" in line and not line.endswith(":"):  # Detects subheadings (e.g., "Product Overview:")
-                subheading, text = line.split(":", 1)
-                formatted_lines.append(Paragraph(subheading.strip(), subheading_style))  # Bold & big subheading
-                formatted_lines.append(Paragraph(text.strip(), body_style))  # Normal body text
+                try:
+                    subheading, text = line.split(":", 1)
+                    formatted_lines.append(Paragraph(subheading.strip(), subheading_style))  # Bold & big subheading
+                    formatted_lines.append(Paragraph(text.strip(), body_style))  # Normal body text
+                except ValueError:
+                    # Fallback if splitting fails
+                    formatted_lines.append(Paragraph(line, body_style))
             else:
                 formatted_lines.append(Paragraph(line, body_style))  # Regular body text
-
         elements.extend(formatted_lines)
         elements.append(Spacer(1, 0.2 * inch))  # Space between sections
 
     # Build the PDF
-    doc.build(elements)
+    try:
+        doc.build(elements)
+    except Exception as e:
+        raise RuntimeError(f"Failed to build PDF: {str(e)}")
+
     buffer.seek(0)
     return buffer
 
@@ -109,20 +120,24 @@ def generate_content_prompts(product_data):
 # API Endpoint to generate the user manual PDF
 @app.get("/generate-manual")
 async def generate_manual():
-    # Load product data from JSON
-    product_data = load_product_data()
+    try:
+        # Load product data from JSON
+        product_data = load_product_data()
 
-    # Generate prompts for each section based on the product data
-    content_prompts = generate_content_prompts(product_data)
+        # Generate prompts for each section based on the product data
+        content_prompts = generate_content_prompts(product_data)
 
-    # Use DSPy to generate content for each section
-    generate_content = Predict(GenerateContent)
-    generated_content = {}
+        # Use DSPy to generate content for each section
+        generate_content = Predict(GenerateContent)
+        generated_content = {}
+        for section, prompt in content_prompts.items():
+            result = generate_content(section_title=section, prompt=prompt, temperature=0.7, max_tokens=500)
+            generated_content[section] = result.output
 
-    for section, prompt in content_prompts.items():
-        result = generate_content(section_title=section, prompt=prompt, temperature=0.7, max_tokens=500)
-        generated_content[section] = result.output
+        # Generate structured PDF with DSPy-generated content for each section
+        pdf_buffer = generate_pdf(product_data, generated_content)
 
-    # Generate structured PDF with DSPy-generated content for each section
-    pdf_buffer = generate_pdf(product_data, generated_content)
-    return StreamingResponse(pdf_buffer, media_type="application/pdf", headers={"Content-Disposition": "attachment; filename=user_manual.pdf"})
+        # Stream the PDF back to the client
+        return StreamingResponse(pdf_buffer, media_type="application/pdf", headers={"Content-Disposition": "attachment; filename=user_manual.pdf"})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
