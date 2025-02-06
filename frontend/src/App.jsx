@@ -14,11 +14,17 @@ function App() {
     setError('');
 
     try {
-      // Call the FastAPI endpoint
-      const response = await axios.get('http://localhost:8000/generate-manual', {
-        params: { product_name: productName, summary },
-        responseType: 'blob', // Important for handling binary data (PDF)
-      });
+      // Call the FastAPI endpoint using POST
+      const response = await axios.post(
+        'http://localhost:8000/generate-manual', // Endpoint URL
+        {
+          product_name: productName,
+          summary,
+        },
+        {
+          responseType: 'blob', // Important for handling binary data (PDF)
+        }
+      );
 
       // Create a download link for the PDF
       const url = window.URL.createObjectURL(new Blob([response.data]));
@@ -41,7 +47,6 @@ function App() {
     <div className="app-container">
       <h1>User Manual Generator</h1>
       <p>Create a professional user manual in PDF format by providing the product details below.</p>
-
       <form onSubmit={handleSubmit} className="form-container">
         <div className="input-group">
           <label htmlFor="product-name">Product Name:</label>
@@ -54,7 +59,6 @@ function App() {
             required
           />
         </div>
-
         <div className="input-group">
           <label htmlFor="summary">Product Summary:</label>
           <textarea
@@ -66,9 +70,7 @@ function App() {
             required
           />
         </div>
-
         {error && <p className="error-message">{error}</p>}
-
         <button type="submit" disabled={loading}>
           {loading ? 'Generating Manual...' : 'Generate Manual'}
         </button>

@@ -1,6 +1,6 @@
 import os
 import logging
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
 from io import BytesIO
 from dotenv import load_dotenv
@@ -14,6 +14,8 @@ from reportlab.lib.units import inch
 from reportlab.lib import colors
 import re
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
+from reportlab.platypus import Paragraph
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -33,6 +35,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Pydantic model for input validation
+class ProductData(BaseModel):
+    product_name: str = Field(..., description="Name of the product", min_length=1)
+    summary: str = Field(..., description="Brief summary of the product", min_length=1)
 
 # Configure DSPy with Azure OpenAI
 try:
@@ -56,17 +63,18 @@ class GenerateContent(Signature):
     prompt: str = InputField(desc="Prompt for generating content")
     output: str = OutputField(desc="Generated content")
 
+
 class GenerateSpecifications(Signature):
     """Generate technical specifications for a product."""
     product_name: str = InputField(desc="Name of the product")
     product_summary: str = InputField(desc="Summary of the product")
     output: str = OutputField(desc="Generated specifications in structured format")
 
+
 def parse_specifications(specs_text):
     """Parse the AI-generated specifications into a structured format."""
     specs_dict = {}
     current_category = None
-    
     for line in specs_text.split('\n'):
         line = line.strip()
         if line:
@@ -75,17 +83,30 @@ def parse_specifications(specs_text):
                 key = key.strip()
                 value = value.strip()
                 specs_dict[key] = value
-    
     return specs_dict
 
 def format_specifications_table(specs_dict):
-    """Format specifications into a table-friendly structure."""
+    """Format specifications into a table-friendly structure with text wrapping."""
+    # Define a style for table cells
+    table_cell_style = ParagraphStyle(
+        "TableCell",
+        parent=getSampleStyleSheet()["BodyText"],
+        fontSize=10,
+        leading=12,
+        textColor=colors.black,
+        wordWrap="CJK"  # Enables automatic text wrapping
+    )
+
+    # Create table data with Paragraph objects
     table_data = [["Specification", "Value"]]  # Header row
-    
     for key, value in specs_dict.items():
-        table_data.append([key, value])
-    
+        # Wrap both the key and value in Paragraph objects
+        wrapped_key = Paragraph(key, table_cell_style)
+        wrapped_value = Paragraph(value, table_cell_style)
+        table_data.append([wrapped_key, wrapped_value])
+
     return table_data
+
 
 def generate_pdf(product_data, content):
     buffer = BytesIO()
@@ -101,7 +122,6 @@ def generate_pdf(product_data, content):
         textColor=colors.HexColor("#004080"),
         fontName='Helvetica-Bold'
     )
-
     heading_style = ParagraphStyle(
         "CustomHeading",
         parent=styles["Heading2"],
@@ -112,7 +132,6 @@ def generate_pdf(product_data, content):
         spaceAfter=12,
         alignment=1
     )
-
     subheading_style = ParagraphStyle(
         "CustomSubheading",
         parent=styles["Heading3"],
@@ -123,7 +142,6 @@ def generate_pdf(product_data, content):
         spaceAfter=8,
         spaceBefore=12
     )
-
     body_style = ParagraphStyle(
         "CustomBody",
         parent=styles["BodyText"],
@@ -131,7 +149,6 @@ def generate_pdf(product_data, content):
         leading=14,
         textColor=colors.black
     )
-
     toc_style = ParagraphStyle(
         "TOCEntry",
         parent=styles["Normal"],
@@ -158,23 +175,22 @@ def generate_pdf(product_data, content):
         ('LEFTPADDING', (0, 0), (-1, -1), 8),
         ('RIGHTPADDING', (0, 0), (-1, -1), 8),
     ])
-
     spec_table_style = TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#0066CC")),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, 0), 12),
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-        ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor("#F0F8FF")),
-        ('GRID', (0, 0), (-1, -1), 1, colors.HexColor("#CCCCCC")),
-        ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
-        ('FONTSIZE', (0, 1), (-1, -1), 10),
-        ('TOPPADDING', (0, 0), (-1, -1), 6),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
-        ('LEFTPADDING', (0, 0), (-1, -1), 8),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 8),
-    ])
+    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#0066CC")),  # Header background color
+    ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),  # Header text color
+    ('ALIGN', (0, 0), (-1, -1), 'LEFT'),  # Align all text to the left
+    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),  # Bold font for headers
+    ('FONTSIZE', (0, 0), (-1, 0), 12),  # Font size for headers
+    ('BOTTOMPADDING', (0, 0), (-1, 0), 12),  # Padding below headers
+    ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor("#F0F8FF")),  # Cell background color
+    ('GRID', (0, 0), (-1, -1), 1, colors.HexColor("#CCCCCC")),  # Grid lines
+    ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),  # Font for cells
+    ('FONTSIZE', (0, 1), (-1, -1), 10),  # Font size for cells
+    ('TOPPADDING', (0, 0), (-1, -1), 6),  # Top padding for all cells
+    ('BOTTOMPADDING', (0, 0), (-1, -1), 6),  # Bottom padding for all cells
+    ('LEFTPADDING', (0, 0), (-1, -1), 8),  # Left padding for all cells
+    ('RIGHTPADDING', (0, 0), (-1, -1), 8),  # Right padding for all cells
+])
 
     elements = []
 
@@ -185,7 +201,6 @@ def generate_pdf(product_data, content):
     # Generate Table of Contents
     toc_data = [["Table of Contents", "Page"]]
     page_number = 2  # Start from page 2 since page 1 is title and TOC
-    
     for section in content.keys():
         toc_data.append([section, str(page_number)])
         # Estimate one page per section (adjust if needed)
@@ -199,7 +214,6 @@ def generate_pdf(product_data, content):
     # Generate content for each section
     for section, section_content in content.items():
         elements.append(Paragraph(section.upper(), heading_style))
-        
         if "Product Specifications" in section:
             # Parse specifications and create table
             specs_dict = parse_specifications(section_content)
@@ -218,13 +232,12 @@ def generate_pdf(product_data, content):
                     if ":" in line and not line.endswith(":"):
                         try:
                             subheading, text = line.split(":", 1)
-                            elements.append(Paragraph(f"<b>{subheading.strip().capitalize()}</b>", subheading_style))
+                            elements.append(Paragraph(f"{subheading.strip().capitalize()}", subheading_style))
                             elements.append(Paragraph(text.strip(), body_style))
                         except ValueError:
                             elements.append(Paragraph(line, body_style))
                     else:
                         elements.append(Paragraph(line, body_style))
-        
         elements.append(PageBreak())
 
     # Add page numbers
@@ -238,80 +251,68 @@ def generate_pdf(product_data, content):
     buffer.seek(0)
     return buffer
 
+
 def generate_content_prompts(product_data):
     product_name = product_data["product_name"]
     summary = product_data["summary"]
-
     return {
         "1. Introduction": f"Write a structured introduction for the following product: {product_name}. Summary: {summary}. Include subheadings for Product Overview and Key Features.",
-        
         "2. Product Specifications": f"""Generate comprehensive technical specifications for: {product_name}. Summary: {summary}.
         Include the following categories with specific values (use realistic ranges based on the product type):
-        - Model Number
-        - Power Specifications (include both KW and HP)
-        - Input/Output Specifications
-        - Physical Dimensions
-        - Operating Parameters
-        - Compatibility Information
+        Model Number
+        Power Specifications (include both KW and HP)
+        Input/Output Specifications
+        Physical Dimensions
+        Operating Parameters
+        Compatibility Information
         Format each specification as 'Category: Value' on a new line.""",
-        
         "3. Safety Information": f"Provide detailed safety guidelines for: {product_name}. Summary: {summary}. Include General Warnings and Safety Precautions.",
-        
         "4. Setup Instructions": f"Create step-by-step setup instructions for: {product_name}. Summary: {summary}. Include Installation and Configuration steps.",
-        
         "5. Operation Instructions": f"Explain operation procedures for: {product_name}. Summary: {summary}. Include Basic Operation and Advanced Features.",
-        
         "6. Maintenance and Care": f"Provide maintenance guidelines for: {product_name}. Summary: {summary}. Include Routine Maintenance and Cleaning Procedures.",
-        
         "7. Troubleshooting": f"Create a troubleshooting guide for: {product_name}. Summary: {summary}. Include Common Issues and Solutions.",
-        
         "8. FAQ": f"Generate frequently asked questions about: {product_name}. Summary: {summary}. Cover Usage, Maintenance, and Support.",
-        
         "9. Warranty Information": f"Provide warranty details for: {product_name}. Summary: {summary}. Include Coverage Details and Claim Process."
     }
 
-@app.get("/generate-manual")
-async def generate_manual(
-    product_name: str = Query(..., description="Name of the product"),
-    summary: str = Query(..., description="Brief summary of the product")
-):
+
+@app.post("/generate-manual")
+async def generate_manual(product_data: ProductData):
     try:
-        logger.info(f"Starting manual generation for {product_name}")
-        
-        product_data = {
-            "product_name": product_name,
-            "summary": summary
-        }
-        
-        content_prompts = generate_content_prompts(product_data)
+        logger.info(f"Starting manual generation for {product_data.product_name}")
+
+        # Generate content prompts based on validated product data
+        content_prompts = generate_content_prompts(product_data.dict())
+
+        # Initialize the content generation process
         generate_content = Predict(GenerateContent)
         generated_content = {}
-        
+
         for section, prompt in content_prompts.items():
             logger.info(f"Generating content for section: {section}")
-            
             result = generate_content(
                 section_title=section,
                 prompt=prompt,
                 temperature=0.7,
                 max_tokens=1000
             )
-            
             generated_content[section] = result.output
             logger.info(f"Completed content generation for section: {section}")
-        
-        pdf_buffer = generate_pdf(product_data, generated_content)
-        
+
+        # Generate the PDF
+        pdf_buffer = generate_pdf(product_data.dict(), generated_content)
+
         return StreamingResponse(
             pdf_buffer,
             media_type="application/pdf",
             headers={"Content-Disposition": "attachment; filename=user_manual.pdf"}
         )
-    
+
     except Exception as e:
         logger.error(f"Error generating manual: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app)
