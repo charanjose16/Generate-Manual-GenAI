@@ -8,18 +8,23 @@ import dspy
 from dspy import InputField, OutputField
 from dspy import Example, Signature, ChainOfThought, Predict
 from reportlab.lib.pagesizes import letter, mm
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak, Table, TableStyle, Image
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak, Table, TableStyle
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 from reportlab.lib import colors
 import re
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-from reportlab.platypus import Paragraph
+from bs4 import BeautifulSoup
+import requests
+from requests.packages.urllib3.exceptions import InsecureRequestWarning
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+# Suppress SSL warnings
+requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
 # Load environment variables
 load_dotenv()
@@ -38,8 +43,11 @@ app.add_middleware(
 
 # Pydantic model for input validation
 class ProductData(BaseModel):
-    product_name: str = Field(..., description="Name of the product", min_length=1)
-    summary: str = Field(..., description="Brief summary of the product", min_length=1)
+    website_link: str = Field(
+        ...,
+        description="Website link of the product",
+        pattern=r"^https?://"
+    )
 
 # Configure DSPy with Azure OpenAI
 try:
@@ -63,50 +71,95 @@ class GenerateContent(Signature):
     prompt: str = InputField(desc="Prompt for generating content")
     output: str = OutputField(desc="Generated content")
 
+def scrape_product_data(url):
+    try:
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Referer": "https://www.google.com/"
+        }
+        response = requests.get(url, headers=headers, verify=False)  # Disable SSL verification
+        response.raise_for_status()
+        soup = BeautifulSoup(response.content, 'html.parser')
 
-class GenerateSpecifications(Signature):
-    """Generate technical specifications for a product."""
-    product_name: str = InputField(desc="Name of the product")
-    product_summary: str = InputField(desc="Summary of the product")
-    output: str = OutputField(desc="Generated specifications in structured format")
+        # Extract product name
+        product_name = soup.find('h1').get_text(strip=True) if soup.find('h1') else "Unknown Product"
 
+        # Extract summary (if available)
+        summary = soup.find('div', class_='product-summary').get_text(strip=True) if soup.find('div', class_='product-summary') else ""
+
+        # Extract Key Features
+        key_features = []
+        key_features_container = soup.find('div', class_='product-info')
+        if key_features_container:
+            feature_list = key_features_container.find('ul')
+            if feature_list:
+                features = feature_list.find_all('li')
+                for feature in features:
+                    key_features.append(feature.get_text(strip=True))
+
+        # Extract Technical Specifications
+        technical_specs = {}
+        tech_specs_table = soup.find('div', id='tab-0').find('table', class_='specifications-table')
+        if tech_specs_table:
+            for row in tech_specs_table.find_all('tr'):
+                cols = row.find_all('td')
+                if len(cols) == 4:  # Two key-value pairs per row
+                    key1 = cols[0].get_text(strip=True).rstrip(":")
+                    value1 = cols[1].get_text(strip=True)
+                    key2 = cols[2].get_text(strip=True).rstrip(":")
+                    value2 = cols[3].get_text(strip=True)
+                    technical_specs[key1] = value1
+                    technical_specs[key2] = value2
+
+        # Extract General Specifications
+        general_specs = {}
+        general_specs_table = soup.find('div', id='tab-1').find('table', class_='specifications-table')
+        if general_specs_table:
+            for row in general_specs_table.find_all('tr'):
+                cols = row.find_all('td')
+                if len(cols) == 2:  # One key-value pair per row
+                    key = cols[0].get_text(strip=True).rstrip(":")
+                    value = cols[1].get_text(strip=True)
+                    general_specs[key] = value
+
+        return {
+            "product_name": product_name,
+            "summary": summary,
+            "key_features": key_features,
+            "technical_specifications": technical_specs,
+            "general_specifications": general_specs
+        }
+    except Exception as e:
+        logger.error(f"Error scraping product data: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to scrape product data.")
 
 def parse_specifications(specs_text):
     """Parse the AI-generated specifications into a structured format."""
     specs_dict = {}
-    current_category = None
     for line in specs_text.split('\n'):
         line = line.strip()
-        if line:
-            if ':' in line:
-                key, value = line.split(':', 1)
-                key = key.strip()
-                value = value.strip()
-                specs_dict[key] = value
+        if line and ":" in line:
+            key, value = line.split(":", 1)
+            specs_dict[key.strip()] = value.strip()
     return specs_dict
 
 def format_specifications_table(specs_dict):
     """Format specifications into a table-friendly structure with text wrapping."""
-    # Define a style for table cells
     table_cell_style = ParagraphStyle(
         "TableCell",
         parent=getSampleStyleSheet()["BodyText"],
         fontSize=10,
         leading=12,
         textColor=colors.black,
-        wordWrap="CJK"  # Enables automatic text wrapping
+        wordWrap="CJK"
     )
-
-    # Create table data with Paragraph objects
-    table_data = [["Specification", "Value"]]  # Header row
+    table_data = [["Specification", "Value"]]
     for key, value in specs_dict.items():
-        # Wrap both the key and value in Paragraph objects
         wrapped_key = Paragraph(key, table_cell_style)
         wrapped_value = Paragraph(value, table_cell_style)
         table_data.append([wrapped_key, wrapped_value])
-
     return table_data
-
 
 def generate_pdf(product_data, content):
     buffer = BytesIO()
@@ -149,65 +202,27 @@ def generate_pdf(product_data, content):
         leading=14,
         textColor=colors.black
     )
-    toc_style = ParagraphStyle(
-        "TOCEntry",
-        parent=styles["Normal"],
-        fontSize=12,
-        leading=18,
-        textColor=colors.HexColor("#333333"),
-        fontName='Helvetica'
-    )
 
-    # Table styles
-    toc_table_style = TableStyle([
+    elements = []
+    elements.append(Paragraph(f"USER MANUAL FOR {product_data.get('product_name', 'Unknown Product')}", title_style))
+    elements.append(Spacer(1, 0.5 * inch))
+
+    # Generate Table of Contents
+    toc_data = [["Table of Contents", "Page"]]
+    page_number = 2
+    for section in content.keys():
+        toc_data.append([section, str(page_number)])
+        page_number += 1
+    toc_table = Table(toc_data, colWidths=[400, 100])
+    toc_table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#0066CC")),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
         ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
         ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
         ('FONTSIZE', (0, 0), (-1, 0), 14),
         ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-        ('BACKGROUND', (0, 1), (-1, -1), colors.white),
         ('GRID', (0, 0), (-1, -1), 1, colors.HexColor("#CCCCCC")),
-        ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
-        ('FONTSIZE', (0, 1), (-1, -1), 12),
-        ('TOPPADDING', (0, 0), (-1, -1), 6),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
-        ('LEFTPADDING', (0, 0), (-1, -1), 8),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 8),
-    ])
-    spec_table_style = TableStyle([
-    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#0066CC")),  # Header background color
-    ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),  # Header text color
-    ('ALIGN', (0, 0), (-1, -1), 'LEFT'),  # Align all text to the left
-    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),  # Bold font for headers
-    ('FONTSIZE', (0, 0), (-1, 0), 12),  # Font size for headers
-    ('BOTTOMPADDING', (0, 0), (-1, 0), 12),  # Padding below headers
-    ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor("#F0F8FF")),  # Cell background color
-    ('GRID', (0, 0), (-1, -1), 1, colors.HexColor("#CCCCCC")),  # Grid lines
-    ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),  # Font for cells
-    ('FONTSIZE', (0, 1), (-1, -1), 10),  # Font size for cells
-    ('TOPPADDING', (0, 0), (-1, -1), 6),  # Top padding for all cells
-    ('BOTTOMPADDING', (0, 0), (-1, -1), 6),  # Bottom padding for all cells
-    ('LEFTPADDING', (0, 0), (-1, -1), 8),  # Left padding for all cells
-    ('RIGHTPADDING', (0, 0), (-1, -1), 8),  # Right padding for all cells
-])
-
-    elements = []
-
-    # Title
-    elements.append(Paragraph(f"USER MANUAL FOR {product_data.get('product_name', 'Unknown Product')}", title_style))
-    elements.append(Spacer(1, 0.5 * inch))
-
-    # Generate Table of Contents
-    toc_data = [["Table of Contents", "Page"]]
-    page_number = 2  # Start from page 2 since page 1 is title and TOC
-    for section in content.keys():
-        toc_data.append([section, str(page_number)])
-        # Estimate one page per section (adjust if needed)
-        page_number += 1
-
-    toc_table = Table(toc_data, colWidths=[400, 100])
-    toc_table.setStyle(toc_table_style)
+    ]))
     elements.append(toc_table)
     elements.append(PageBreak())
 
@@ -215,15 +230,21 @@ def generate_pdf(product_data, content):
     for section, section_content in content.items():
         elements.append(Paragraph(section.upper(), heading_style))
         if "Product Specifications" in section:
-            # Parse specifications and create table
             specs_dict = parse_specifications(section_content)
             table_data = format_specifications_table(specs_dict)
             table = Table(table_data, colWidths=[200, 300])
-            table.setStyle(spec_table_style)
+            table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#0066CC")),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 12),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('GRID', (0, 0), (-1, -1), 1, colors.HexColor("#CCCCCC")),
+            ]))
             elements.append(table)
             elements.append(Spacer(1, 0.2 * inch))
         else:
-            # Process regular content
             lines = section_content.split("\n")
             for line in lines:
                 line = line.strip()
@@ -240,7 +261,6 @@ def generate_pdf(product_data, content):
                         elements.append(Paragraph(line, body_style))
         elements.append(PageBreak())
 
-    # Add page numbers
     def add_page_number(canvas, doc):
         canvas.saveState()
         canvas.setFont('Helvetica', 10)
@@ -251,43 +271,60 @@ def generate_pdf(product_data, content):
     buffer.seek(0)
     return buffer
 
-
 def generate_content_prompts(product_data):
     product_name = product_data["product_name"]
     summary = product_data["summary"]
+    key_features = product_data.get("key_features", [])
+    specifications = product_data.get("specifications", {})
+
+    # Format key features as a bullet list
+    key_features_text = "\n".join([f"- {feature}" for feature in key_features])
+
+    # Format specifications as "Category: Value"
+    specs_text = "\n".join([f"{key}: {value}" for key, value in specifications.items()])
+
     return {
         "1. Introduction": f"Write a structured introduction for the following product: {product_name}. Summary: {summary}. Include subheadings for Product Overview and Key Features.",
-        "2. Product Specifications": f"""Generate comprehensive technical specifications for: {product_name}. Summary: {summary}.
-        Include the following categories with specific values (use realistic ranges based on the product type):
-        Model Number
-        Power Specifications (include both KW and HP)
-        Input/Output Specifications
-        Physical Dimensions
-        Operating Parameters
-        Compatibility Information
-        Format each specification as 'Category: Value' on a new line.""",
-        "3. Safety Information": f"Provide detailed safety guidelines for: {product_name}. Summary: {summary}. Include General Warnings and Safety Precautions.",
-        "4. Setup Instructions": f"Create step-by-step setup instructions for: {product_name}. Summary: {summary}. Include Installation and Configuration steps.",
-        "5. Operation Instructions": f"Explain operation procedures for: {product_name}. Summary: {summary}. Include Basic Operation and Advanced Features.",
-        "6. Maintenance and Care": f"Provide maintenance guidelines for: {product_name}. Summary: {summary}. Include Routine Maintenance and Cleaning Procedures.",
-        "7. Troubleshooting": f"Create a troubleshooting guide for: {product_name}. Summary: {summary}. Include Common Issues and Solutions.",
-        "8. FAQ": f"Generate frequently asked questions about: {product_name}. Summary: {summary}. Cover Usage, Maintenance, and Support.",
-        "9. Warranty Information": f"Provide warranty details for: {product_name}. Summary: {summary}. Include Coverage Details and Claim Process."
+        "2. Key Features": f"List the key features of the product: {product_name}. Here are some extracted features:\n{key_features_text}",
+        "3. Product Specifications": f"Generate comprehensive technical specifications for: {product_name}. Summary: {summary}.\nHere are some extracted specifications:\n{specs_text}",
+        "4. Safety Information": f"Provide detailed safety guidelines for: {product_name}. Summary: {summary}. Include General Warnings and Safety Precautions.",
+        "5. Setup Instructions": f"Create step-by-step setup instructions for: {product_name}. Summary: {summary}. Include Installation and Configuration steps.",
+        "6. Operation Instructions": f"Explain operation procedures for: {product_name}. Summary: {summary}. Include Basic Operation and Advanced Features.",
+        "7. Maintenance and Care": f"Provide maintenance guidelines for: {product_name}. Summary: {summary}. Include Routine Maintenance and Cleaning Procedures.",
+        "8. Troubleshooting": f"Create a troubleshooting guide for: {product_name}. Summary: {summary}. Include Common Issues and Solutions.",
+        "9. FAQ": f"Generate frequently asked questions about: {product_name}. Summary: {summary}. Cover Usage, Maintenance, and Support.",
+        "10. Warranty Information": f"Provide warranty details for: {product_name}. Summary: {summary}. Include Coverage Details and Claim Process."
     }
-
 
 @app.post("/generate-manual")
 async def generate_manual(product_data: ProductData):
     try:
-        logger.info(f"Starting manual generation for {product_data.product_name}")
+        logger.info(f"Starting manual generation for {product_data.website_link}")
 
-        # Generate content prompts based on validated product data
-        content_prompts = generate_content_prompts(product_data.dict())
+        # Scrape product data from the provided link
+        scraped_data = scrape_product_data(product_data.website_link)
+
+        # Use scraped data for product name, summary, and other details
+        product_name = scraped_data["product_name"]
+        summary = scraped_data["summary"]
+        key_features = scraped_data["key_features"]
+        technical_specs = scraped_data["technical_specifications"]
+        general_specs = scraped_data["general_specifications"]
+
+        # Combine technical and general specifications into a single dictionary
+        all_specs = {**technical_specs, **general_specs}
+
+        # Generate content prompts based on scraped data
+        content_prompts = generate_content_prompts({
+            "product_name": product_name,
+            "summary": summary,
+            "key_features": key_features,
+            "specifications": all_specs
+        })
 
         # Initialize the content generation process
         generate_content = Predict(GenerateContent)
         generated_content = {}
-
         for section, prompt in content_prompts.items():
             logger.info(f"Generating content for section: {section}")
             result = generate_content(
@@ -300,18 +337,21 @@ async def generate_manual(product_data: ProductData):
             logger.info(f"Completed content generation for section: {section}")
 
         # Generate the PDF
-        pdf_buffer = generate_pdf(product_data.dict(), generated_content)
+        pdf_buffer = generate_pdf({
+            "product_name": product_name,
+            "summary": summary,
+            "key_features": key_features,
+            "specifications": all_specs
+        }, generated_content)
 
         return StreamingResponse(
             pdf_buffer,
             media_type="application/pdf",
             headers={"Content-Disposition": "attachment; filename=user_manual.pdf"}
         )
-
     except Exception as e:
         logger.error(f"Error generating manual: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
-
 
 if __name__ == "__main__":
     import uvicorn
