@@ -5,5 +5,4 @@ reportlab
 beautifulsoup4
 requests
 uvicorn
-googletrans==3.1.0a0
 pydantic
