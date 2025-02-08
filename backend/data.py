@@ -48,6 +48,10 @@ class ProductData(BaseModel):
         description="Website link of the product",
         pattern=r"^https?://"
     )
+    language: str = Field(
+        default="en",
+        description="Target language for the manual (e.g., 'en', 'es', 'fr', 'de', 'it')"
+    )
 
 # Configure DSPy with Azure OpenAI
 try:
@@ -66,10 +70,92 @@ except Exception as e:
 
 # Define signatures for content generation
 class GenerateContent(Signature):
-    """Generate structured content for a specific section."""
+    """Generate structured content for a specific section in the specified language."""
     section_title: str = InputField(desc="Title of the section")
     prompt: str = InputField(desc="Prompt for generating content")
-    output: str = OutputField(desc="Generated content")
+    language: str = InputField(desc="Target language for content generation")
+    output: str = OutputField(desc="Generated content in specified language")
+
+def get_language_texts(language):
+    """Return language-specific texts for UI elements."""
+    texts = {
+        "en": {
+            "title": "USER MANUAL FOR",
+            "toc": "Table of Contents",
+            "page": "Page",
+            "introduction": "Introduction",
+            "key_features": "Key Features",
+            "technical_specifications": "Technical Specifications",
+            "safety_information": "Safety Information",
+            "setup_instructions": "Setup Instructions",
+            "operation_instructions": "Operation Instructions",
+            "maintenance_and_care": "Maintenance and Care",
+            "troubleshooting": "Troubleshooting",
+            "faq": "FAQ",
+            "warranty_information": "Warranty Information"
+        },
+        "es": {
+            "title": "MANUAL DE USUARIO PARA",
+            "toc": "Índice de Contenidos",
+            "page": "Página",
+            "introduction": "Introducción",
+            "key_features": "Características Principales",
+            "technical_specifications": "Especificaciones Técnicas",
+            "safety_information": "Información de Seguridad",
+            "setup_instructions": "Instrucciones de Configuración",
+            "operation_instructions": "Instrucciones de Operación",
+            "maintenance_and_care": "Mantenimiento y Cuidado",
+            "troubleshooting": "Solución de Problemas",
+            "faq": "Preguntas Frecuentes",
+            "warranty_information": "Información de Garantía"
+        },
+        "fr": {
+            "title": "MANUEL D'UTILISATION POUR",
+            "toc": "Table des Matières",
+            "page": "Page",
+            "introduction": "Introduction",
+            "key_features": "Caractéristiques Clés",
+            "technical_specifications": "Spécifications Techniques",
+            "safety_information": "Informations de Sécurité",
+            "setup_instructions": "Instructions d'Installation",
+            "operation_instructions": "Instructions d'Utilisation",
+            "maintenance_and_care": "Maintenance et Entretien",
+            "troubleshooting": "Dépannage",
+            "faq": "FAQ",
+            "warranty_information": "Informations sur la Garantie"
+        },
+        "de": {
+            "title": "BENUTZERHANDBUCH FÜR",
+            "toc": "Inhaltsverzeichnis",
+            "page": "Seite",
+            "introduction": "Einführung",
+            "key_features": "Hauptmerkmale",
+            "technical_specifications": "Technische Spezifikationen",
+            "safety_information": "Sicherheitshinweise",
+            "setup_instructions": "Einrichtungsanweisungen",
+            "operation_instructions": "Betriebsanweisungen",
+            "maintenance_and_care": "Wartung und Pflege",
+            "troubleshooting": "Fehlerbehebung",
+            "faq": "FAQ",
+            "warranty_information": "Garantieinformationen"
+        },
+        "it": {
+            "title": "MANUALE UTENTE PER",
+            "toc": "Indice dei Contenuti",
+            "page": "Pagina",
+            "introduction": "Introduzione",
+            "key_features": "Caratteristiche Principali",
+            "technical_specifications": "Specifiche Tecniche",
+            "safety_information": "Informazioni sulla Sicurezza",
+            "setup_instructions": "Istruzioni di Installazione",
+            "operation_instructions": "Istruzioni di Funzionamento",
+            "maintenance_and_care": "Manutenzione e Cura",
+            "troubleshooting": "Risoluzione dei Problemi",
+            "faq": "FAQ",
+            "warranty_information": "Informazioni sulla Garanzia"
+        }
+    }
+    return texts.get(language, texts["en"])
 
 def scrape_product_data(url):
     try:
@@ -78,93 +164,101 @@ def scrape_product_data(url):
             "Accept-Language": "en-US,en;q=0.9",
             "Referer": "https://www.google.com/"
         }
-        response = requests.get(url, headers=headers, verify=False)  # Disable SSL verification
+        response = requests.get(url, headers=headers, verify=False)
         response.raise_for_status()
         soup = BeautifulSoup(response.content, 'html.parser')
 
         # Extract product name
-        product_name = soup.find('h1').get_text(strip=True) if soup.find('h1') else "Unknown Product"
+        product_name = "Unknown Product"
+        h1_tag = soup.find('h1')
+        if h1_tag:
+            product_name = h1_tag.get_text(strip=True)
 
-        # Extract summary (if available)
-        summary = soup.find('div', class_='product-summary').get_text(strip=True) if soup.find('div', class_='product-summary') else ""
+        # Extract summary
+        summary = ""
+        summary_div = soup.find('div', class_='product-summary')
+        if summary_div:
+            summary = summary_div.get_text(strip=True)
 
-        # Extract Key Features
+        # Extract key features
         key_features = []
-        key_features_container = soup.find('div', class_='product-info')
-        if key_features_container:
-            feature_list = key_features_container.find('ul')
-            if feature_list:
-                features = feature_list.find_all('li')
-                for feature in features:
-                    key_features.append(feature.get_text(strip=True))
+        features_div = soup.find('div', class_='product-features')
+        if features_div:
+            for feature in features_div.find_all('li'):
+                key_features.append(feature.get_text(strip=True))
 
-        # Extract Technical Specifications
-        technical_specs = {}
-        tech_specs_table = soup.find('div', id='tab-0').find('table', class_='specifications-table')
-        if tech_specs_table:
-            for row in tech_specs_table.find_all('tr'):
-                cols = row.find_all('td')
-                if len(cols) == 4:  # Two key-value pairs per row
-                    key1 = cols[0].get_text(strip=True).rstrip(":")
-                    value1 = cols[1].get_text(strip=True)
-                    key2 = cols[2].get_text(strip=True).rstrip(":")
-                    value2 = cols[3].get_text(strip=True)
-                    technical_specs[key1] = value1
-                    technical_specs[key2] = value2
-
-        # Extract General Specifications
-        general_specs = {}
-        general_specs_table = soup.find('div', id='tab-1').find('table', class_='specifications-table')
-        if general_specs_table:
-            for row in general_specs_table.find_all('tr'):
-                cols = row.find_all('td')
-                if len(cols) == 2:  # One key-value pair per row
-                    key = cols[0].get_text(strip=True).rstrip(":")
+        # Extract specifications
+        specifications = {}
+        specs_div = soup.find('div', class_='product-specifications')
+        if specs_div:
+            for row in specs_div.find_all('tr'):
+                cols = row.find_all(['th', 'td'])
+                if len(cols) >= 2:
+                    key = cols[0].get_text(strip=True)
                     value = cols[1].get_text(strip=True)
-                    general_specs[key] = value
+                    specifications[key] = value
 
         return {
             "product_name": product_name,
             "summary": summary,
             "key_features": key_features,
-            "technical_specifications": technical_specs,
-            "general_specifications": general_specs
+            "specifications": specifications
         }
     except Exception as e:
         logger.error(f"Error scraping product data: {str(e)}")
-        raise HTTPException(status_code=500, detail="Failed to scrape product data.")
+        raise HTTPException(status_code=500, detail=f"Failed to scrape product data: {str(e)}")
 
-def parse_specifications(specs_text):
-    """Parse the AI-generated specifications into a structured format."""
-    specs_dict = {}
-    for line in specs_text.split('\n'):
-        line = line.strip()
-        if line and ":" in line:
-            key, value = line.split(":", 1)
-            specs_dict[key.strip()] = value.strip()
-    return specs_dict
+def generate_content_prompts(product_data, language):
+    """Generate language-specific prompts for each section."""
+    product_name = product_data["product_name"]
+    summary = product_data["summary"]
+    key_features = product_data.get("key_features", [])
+    specifications = product_data.get("specifications", {})
 
-def format_specifications_table(specs_dict):
-    """Format specifications into a table-friendly structure with text wrapping."""
-    table_cell_style = ParagraphStyle(
-        "TableCell",
-        parent=getSampleStyleSheet()["BodyText"],
-        fontSize=10,
-        leading=12,
-        textColor=colors.black,
-        wordWrap="CJK"
-    )
-    table_data = [["Specification", "Value"]]
-    for key, value in specs_dict.items():
-        wrapped_key = Paragraph(key, table_cell_style)
-        wrapped_value = Paragraph(value, table_cell_style)
-        table_data.append([wrapped_key, wrapped_value])
-    return table_data
+    # Format features and specifications
+    features_text = "\n".join([f"- {feature}" for feature in key_features])
+    specs_text = "\n".join([f"{key}: {value}" for key, value in specifications.items()])
+
+    # Language instruction template
+    language_instruction = f"""
+    You are a professional technical writer creating content in {language}.
+    Instructions:
+    1. Generate ALL content in {language} language
+    2. Maintain technical accuracy in the translation
+    3. Use appropriate formal tone for user manuals in {language}
+    4. Preserve all technical terms and measurements
+    5. Keep the same structured format as the original
+    6. Ensure all headings and subheadings are in {language}
+    """
+
+    # Generate prompts for each section
+    return {
+        "1. Introduction": f"{language_instruction}\n\nTask: Write a structured introduction in {language} for:\nProduct: {product_name}\nSummary: {summary}",
+        "2. Key Features": f"{language_instruction}\n\nTask: Describe these features in {language}:\n{features_text}",
+        "3. Technical Specifications": f"{language_instruction}\n\nTask: Present these specifications in {language}:\n{specs_text}",
+        "4. Safety Information": f"{language_instruction}\n\nTask: Create safety guidelines in {language} for: {product_name}",
+        "5. Setup Instructions": f"{language_instruction}\n\nTask: Write setup instructions in {language} for: {product_name}",
+        "6. Operation Instructions": f"{language_instruction}\n\nTask: Create operation guidelines in {language} for: {product_name}",
+        "7. Maintenance and Care": f"{language_instruction}\n\nTask: Write maintenance procedures in {language} for: {product_name}",
+        "8. Troubleshooting": f"{language_instruction}\n\nTask: Create a troubleshooting guide in {language} for: {product_name}",
+        "9. FAQ": f"{language_instruction}\n\nTask: Generate FAQs in {language} for: {product_name}",
+        "10. Warranty Information": f"{language_instruction}\n\nTask: Write warranty details in {language} for: {product_name}"
+    }
+
+def generate_technical_specifications_table(specifications, language):
+    """Generate a table of technical specifications."""
+    language_texts = get_language_texts(language)
+    data = [[language_texts['technical_specifications'], ""]]
+    for key, value in specifications.items():
+        data.append([key, value])
+    return data
 
 def generate_pdf(product_data, content):
+    """Generate PDF document with the manual content."""
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter)
     styles = getSampleStyleSheet()
+    language_texts = get_language_texts(product_data.get("language", "en"))
 
     # Custom styles
     title_style = ParagraphStyle(
@@ -175,6 +269,7 @@ def generate_pdf(product_data, content):
         textColor=colors.HexColor("#004080"),
         fontName='Helvetica-Bold'
     )
+
     heading_style = ParagraphStyle(
         "CustomHeading",
         parent=styles["Heading2"],
@@ -182,37 +277,44 @@ def generate_pdf(product_data, content):
         leading=22,
         textColor=colors.HexColor("#0066CC"),
         fontName='Helvetica-Bold',
-        spaceAfter=12,
-        alignment=1
+        spaceAfter=12
     )
+
     subheading_style = ParagraphStyle(
         "CustomSubheading",
         parent=styles["Heading3"],
         fontSize=14,
-        leading=16,
-        textColor=colors.HexColor("#333333"),
+        leading=18,
+        textColor=colors.HexColor("#0066CC"),
         fontName='Helvetica-Bold',
-        spaceAfter=8,
-        spaceBefore=12
+        spaceAfter=6
     )
+
     body_style = ParagraphStyle(
         "CustomBody",
         parent=styles["BodyText"],
         fontSize=12,
         leading=14,
-        textColor=colors.black
+        textColor=colors.black,
+        spaceAfter=12
     )
 
     elements = []
-    elements.append(Paragraph(f"USER MANUAL FOR {product_data.get('product_name', 'Unknown Product')}", title_style))
+
+    # Title
+    elements.append(Paragraph(
+        f"{language_texts['title']} {product_data['product_name']}",
+        title_style
+    ))
     elements.append(Spacer(1, 0.5 * inch))
 
-    # Generate Table of Contents
-    toc_data = [["Table of Contents", "Page"]]
+    # Table of Contents
+    toc_data = [[language_texts['toc'], language_texts['page']]]
     page_number = 2
     for section in content.keys():
         toc_data.append([section, str(page_number)])
         page_number += 1
+
     toc_table = Table(toc_data, colWidths=[400, 100])
     toc_table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#0066CC")),
@@ -226,133 +328,77 @@ def generate_pdf(product_data, content):
     elements.append(toc_table)
     elements.append(PageBreak())
 
-    # Generate content for each section
+    # Content sections
     for section, section_content in content.items():
-        elements.append(Paragraph(section.upper(), heading_style))
-        if "Product Specifications" in section:
-            specs_dict = parse_specifications(section_content)
-            table_data = format_specifications_table(specs_dict)
-            table = Table(table_data, colWidths=[200, 300])
-            table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#0066CC")),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, 0), 12),
-                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-                ('GRID', (0, 0), (-1, -1), 1, colors.HexColor("#CCCCCC")),
-            ]))
-            elements.append(table)
-            elements.append(Spacer(1, 0.2 * inch))
-        else:
-            lines = section_content.split("\n")
-            for line in lines:
-                line = line.strip()
-                if line:
-                    line = re.sub(r'^\d+\.|\*\*|-|###|##|#', '', line).strip()
-                    if ":" in line and not line.endswith(":"):
-                        try:
-                            subheading, text = line.split(":", 1)
-                            elements.append(Paragraph(f"{subheading.strip().capitalize()}", subheading_style))
-                            elements.append(Paragraph(text.strip(), body_style))
-                        except ValueError:
-                            elements.append(Paragraph(line, body_style))
-                    else:
-                        elements.append(Paragraph(line, body_style))
+        elements.append(Paragraph(section, heading_style))
+        
+        # Split content into paragraphs
+        paragraphs = section_content.split('\n')
+        for paragraph in paragraphs:
+            if paragraph.strip():
+                elements.append(Paragraph(paragraph.strip(), body_style))
+                elements.append(Spacer(1, 0.1 * inch))
+        
         elements.append(PageBreak())
 
+    # Add page numbers
     def add_page_number(canvas, doc):
         canvas.saveState()
         canvas.setFont('Helvetica', 10)
-        canvas.drawRightString(200 * mm, 20, f"Page {doc.page}")
+        canvas.drawRightString(
+            200 * mm,
+            20,
+            f"{language_texts['page']} {doc.page}"
+        )
         canvas.restoreState()
 
     doc.build(elements, onFirstPage=add_page_number, onLaterPages=add_page_number)
     buffer.seek(0)
     return buffer
 
-def generate_content_prompts(product_data):
-    product_name = product_data["product_name"]
-    summary = product_data["summary"]
-    key_features = product_data.get("key_features", [])
-    specifications = product_data.get("specifications", {})
-
-    # Format key features as a bullet list
-    key_features_text = "\n".join([f"- {feature}" for feature in key_features])
-
-    # Format specifications as "Category: Value"
-    specs_text = "\n".join([f"{key}: {value}" for key, value in specifications.items()])
-
-    return {
-        "1. Introduction": f"Write a structured introduction for the following product: {product_name}. Summary: {summary}. Include subheadings for Product Overview and Key Features.",
-        "2. Key Features": f"List the key features of the product: {product_name}. Here are some extracted features:\n{key_features_text}",
-        "3. Product Specifications": f"Generate comprehensive technical specifications for: {product_name}. Summary: {summary}.\nHere are some extracted specifications:\n{specs_text}",
-        "4. Safety Information": f"Provide detailed safety guidelines for: {product_name}. Summary: {summary}. Include General Warnings and Safety Precautions.",
-        "5. Setup Instructions": f"Create step-by-step setup instructions for: {product_name}. Summary: {summary}. Include Installation and Configuration steps.",
-        "6. Operation Instructions": f"Explain operation procedures for: {product_name}. Summary: {summary}. Include Basic Operation and Advanced Features.",
-        "7. Maintenance and Care": f"Provide maintenance guidelines for: {product_name}. Summary: {summary}. Include Routine Maintenance and Cleaning Procedures.",
-        "8. Troubleshooting": f"Create a troubleshooting guide for: {product_name}. Summary: {summary}. Include Common Issues and Solutions.",
-        "9. FAQ": f"Generate frequently asked questions about: {product_name}. Summary: {summary}. Cover Usage, Maintenance, and Support.",
-        "10. Warranty Information": f"Provide warranty details for: {product_name}. Summary: {summary}. Include Coverage Details and Claim Process."
-    }
-
 @app.post("/generate-manual")
 async def generate_manual(product_data: ProductData):
     try:
-        logger.info(f"Starting manual generation for {product_data.website_link}")
+        logger.info(f"Starting manual generation for {product_data.website_link} in {product_data.language}")
 
-        # Scrape product data from the provided link
+        # Scrape product data
         scraped_data = scrape_product_data(product_data.website_link)
 
-        # Use scraped data for product name, summary, and other details
-        product_name = scraped_data["product_name"]
-        summary = scraped_data["summary"]
-        key_features = scraped_data["key_features"]
-        technical_specs = scraped_data["technical_specifications"]
-        general_specs = scraped_data["general_specifications"]
+        # Generate content prompts
+        content_prompts = generate_content_prompts(scraped_data, product_data.language)
 
-        # Combine technical and general specifications into a single dictionary
-        all_specs = {**technical_specs, **general_specs}
-
-        # Generate content prompts based on scraped data
-        content_prompts = generate_content_prompts({
-            "product_name": product_name,
-            "summary": summary,
-            "key_features": key_features,
-            "specifications": all_specs
-        })
-
-        # Initialize the content generation process
+        # Generate content
         generate_content = Predict(GenerateContent)
         generated_content = {}
+
         for section, prompt in content_prompts.items():
-            logger.info(f"Generating content for section: {section}")
+            logger.info(f"Generating content for section: {section} in {product_data.language}")
             result = generate_content(
                 section_title=section,
                 prompt=prompt,
+                language=product_data.language,
                 temperature=0.7,
                 max_tokens=1000
             )
             generated_content[section] = result.output
-            logger.info(f"Completed content generation for section: {section}")
 
-        # Generate the PDF
+        # Generate PDF
         pdf_buffer = generate_pdf({
-            "product_name": product_name,
-            "summary": summary,
-            "key_features": key_features,
-            "specifications": all_specs
+            **scraped_data,
+            "language": product_data.language
         }, generated_content)
 
+        filename = f"user_manual_{product_data.language}.pdf"
         return StreamingResponse(
             pdf_buffer,
             media_type="application/pdf",
-            headers={"Content-Disposition": "attachment; filename=user_manual.pdf"}
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
         )
+
     except Exception as e:
         logger.error(f"Error generating manual: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app)
+    uvicorn.run(app, host="0.0.0.0", port=8000)

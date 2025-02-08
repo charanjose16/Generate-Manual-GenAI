@@ -1,10 +1,11 @@
 import './App.css';
-import DocumentationNav from './components/DocumentationNav';
+import UserManualGenerator from "./components/UserManualGenerator";
+
 
 function App() {
   return (
     <div>
-      <DocumentationNav />
+       <UserManualGenerator />
     </div>
   );
 }
