@@ -175,6 +175,7 @@ def scrape_product_data(url):
             product_name = h1_tag.get_text(strip=True)
 
         # Extract summary
+        # Extract summary (if available)
         summary = ""
         summary_div = soup.find('div', class_='product-summary')
         if summary_div:
@@ -197,6 +198,34 @@ def scrape_product_data(url):
                     key = cols[0].get_text(strip=True)
                     value = cols[1].get_text(strip=True)
                     specifications[key] = value
+        # Extract Technical Specifications
+        technical_specs = {}
+        tech_specs_div = soup.find('div', id='tab-0')
+        if tech_specs_div:
+            tech_specs_table = tech_specs_div.find('table', class_='specifications-table')
+            if tech_specs_table:
+                for row in tech_specs_table.find_all('tr'):
+                    cols = row.find_all('td')
+                    if len(cols) == 4:  # Two key-value pairs per row
+                        key1 = cols[0].get_text(strip=True).rstrip(":")
+                        value1 = cols[1].get_text(strip=True)
+                        key2 = cols[2].get_text(strip=True).rstrip(":")
+                        value2 = cols[3].get_text(strip=True)
+                        technical_specs[key1] = value1
+                        technical_specs[key2] = value2
+
+        # Extract General Specifications
+        general_specs = {}
+        general_specs_div = soup.find('div', id='tab-1')
+        if general_specs_div:
+            general_specs_table = general_specs_div.find('table', class_='specifications-table')
+            if general_specs_table:
+                for row in general_specs_table.find_all('tr'):
+                    cols = row.find_all('td')
+                    if len(cols) == 2:  # One key-value pair per row
+                        key = cols[0].get_text(strip=True).rstrip(":")
+                        value = cols[1].get_text(strip=True)
+                        general_specs[key] = value
 
         return {
             "product_name": product_name,
