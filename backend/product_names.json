@@ -1,0 +1,71 @@
+{
+    "products": [
+        {
+            "product_name": "AC Drives And Controls",
+            "product_link": "https://www.regalrexnord.com/products/ac-dc-drives-controls",
+            "subproducts": [
+                {
+                    "subproduct_name": "DC Adjustable Speed Drives and Controllers",
+                    "subproduct_link": "https://www.regalrexnord.com/products/ac-dc-controls/dc-drives",
+                    "sub_subproducts": [
+                        {
+                            "sub_subproduct_name": "",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/cdn-cgi/l/email-protection"
+                        }
+                    ]
+                },
+                {
+                    "subproduct_name": "AC Controls and Drives",
+                    "subproduct_link": "https://www.regalrexnord.com/products/ac-dc-controls/ac-drives",
+                    "sub_subproducts": [
+                        {
+                            "sub_subproduct_name": "",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/cdn-cgi/l/email-protection"
+                        }
+                    ]
+                },
+                {
+                    "subproduct_name": "Adjustable Speed Drive Accessories",
+                    "subproduct_link": "https://www.regalrexnord.com/brands/leeson/products/ac-dc-controls/kits",
+                    "sub_subproducts": []
+                }
+            ]
+        },
+        {
+            "product_name": "Blowers And Air-Moving Assemblies",
+            "product_link": "https://www.regalrexnord.com/products/blowers",
+            "subproducts": [
+                {
+                    "subproduct_name": "Centrifugal Blowers",
+                    "subproduct_link": "https://www.regalrexnord.com/products/blowers/centrifugal-blowers",
+                    "sub_subproducts": [
+                        {
+                            "sub_subproduct_name": "",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/cdn-cgi/l/email-protection"
+                        }
+                    ]
+                },
+                {
+                    "subproduct_name": "Draft Inducer Blowers",
+                    "subproduct_link": "https://www.regalrexnord.com/products/blowers/draft-inducer-blowers",
+                    "sub_subproducts": [
+                        {
+                            "sub_subproduct_name": "",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/cdn-cgi/l/email-protection"
+                        }
+                    ]
+                },
+                {
+                    "subproduct_name": "EC Centrifugal Fans",
+                    "subproduct_link": "https://www.regalrexnord.com/products/blowers/ec-centrifugal-fans",
+                    "sub_subproducts": [
+                        {
+                            "sub_subproduct_name": "",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/cdn-cgi/l/email-protection"
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
