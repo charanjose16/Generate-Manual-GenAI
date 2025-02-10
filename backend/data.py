@@ -19,6 +19,8 @@ from pydantic import BaseModel, Field
 from bs4 import BeautifulSoup
 import requests
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
+import json
+from fastapi.responses import JSONResponse
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -514,6 +516,19 @@ async def generate_manual(product_data: ProductData):
     except Exception as e:
         logger.error(f"Error generating manual: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+    
+PRODUCTS_FILE_PATH = os.path.join(os.path.dirname(__file__), "backend", "product_names.json")
+
+# Load the JSON file
+with open(r"C:\Users\286178\Desktop\Generate-Manual-GenAI\backend\product_names.json", "r") as file:
+    products_data = json.load(file)
+
+# API endpoint to serve product data
+@app.get("/api/products")
+async def get_products():
+    return JSONResponse(content={"products": products_data.get("products", [])})
+
+    
 
 if __name__ == "__main__":
     import uvicorn

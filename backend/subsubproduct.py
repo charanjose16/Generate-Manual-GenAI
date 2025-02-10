@@ -36,8 +36,8 @@ def scrape_product_names(url):
         products = []
 
         # Find all main product tiles
-        for i, product in enumerate(soup.find_all('article', class_='product-tiles__tile')[:3]):
-            if i in [0, 2]:
+        for i, product in enumerate(soup.find_all('article', class_='product-tiles__tile')):
+            # if i in [0, 2]:
                 try:
                     # Extract title from h2 or h3
                     title_tag = product.find('h3') or product.find('h2')
@@ -81,7 +81,7 @@ def scrape_subproducts(url):
         subproducts = []
 
         # Find all subproduct tiles
-        for subproduct in soup.find_all('article', class_='product-tiles__tile')[:3]:
+        for subproduct in soup.find_all('article', class_='product-tiles__tile'):
             try:
                 # Extract subproduct title from h3
                 subproduct_title_tag = subproduct.find('h3') or subproduct.find('h2')
@@ -125,7 +125,7 @@ def scrape_sub_subproducts(url):
         sub_subproducts = []
 
         # Find all result items
-        for result_item in soup.find_all('div', class_='result-item')[:3]:
+        for result_item in soup.find_all('div', class_='result-item'):
             try:
                 # Extract sub-subproduct name
                 sub_subproduct_name_tag = result_item.find('atomic-result-text', {'field': 'displayname'})
