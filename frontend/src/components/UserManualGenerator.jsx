@@ -240,7 +240,7 @@ export default function UserManualGenerator() {
         >
           {loading ? "GENERATING..." : "GENERATE USER MANUAL"}
         </Button>
-        <Button
+        {/* <Button
           variant="outlined"
           sx={{
             color: "text.primary",
@@ -252,7 +252,7 @@ export default function UserManualGenerator() {
           }}
         >
           FAQ
-        </Button>
+        </Button> */}
       </Box>
     </Box>
   );

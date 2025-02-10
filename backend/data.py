@@ -240,7 +240,7 @@ def generate_content_prompts(product_data, language):
     6. Ensure all headings and subheadings are in {language}
     """
 
-    # Generate prompts for each section
+    # Generate prompts for each section using language-specific headings
     return {
         language_texts["introduction"]: f"{language_instruction}\n\nTask: Write a structured introduction in {language} for:\nProduct: {product_name}\nSummary: {summary}",
         language_texts["key_features"]: f"{language_instruction}\n\nTask: Describe these features in {language}:\n{features_text}",
@@ -257,16 +257,13 @@ def generate_content_prompts(product_data, language):
 def create_document_styles():
     """Create and return enhanced custom document styles for the manual without boxed sections."""
     styles = getSampleStyleSheet()
-    # Dictionary to track existing style names
     existing_styles = {style.name for style in styles.byName.values()}
 
-    # Helper function to safely add styles
     def add_style_safely(style_data):
         if style_data['name'] not in existing_styles:
             styles.add(ParagraphStyle(**style_data))
             existing_styles.add(style_data['name'])
 
-    # Style definitions
     style_definitions = [
         {
             'name': 'MainTitle',
@@ -346,7 +343,6 @@ def create_document_styles():
         }
     ]
 
-    # Add styles safely
     for style_def in style_definitions:
         add_style_safely(style_def)
 
@@ -354,13 +350,9 @@ def create_document_styles():
 
 def clean_content(text):
     """Clean special characters and formatting from text."""
-    # Remove markdown header formatting
     text = re.sub(r'#{1,6}\s*', '', text)
-    # Remove markdown bold/italic formatting
     text = re.sub(r'\*{1,3}(.*?)\*{1,3}', r'\1', text)
-    # Remove section titles in boxes or other special formatting
     text = re.sub(r'\[.*?\]|\{.*?\}', '', text)
-    # Clean up multiple newlines
     text = re.sub(r'\n{3,}', '\n\n', text)
     return text.strip()
 
@@ -417,6 +409,7 @@ def generate_pdf(product_data, content):
         for section, section_content in content.items():
             clean_section = clean_content(section)
             elements.append(Paragraph(clean_section, styles['ChapterTitle']))
+
             if section == language_texts['technical_specifications']:
                 # Handle technical specifications as a table
                 specs_data = [[clean_section, ""]]
@@ -426,8 +419,7 @@ def generate_pdf(product_data, content):
                         if ':' in line:
                             key, value = line.split(':', 1)
                             specs_data.append([key.strip(), value.strip()])
-                # Adjust column widths to ensure text fits within the table
-                col_widths = [150, 350]  # Adjust these values as needed
+                col_widths = [150, 350]
                 specs_table = Table(specs_data, colWidths=col_widths)
                 specs_table.setStyle(TableStyle([
                     ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1e40af')),
@@ -439,9 +431,9 @@ def generate_pdf(product_data, content):
                     ('TOPPADDING', (0, 0), (-1, 0), 15),
                     ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#e2e8f0')),
                     ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.HexColor('#ffffff'), colors.HexColor('#f8fafc')]),
-                    ('LEFTPADDING', (0, 0), (-1, -1), 10),  # Reduce padding to fit more text
+                    ('LEFTPADDING', (0, 0), (-1, -1), 10),
                     ('RIGHTPADDING', (0, 0), (-1, -1), 10),
-                    ('WORDWRAP', (0, 1), (-1, -1), 'CJK'),  # Enable word wrapping
+                    ('WORDWRAP', (0, 1), (-1, -1), 'CJK'),
                 ]))
                 elements.append(specs_table)
             else:
@@ -485,11 +477,8 @@ async def generate_manual(product_data: ProductData):
     """Generate a user manual PDF based on product data."""
     try:
         logger.info(f"Starting manual generation for {product_data.website_link} in {product_data.language}")
-        # Scrape product data
         scraped_data = scrape_product_data(product_data.website_link)
-        # Generate content prompts
         content_prompts = generate_content_prompts(scraped_data, product_data.language)
-        # Generate content
         generate_content = Predict(GenerateContent)
         generated_content = {}
         for section, prompt in content_prompts.items():
@@ -502,7 +491,6 @@ async def generate_manual(product_data: ProductData):
                 max_tokens=1000
             )
             generated_content[section] = result.output
-        # Generate PDF
         pdf_buffer = generate_pdf({
             **scraped_data,
             "language": product_data.language
@@ -516,19 +504,17 @@ async def generate_manual(product_data: ProductData):
     except Exception as e:
         logger.error(f"Error generating manual: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
-    
+
 PRODUCTS_FILE_PATH = os.path.join(os.path.dirname(__file__), "backend", "product_names.json")
 
 # Load the JSON file
-with open(r"C:\Users\286178\Desktop\Generate-Manual-GenAI\backend\product_names.json", "r") as file:
+with open("product_names.json", "r") as file:
     products_data = json.load(file)
 
 # API endpoint to serve product data
 @app.get("/api/products")
 async def get_products():
     return JSONResponse(content={"products": products_data.get("products", [])})
-
-    
 
 if __name__ == "__main__":
     import uvicorn
