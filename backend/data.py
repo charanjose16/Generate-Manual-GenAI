@@ -244,6 +244,9 @@ def generate_content_prompts(product_data, language):
     key_features = product_data.get("key_features", [])
     specifications = product_data.get("specifications", {})
 
+    # Get language-specific texts
+    language_texts = get_language_texts(language)
+
     # Format features and specifications
     features_text = "\n".join([f"- {feature}" for feature in key_features])
     specs_text = "\n".join([f"{key}: {value}" for key, value in specifications.items()])
@@ -260,18 +263,18 @@ def generate_content_prompts(product_data, language):
     6. Ensure all headings and subheadings are in {language}
     """
 
-    # Generate prompts for each section
+    # Generate prompts for each section using language-specific headings
     return {
-        "1. Introduction": f"{language_instruction}\n\nTask: Write a structured introduction in {language} for:\nProduct: {product_name}\nSummary: {summary}",
-        "2. Key Features": f"{language_instruction}\n\nTask: Describe these features in {language}:\n{features_text}",
-        "3. Technical Specifications": f"{language_instruction}\n\nTask: Present these specifications in {language}:\n{specs_text}",
-        "4. Safety Information": f"{language_instruction}\n\nTask: Create safety guidelines in {language} for: {product_name}",
-        "5. Setup Instructions": f"{language_instruction}\n\nTask: Write setup instructions in {language} for: {product_name}",
-        "6. Operation Instructions": f"{language_instruction}\n\nTask: Create operation guidelines in {language} for: {product_name}",
-        "7. Maintenance and Care": f"{language_instruction}\n\nTask: Write maintenance procedures in {language} for: {product_name}",
-        "8. Troubleshooting": f"{language_instruction}\n\nTask: Create a troubleshooting guide in {language} for: {product_name}",
-        "9. FAQ": f"{language_instruction}\n\nTask: Generate FAQs in {language} for: {product_name}",
-        "10. Warranty Information": f"{language_instruction}\n\nTask: Write warranty details in {language} for: {product_name}"
+        language_texts["introduction"]: f"{language_instruction}\n\nTask: Write a structured introduction in {language} for:\nProduct: {product_name}\nSummary: {summary}",
+        language_texts["key_features"]: f"{language_instruction}\n\nTask: Describe these features in {language}:\n{features_text}",
+        language_texts["technical_specifications"]: f"{language_instruction}\n\nTask: Present these specifications in {language}:\n{specs_text}",
+        language_texts["safety_information"]: f"{language_instruction}\n\nTask: Create safety guidelines in {language} for: {product_name}",
+        language_texts["setup_instructions"]: f"{language_instruction}\n\nTask: Write setup instructions in {language} for: {product_name}",
+        language_texts["operation_instructions"]: f"{language_instruction}\n\nTask: Create operation guidelines in {language} for: {product_name}",
+        language_texts["maintenance_and_care"]: f"{language_instruction}\n\nTask: Write maintenance procedures in {language} for: {product_name}",
+        language_texts["troubleshooting"]: f"{language_instruction}\n\nTask: Create a troubleshooting guide in {language} for: {product_name}",
+        language_texts["faq"]: f"{language_instruction}\n\nTask: Generate FAQs in {language} for: {product_name}",
+        language_texts["warranty_information"]: f"{language_instruction}\n\nTask: Write warranty details in {language} for: {product_name}"
     }
 
 def generate_technical_specifications_table(specifications, language):
