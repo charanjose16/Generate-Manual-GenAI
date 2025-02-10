@@ -1,34 +1,49 @@
-import { useState } from "react";
-import { 
-  TextField, 
-  Select, 
-  MenuItem, 
-  Button, 
-  Grid, 
-  Box, 
-  Typography 
+import { useState, useEffect } from "react";
+import {
+  TextField,
+  Select,
+  MenuItem,
+  Button,
+  Grid,
+  Box,
+  Typography,
 } from "@mui/material";
 
 export default function UserManualGenerator() {
   const [link, setLink] = useState("");
-  const [product, setProduct] = useState("");
   const [language, setLanguage] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [showSuccess, setShowSuccess] = useState(false);
+  const [products, setProducts] = useState([]);
+  const [selectedProduct, setSelectedProduct] = useState("");
+  const [selectedSubProduct, setSelectedSubProduct] = useState("");
 
-  const handleLinkChange = (event) => {
-    setLink(event.target.value);
-    if (error) setError("");
-  };
+  // Fetch products data from the FastAPI backend
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const response = await fetch("http://localhost:8000/api/products");
+        if (!response.ok) {
+          throw new Error("Failed to fetch products");
+        }
+        const data = await response.json();
+        setProducts(data.products); // Assuming the API returns { products: [...] }
+      } catch (err) {
+        setError(`Failed to load products: ${err.message}`);
+      }
+    };
+    fetchData();
+  }, []);
 
   const handleProductChange = (event) => {
-    setProduct(event.target.value);
+    const productName = event.target.value;
+    setSelectedProduct(productName);
+    setSelectedSubProduct(""); // Reset sub-product when main product changes
     if (error) setError("");
   };
 
-  const handleLanguageChange = (event) => {
-    setLanguage(event.target.value);
+  const handleSubProductChange = (event) => {
+    setSelectedSubProduct(event.target.value);
     if (error) setError("");
   };
 
@@ -42,40 +57,36 @@ export default function UserManualGenerator() {
   };
 
   const handleGenerateManual = async () => {
-    if (!link || !language) {
+    if (!link || !language || !selectedProduct) {
       setError("Please fill in all required fields");
       return;
     }
-
     if (!validateUrl(link)) {
       setError("Please enter a valid URL");
       return;
     }
-
     setLoading(true);
     setError("");
-
     try {
       const trimmedLink = link.trim();
-      const formattedLink = trimmedLink.startsWith('http') ? trimmedLink : `https://${trimmedLink}`;
-      
+      const formattedLink = trimmedLink.startsWith("http")
+        ? trimmedLink
+        : `https://${trimmedLink}`;
       const payload = {
         website_link: formattedLink,
-        product: product.trim(),
+        product: selectedProduct,
+        sub_product: selectedSubProduct,
         language: language.trim(),
       };
-
       const response = await fetch("http://localhost:8000/generate-manual", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-
       if (!response.ok) {
         const errorData = await response.json().catch(() => null);
         throw new Error(errorData?.detail || "Failed to generate manual");
       }
-
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -85,10 +96,9 @@ export default function UserManualGenerator() {
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
-
-      setShowSuccess(true);
       setLink("");
-      setProduct("");
+      setSelectedProduct("");
+      setSelectedSubProduct("");
       setLanguage("");
     } catch (err) {
       setError(err.message);
@@ -122,7 +132,6 @@ export default function UserManualGenerator() {
       >
         User Manual Generator
       </Typography>
-      
       <Grid container spacing={3} sx={{ maxWidth: 600 }}>
         <Grid item xs={12}>
           <Typography variant="subtitle1" gutterBottom>
@@ -133,33 +142,60 @@ export default function UserManualGenerator() {
             variant="outlined"
             placeholder="Enter link here"
             value={link}
-            onChange={handleLinkChange}
+            onChange={(e) => setLink(e.target.value)}
             disabled={loading}
             error={Boolean(error && !link)}
           />
         </Grid>
-        
         <Grid item xs={12}>
           <Typography variant="subtitle1" gutterBottom>
             Product
           </Typography>
           <Select
             fullWidth
-            value={product}
+            value={selectedProduct}
             onChange={handleProductChange}
             displayEmpty
             variant="outlined"
             disabled={loading}
           >
             <MenuItem value="" disabled>
-              Select a product 
+              Select a product
             </MenuItem>
-            <MenuItem value="product1">Product 1</MenuItem>
-            <MenuItem value="product2">Product 2</MenuItem>
-            <MenuItem value="product3">Product 3</MenuItem>
+            {products.map((product, index) => (
+              <MenuItem key={index} value={product.product_name}>
+                {product.product_name}
+              </MenuItem>
+            ))}
           </Select>
         </Grid>
-        
+        {/* Sub-Product Dropdown */}
+        {selectedProduct && (
+          <Grid item xs={12}>
+            <Typography variant="subtitle1" gutterBottom>
+              Sub-Product
+            </Typography>
+            <Select
+              fullWidth
+              value={selectedSubProduct}
+              onChange={handleSubProductChange}
+              displayEmpty
+              variant="outlined"
+              disabled={loading}
+            >
+              <MenuItem value="" disabled>
+                Select a sub-product
+              </MenuItem>
+              {products
+                .find((p) => p.product_name === selectedProduct)
+                ?.subproducts.map((subproduct, index) => (
+                  <MenuItem key={index} value={subproduct.subproduct_name}>
+                    {subproduct.subproduct_name}
+                  </MenuItem>
+                ))}
+            </Select>
+          </Grid>
+        )}
         <Grid item xs={12}>
           <Typography variant="subtitle1" gutterBottom>
             Language
@@ -167,7 +203,7 @@ export default function UserManualGenerator() {
           <Select
             fullWidth
             value={language}
-            onChange={handleLanguageChange}
+            onChange={(e) => setLanguage(e.target.value)}
             displayEmpty
             variant="outlined"
             disabled={loading}
@@ -184,13 +220,11 @@ export default function UserManualGenerator() {
           </Select>
         </Grid>
       </Grid>
-
       {error && (
         <Typography color="error" align="center" sx={{ mt: 2 }}>
           {error}
         </Typography>
       )}
-
       <Box sx={{ display: "flex", justifyContent: "center", gap: 2, mt: 4 }}>
         <Button
           variant="contained"

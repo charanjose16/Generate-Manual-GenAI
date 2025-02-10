@@ -496,3 +496,268 @@
 2025-02-10 10:11:58,531 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/products/blowers/ec-centrifugal-fans
 2025-02-10 10:12:02,322 - INFO - Found sub-subproduct:  | Link: https://www.regalrexnord.com/cdn-cgi/l/email-protection
 2025-02-10 10:12:02,339 - INFO - Saved 2 products to product_names.json
+2025-02-10 12:16:00,092 - INFO - Accessing base URL: https://www.regalrexnord.com/products
+2025-02-10 12:16:01,611 - INFO - Found main product: AC Drives And Controls | Link: https://www.regalrexnord.com/products/ac-dc-drives-controls
+2025-02-10 12:16:01,612 - INFO - Accessing subproduct URL: https://www.regalrexnord.com/products/ac-dc-drives-controls
+2025-02-10 12:16:02,488 - INFO - Found subproduct: DC Adjustable Speed Drives and Controllers | Link: https://www.regalrexnord.com/products/ac-dc-controls/dc-drives
+2025-02-10 12:16:02,489 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/products/ac-dc-controls/dc-drives
+2025-02-10 12:16:05,345 - INFO - Found sub-subproduct:  | Link: https://www.regalrexnord.com/cdn-cgi/l/email-protection
+2025-02-10 12:16:05,346 - INFO - Found subproduct: AC Controls and Drives | Link: https://www.regalrexnord.com/products/ac-dc-controls/ac-drives
+2025-02-10 12:16:05,347 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/products/ac-dc-controls/ac-drives
+2025-02-10 12:16:06,670 - INFO - Found sub-subproduct:  | Link: https://www.regalrexnord.com/cdn-cgi/l/email-protection
+2025-02-10 12:16:06,671 - INFO - Found subproduct: Adjustable Speed Drive Accessories | Link: https://www.regalrexnord.com/brands/leeson/products/ac-dc-controls/kits
+2025-02-10 12:16:06,672 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/brands/leeson/products/ac-dc-controls/kits
+2025-02-10 12:16:09,222 - INFO - Found main product: Bearings | Link: https://www.regalrexnord.com/products/bearings
+2025-02-10 12:16:09,222 - INFO - Accessing subproduct URL: https://www.regalrexnord.com/products/bearings
+2025-02-10 12:16:10,194 - INFO - Found subproduct: Mounted Bearings | Link: https://www.regalrexnord.com/products/bearings/regal-mounted-bearings
+2025-02-10 12:16:10,194 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/products/bearings/regal-mounted-bearings
+2025-02-10 12:16:11,054 - INFO - Found subproduct: Unmounted Bearings | Link: https://www.regalrexnord.com/products/bearings/regal-unmounted-bearings
+2025-02-10 12:16:11,054 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/products/bearings/regal-unmounted-bearings
+2025-02-10 12:16:11,948 - INFO - Found subproduct: Specialty and Plain Bearings | Link: https://www.regalrexnord.com/products/bearings/regal-specialty-and-plain-bearings
+2025-02-10 12:16:11,949 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/products/bearings/regal-specialty-and-plain-bearings
+2025-02-10 12:16:13,220 - INFO - Found subproduct: Bearing Parts and Kits | Link: https://www.regalrexnord.com/products/bearings/regal-bearing-accessories
+2025-02-10 12:16:13,221 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/products/bearings/regal-bearing-accessories
+2025-02-10 12:16:14,322 - INFO - Found main product: Blowers And Air-Moving Assemblies | Link: https://www.regalrexnord.com/products/blowers
+2025-02-10 12:16:14,323 - INFO - Accessing subproduct URL: https://www.regalrexnord.com/products/blowers
+2025-02-10 12:16:15,238 - INFO - Found subproduct: Centrifugal Blowers | Link: https://www.regalrexnord.com/products/blowers/centrifugal-blowers
+2025-02-10 12:16:15,239 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/products/blowers/centrifugal-blowers
+2025-02-10 12:16:17,945 - INFO - Found sub-subproduct:  | Link: https://www.regalrexnord.com/cdn-cgi/l/email-protection
+2025-02-10 12:16:17,947 - INFO - Found subproduct: Draft Inducer Blowers | Link: https://www.regalrexnord.com/products/blowers/draft-inducer-blowers
+2025-02-10 12:16:17,947 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/products/blowers/draft-inducer-blowers
+2025-02-10 12:16:21,295 - INFO - Found sub-subproduct:  | Link: https://www.regalrexnord.com/cdn-cgi/l/email-protection
+2025-02-10 12:16:21,296 - INFO - Found subproduct: EC Centrifugal Fans | Link: https://www.regalrexnord.com/products/blowers/ec-centrifugal-fans
+2025-02-10 12:16:21,297 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/products/blowers/ec-centrifugal-fans
+2025-02-10 12:16:23,948 - INFO - Found sub-subproduct:  | Link: https://www.regalrexnord.com/cdn-cgi/l/email-protection
+2025-02-10 12:16:23,949 - INFO - Found subproduct: Fan Packs | Link: https://www.regalrexnord.com/products/blowers/fan-pack
+2025-02-10 12:16:23,950 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/products/blowers/fan-pack
+2025-02-10 12:16:24,859 - INFO - Found sub-subproduct:  | Link: https://www.regalrexnord.com/cdn-cgi/l/email-protection
+2025-02-10 12:16:24,860 - INFO - Found subproduct: Transflow / Crossflow Blowers | Link: https://www.regalrexnord.com/products/blowers/transflow-crossflow-blowers
+2025-02-10 12:16:24,861 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/products/blowers/transflow-crossflow-blowers
+2025-02-10 12:16:25,890 - INFO - Found sub-subproduct:  | Link: https://www.regalrexnord.com/cdn-cgi/l/email-protection
+2025-02-10 12:16:25,891 - INFO - Found subproduct: Blower Accessories | Link: https://www.regalrexnord.comhttps://www.regalrexnord.com/products/blowers/blower-accessories
+2025-02-10 12:16:25,892 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.comhttps://www.regalrexnord.com/products/blowers/blower-accessories
+2025-02-10 12:16:25,910 - ERROR - Error scraping sub-subproducts from https://www.regalrexnord.comhttps://www.regalrexnord.com/products/blowers/blower-accessories: HTTPSConnectionPool(host='www.regalrexnord.comhttps', port=443): Max retries exceeded with url: /www.regalrexnord.com/products/blowers/blower-accessories (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x000002021C801160>: Failed to resolve 'www.regalrexnord.comhttps' ([Errno 11001] getaddrinfo failed)"))
+2025-02-10 12:16:25,912 - INFO - Found main product: Clutches & Brakes | Link: https://www.regalrexnord.com/products/clutches-and-brakes
+2025-02-10 12:16:25,913 - INFO - Accessing subproduct URL: https://www.regalrexnord.com/products/clutches-and-brakes
+2025-02-10 12:16:26,915 - INFO - Found subproduct: Hydraulic & Pneumatic Caliper Brakes | Link: https://www.regalrexnord.comhttps://www.stromag.com/en/products/brake-solutions-category
+2025-02-10 12:16:26,916 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.comhttps://www.stromag.com/en/products/brake-solutions-category
+2025-02-10 12:16:26,918 - ERROR - Error scraping sub-subproducts from https://www.regalrexnord.comhttps://www.stromag.com/en/products/brake-solutions-category: HTTPSConnectionPool(host='www.regalrexnord.comhttps', port=443): Max retries exceeded with url: /www.stromag.com/en/products/brake-solutions-category (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x000002021B8FB620>: Failed to resolve 'www.regalrexnord.comhttps' ([Errno 11001] getaddrinfo failed)"))
+2025-02-10 12:16:26,918 - INFO - Found subproduct: Pneumatic & Hydraulic Clutches & Brakes | Link: https://www.regalrexnord.comhttps://www.stromag.com/en/products/brake-solutions-category
+2025-02-10 12:16:26,918 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.comhttps://www.stromag.com/en/products/brake-solutions-category
+2025-02-10 12:16:26,920 - ERROR - Error scraping sub-subproducts from https://www.regalrexnord.comhttps://www.stromag.com/en/products/brake-solutions-category: HTTPSConnectionPool(host='www.regalrexnord.comhttps', port=443): Max retries exceeded with url: /www.stromag.com/en/products/brake-solutions-category (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x000002021B8FBE90>: Failed to resolve 'www.regalrexnord.comhttps' ([Errno 11001] getaddrinfo failed)"))
+2025-02-10 12:16:26,920 - INFO - Found subproduct: Thruster Brakes | Link: https://www.regalrexnord.comhttps://www.svendborg-brakes.com/products/thruster-brakes/
+2025-02-10 12:16:26,921 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.comhttps://www.svendborg-brakes.com/products/thruster-brakes/
+2025-02-10 12:16:26,922 - ERROR - Error scraping sub-subproducts from https://www.regalrexnord.comhttps://www.svendborg-brakes.com/products/thruster-brakes/: HTTPSConnectionPool(host='www.regalrexnord.comhttps', port=443): Max retries exceeded with url: /www.svendborg-brakes.com/products/thruster-brakes/ (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x000002021B348830>: Failed to resolve 'www.regalrexnord.comhttps' ([Errno 11001] getaddrinfo failed)"))
+2025-02-10 12:16:26,923 - INFO - Found subproduct: Sinter Discs | Link: https://www.regalrexnord.comhttps://www.stromag.com/en/products/friction-discs-category
+2025-02-10 12:16:26,924 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.comhttps://www.stromag.com/en/products/friction-discs-category
+2025-02-10 12:16:26,926 - ERROR - Error scraping sub-subproducts from https://www.regalrexnord.comhttps://www.stromag.com/en/products/friction-discs-category: HTTPSConnectionPool(host='www.regalrexnord.comhttps', port=443): Max retries exceeded with url: /www.stromag.com/en/products/friction-discs-category (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x000002021B349190>: Failed to resolve 'www.regalrexnord.comhttps' ([Errno 11001] getaddrinfo failed)"))
+2025-02-10 12:16:26,926 - INFO - Found subproduct: Electromagnetic Clutches | Link: https://www.regalrexnord.comhttps://www.warnerelectric.com/products/electromagnetic-clutch
+2025-02-10 12:16:26,927 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.comhttps://www.warnerelectric.com/products/electromagnetic-clutch
+2025-02-10 12:16:26,928 - ERROR - Error scraping sub-subproducts from https://www.regalrexnord.comhttps://www.warnerelectric.com/products/electromagnetic-clutch: HTTPSConnectionPool(host='www.regalrexnord.comhttps', port=443): Max retries exceeded with url: /www.warnerelectric.com/products/electromagnetic-clutch (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x000002021B349AF0>: Failed to resolve 'www.regalrexnord.comhttps' ([Errno 11001] getaddrinfo failed)"))
+2025-02-10 12:16:26,929 - INFO - Found subproduct: Electromagnetic Brakes | Link: https://www.regalrexnord.comhttps://www.warnerelectric.com/products/electromagnetic-brake
+2025-02-10 12:16:26,929 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.comhttps://www.warnerelectric.com/products/electromagnetic-brake
+2025-02-10 12:16:26,930 - ERROR - Error scraping sub-subproducts from https://www.regalrexnord.comhttps://www.warnerelectric.com/products/electromagnetic-brake: HTTPSConnectionPool(host='www.regalrexnord.comhttps', port=443): Max retries exceeded with url: /www.warnerelectric.com/products/electromagnetic-brake (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x000002021B8FBD40>: Failed to resolve 'www.regalrexnord.comhttps' ([Errno 11001] getaddrinfo failed)"))
+2025-02-10 12:16:26,931 - INFO - Found subproduct: Electromagnetic Clutch Brake Combinations | Link: https://www.regalrexnord.comhttps://www.warnerelectric.com/products/electromagnetic-clutch
+2025-02-10 12:16:26,931 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.comhttps://www.warnerelectric.com/products/electromagnetic-clutch
+2025-02-10 12:16:26,932 - ERROR - Error scraping sub-subproducts from https://www.regalrexnord.comhttps://www.warnerelectric.com/products/electromagnetic-clutch: HTTPSConnectionPool(host='www.regalrexnord.comhttps', port=443): Max retries exceeded with url: /www.warnerelectric.com/products/electromagnetic-clutch (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x000002021B8FB410>: Failed to resolve 'www.regalrexnord.comhttps' ([Errno 11001] getaddrinfo failed)"))
+2025-02-10 12:16:26,933 - INFO - Found subproduct: Clutch Couplings | Link: https://www.regalrexnord.comhttps://www.stromag.com/en/products/2in1
+2025-02-10 12:16:26,933 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.comhttps://www.stromag.com/en/products/2in1
+2025-02-10 12:16:26,935 - ERROR - Error scraping sub-subproducts from https://www.regalrexnord.comhttps://www.stromag.com/en/products/2in1: HTTPSConnectionPool(host='www.regalrexnord.comhttps', port=443): Max retries exceeded with url: /www.stromag.com/en/products/2in1 (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x000002021B349880>: Failed to resolve 'www.regalrexnord.comhttps' ([Errno 11001] getaddrinfo failed)"))
+2025-02-10 12:16:26,935 - INFO - Found subproduct: Overrunning Clutches & Backstops | Link: https://www.regalrexnord.comhttps://www.rexnord.com/products-services/process-motion-control/pt-drive-components/backstops/backstops-(nrt)
+2025-02-10 12:16:26,935 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.comhttps://www.rexnord.com/products-services/process-motion-control/pt-drive-components/backstops/backstops-(nrt)
+2025-02-10 12:16:26,937 - ERROR - Error scraping sub-subproducts from https://www.regalrexnord.comhttps://www.rexnord.com/products-services/process-motion-control/pt-drive-components/backstops/backstops-(nrt): HTTPSConnectionPool(host='www.regalrexnord.comhttps', port=443): Max retries exceeded with url: /www.rexnord.com/products-services/process-motion-control/pt-drive-components/backstops/backstops-(nrt) (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x000002021B348D40>: Failed to resolve 'www.regalrexnord.comhttps' ([Errno 11001] getaddrinfo failed)"))
+2025-02-10 12:16:26,937 - INFO - Found subproduct: Torque Limiters | Link: https://www.regalrexnord.comhttps://www.rexnord.com/products-services/process-motion-control/pt-drive-components/torque-limiters/autogard-torque-limiters
+2025-02-10 12:16:26,938 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.comhttps://www.rexnord.com/products-services/process-motion-control/pt-drive-components/torque-limiters/autogard-torque-limiters
+2025-02-10 12:16:26,940 - ERROR - Error scraping sub-subproducts from https://www.regalrexnord.comhttps://www.rexnord.com/products-services/process-motion-control/pt-drive-components/torque-limiters/autogard-torque-limiters: HTTPSConnectionPool(host='www.regalrexnord.comhttps', port=443): Max retries exceeded with url: /www.rexnord.com/products-services/process-motion-control/pt-drive-components/torque-limiters/autogard-torque-limiters (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x000002021B348410>: Failed to resolve 'www.regalrexnord.comhttps' ([Errno 11001] getaddrinfo failed)"))
+2025-02-10 12:16:26,941 - INFO - Found subproduct: Hydraulic Power Units | Link: https://www.regalrexnord.comhttps://www.svendborg-brakes.com/products/hydraulic-power-units/
+2025-02-10 12:16:26,941 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.comhttps://www.svendborg-brakes.com/products/hydraulic-power-units/
+2025-02-10 12:16:26,943 - ERROR - Error scraping sub-subproducts from https://www.regalrexnord.comhttps://www.svendborg-brakes.com/products/hydraulic-power-units/: HTTPSConnectionPool(host='www.regalrexnord.comhttps', port=443): Max retries exceeded with url: /www.svendborg-brakes.com/products/hydraulic-power-units/ (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x000002021B34A5D0>: Failed to resolve 'www.regalrexnord.comhttps' ([Errno 11001] getaddrinfo failed)"))
+2025-02-10 12:16:26,944 - INFO - Found subproduct: Geared Cam Limit Switches | Link: https://www.regalrexnord.comhttps://www.stromag.com/en/products/limit-switches-category
+2025-02-10 12:16:26,944 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.comhttps://www.stromag.com/en/products/limit-switches-category
+2025-02-10 12:16:26,946 - ERROR - Error scraping sub-subproducts from https://www.regalrexnord.comhttps://www.stromag.com/en/products/limit-switches-category: HTTPSConnectionPool(host='www.regalrexnord.comhttps', port=443): Max retries exceeded with url: /www.stromag.com/en/products/limit-switches-category (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x000002021B8FBB30>: Failed to resolve 'www.regalrexnord.comhttps' ([Errno 11001] getaddrinfo failed)"))
+2025-02-10 12:16:26,946 - INFO - Found subproduct: Solid State Motor Switches | Link: https://www.regalrexnord.comhttps://www.stearnsbrakes.com/products/electronic-start-switches/sinpac
+2025-02-10 12:16:26,947 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.comhttps://www.stearnsbrakes.com/products/electronic-start-switches/sinpac
+2025-02-10 12:16:26,948 - ERROR - Error scraping sub-subproducts from https://www.regalrexnord.comhttps://www.stearnsbrakes.com/products/electronic-start-switches/sinpac: HTTPSConnectionPool(host='www.regalrexnord.comhttps', port=443): Max retries exceeded with url: /www.stearnsbrakes.com/products/electronic-start-switches/sinpac (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x000002021B8FBCE0>: Failed to resolve 'www.regalrexnord.comhttps' ([Errno 11001] getaddrinfo failed)"))
+2025-02-10 12:16:26,949 - INFO - Found main product: Conveyor Technologies | Link: https://www.regalrexnord.com/products/conveyor-technologies
+2025-02-10 12:16:26,949 - INFO - Accessing subproduct URL: https://www.regalrexnord.com/products/conveyor-technologies
+2025-02-10 12:16:28,002 - INFO - Found subproduct: Plastic Modular Chains and Belts | Link: https://www.regalrexnord.com/products/conveyor-technologies/plastic-modular-chain-and-belt
+2025-02-10 12:16:28,002 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/products/conveyor-technologies/plastic-modular-chain-and-belt
+2025-02-10 12:16:28,936 - INFO - Found subproduct: Conveyor Sprockets and Wheels | Link: https://www.regalrexnord.com/products/conveying#cf-categories=Conveying%20Sprockets%20and%20Wheels
+2025-02-10 12:16:28,938 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/products/conveying#cf-categories=Conveying%20Sprockets%20and%20Wheels
+2025-02-10 12:16:29,845 - INFO - Found sub-subproduct:  | Link: https://www.regalrexnord.com/cdn-cgi/l/email-protection
+2025-02-10 12:16:29,846 - INFO - Found subproduct: Conveyor Components | Link: https://www.regalrexnord.com/products/conveyor-technologies/regal-conveying-components
+2025-02-10 12:16:29,847 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/products/conveyor-technologies/regal-conveying-components
+2025-02-10 12:16:30,722 - INFO - Found subproduct: Metal Wire Mesh Belts | Link: https://www.regalrexnord.com/products/conveyor-technologies/metal-wire-mesh-belts
+2025-02-10 12:16:30,723 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/products/conveyor-technologies/metal-wire-mesh-belts
+2025-02-10 12:16:31,611 - INFO - Found subproduct: Conveying Systems | Link: https://www.regalrexnord.com/products/conveyor-technologies/conveying-systems
+2025-02-10 12:16:31,612 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/products/conveyor-technologies/conveying-systems
+2025-02-10 12:16:32,613 - INFO - Found subproduct: Gear Drives & Geared Motors | Link: https://www.regalrexnord.com/products/conveyor-technologies/gear-drives-and-geared-motors
+2025-02-10 12:16:32,614 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/products/conveyor-technologies/gear-drives-and-geared-motors
+2025-02-10 12:16:33,512 - INFO - Found main product: Couplings | Link: https://www.regalrexnord.com/products/couplings
+2025-02-10 12:16:33,512 - INFO - Accessing subproduct URL: https://www.regalrexnord.com/products/couplings
+2025-02-10 12:16:34,409 - INFO - Found subproduct: Barrel Couplings | Link: https://www.regalrexnord.com/products/couplings/barrel-couplings-overview
+2025-02-10 12:16:34,409 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/products/couplings/barrel-couplings-overview
+2025-02-10 12:16:35,307 - INFO - Found subproduct: Chain Couplings | Link: https://www.regalrexnord.com/products/couplings/coupling-parts-and-kits/chain
+2025-02-10 12:16:35,308 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/products/couplings/coupling-parts-and-kits/chain
+2025-02-10 12:16:36,307 - INFO - Found sub-subproduct:  | Link: https://www.regalrexnord.com/cdn-cgi/l/email-protection
+2025-02-10 12:16:36,308 - INFO - Found subproduct: Disc Couplings | Link: https://www.regalrexnord.com/products/couplings/disc-couplings-overview
+2025-02-10 12:16:36,308 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/products/couplings/disc-couplings-overview
+2025-02-10 12:16:37,214 - INFO - Found subproduct: Driveshaft Couplings | Link: https://www.regalrexnord.com/404?item=web%3a%7bAB0899EC-9525-46EB-9072-C2B8E38F62ED%7d%40en
+2025-02-10 12:16:37,215 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/404?item=web%3a%7bAB0899EC-9525-46EB-9072-C2B8E38F62ED%7d%40en
+2025-02-10 12:16:38,047 - INFO - Found subproduct: Elastomeric Jaw and Wrap Couplings | Link: https://www.regalrexnord.com/404?item=web%3a%7bD157BBF8-644C-48A4-8F06-946724619909%7d%40en
+2025-02-10 12:16:38,048 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/404?item=web%3a%7bD157BBF8-644C-48A4-8F06-946724619909%7d%40en
+2025-02-10 12:16:38,956 - INFO - Found subproduct: Elastomeric Tire Couplings | Link: https://www.regalrexnord.com/products/couplings/elastomeric-tire-couplings-overview
+2025-02-10 12:16:38,956 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/products/couplings/elastomeric-tire-couplings-overview
+2025-02-10 12:16:43,037 - ERROR - Error scraping sub-subproducts from https://www.regalrexnord.com/products/couplings/elastomeric-tire-couplings-overview: HTTPSConnectionPool(host='www.regalrexnord.com', port=443): Max retries exceeded with url: /products/couplings/elastomeric-tire-couplings-overview (Caused by SSLError(SSLEOFError(8, '[SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1010)')))
+2025-02-10 12:16:43,039 - INFO - Found subproduct: Flange Couplings | Link: https://www.regalrexnord.com/products/couplings/flange-couplings
+2025-02-10 12:16:43,039 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/products/couplings/flange-couplings
+2025-02-10 12:16:43,989 - INFO - Found subproduct: Fluid Couplings | Link: https://www.regalrexnord.com/products/couplings/fluid-couplings-overview
+2025-02-10 12:16:43,990 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/products/couplings/fluid-couplings-overview
+2025-02-10 12:16:44,824 - INFO - Found subproduct: Gear Couplings | Link: https://www.regalrexnord.com/products/couplings/gear-couplings-overview
+2025-02-10 12:16:44,825 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/products/couplings/gear-couplings-overview
+2025-02-10 12:16:45,702 - INFO - Found subproduct: Gear Spindles | Link: https://www.regalrexnord.com/products/couplings/gear-spindles-overview
+2025-02-10 12:16:45,703 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/products/couplings/gear-spindles-overview
+2025-02-10 12:16:46,598 - INFO - Found subproduct: Grid Couplings | Link: https://www.regalrexnord.com/products/couplings/grid-couplings-overview
+2025-02-10 12:16:46,598 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/products/couplings/grid-couplings-overview
+2025-02-10 12:16:47,478 - INFO - Found subproduct: Locking Assemblies & Shrink Discs | Link: https://www.regalrexnord.com/404?item=web%3a%7bED480AC4-3669-40C3-B3EF-2977B3AF63B3%7d%40en
+2025-02-10 12:16:47,479 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/404?item=web%3a%7bED480AC4-3669-40C3-B3EF-2977B3AF63B3%7d%40en
+2025-02-10 12:16:48,311 - INFO - Found subproduct: Rigid Couplings | Link: https://www.regalrexnord.com/404?item=web%3a%7b2C3F92C6-9106-4070-BF09-2D2CACBF031C%7d%40en
+2025-02-10 12:16:48,312 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/404?item=web%3a%7b2C3F92C6-9106-4070-BF09-2D2CACBF031C%7d%40en
+2025-02-10 12:16:49,262 - INFO - Found subproduct: Shaft Guards | Link: https://www.regalrexnord.com/404?item=web%3a%7bE7E9392C-511F-4C34-9F0B-A8631E7ABBC6%7d%40en
+2025-02-10 12:16:49,262 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/404?item=web%3a%7bE7E9392C-511F-4C34-9F0B-A8631E7ABBC6%7d%40en
+2025-02-10 12:16:50,079 - INFO - Found subproduct: Grease | Link: https://www.regalrexnord.com/404?item=web%3a%7b3892A559-D4B8-43DE-9D81-E773EE7550F5%7d%40en
+2025-02-10 12:16:50,080 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/404?item=web%3a%7b3892A559-D4B8-43DE-9D81-E773EE7550F5%7d%40en
+2025-02-10 12:16:50,937 - INFO - Found subproduct: Torsionally Soft Couplings | Link: https://www.regalrexnord.com/products/couplings/torsionally-soft-couplings-overview
+2025-02-10 12:16:50,937 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/products/couplings/torsionally-soft-couplings-overview
+2025-02-10 12:16:51,896 - INFO - Found main product: Electric Motors | Link: https://www.regalrexnord.com/products/regal-rexnord-electric-motors
+2025-02-10 12:16:51,897 - INFO - Accessing subproduct URL: https://www.regalrexnord.com/products/regal-rexnord-electric-motors
+2025-02-10 12:16:52,870 - INFO - Found subproduct: AC Motors - NEMA | Link: https://www.regalrexnord.com/products/electric-motors/ac-motors-nema
+2025-02-10 12:16:52,870 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/products/electric-motors/ac-motors-nema
+2025-02-10 12:16:53,876 - INFO - Found sub-subproduct:  | Link: https://www.regalrexnord.com/cdn-cgi/l/email-protection
+2025-02-10 12:16:53,877 - INFO - Found subproduct: HVAC/R Motors | Link: https://www.regalrexnord.com/products/electric-motors/ac-motors-nema/hvac-r-motors
+2025-02-10 12:16:53,878 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/products/electric-motors/ac-motors-nema/hvac-r-motors
+2025-02-10 12:16:54,893 - INFO - Found sub-subproduct:  | Link: https://www.regalrexnord.com/cdn-cgi/l/email-protection
+2025-02-10 12:16:54,895 - INFO - Found subproduct: DC Motors | Link: https://www.regalrexnord.com/products/electric-motors/dc-motors
+2025-02-10 12:16:54,895 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/products/electric-motors/dc-motors
+2025-02-10 12:16:55,942 - INFO - Found sub-subproduct:  | Link: https://www.regalrexnord.com/cdn-cgi/l/email-protection
+2025-02-10 12:16:55,943 - INFO - Found subproduct: AC Motors - IEC | Link: https://www.regalrexnord.com/products/electric-motors/ac-motors-iec
+2025-02-10 12:16:55,944 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/products/electric-motors/ac-motors-iec
+2025-02-10 12:16:56,835 - INFO - Found sub-subproduct:  | Link: https://www.regalrexnord.com/cdn-cgi/l/email-protection
+2025-02-10 12:16:56,836 - INFO - Found subproduct: Gearmotors | Link: https://www.regalrexnord.com/products/electric-motors/gearmotors
+2025-02-10 12:16:56,837 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/products/electric-motors/gearmotors
+2025-02-10 12:16:57,798 - INFO - Found sub-subproduct:  | Link: https://www.regalrexnord.com/cdn-cgi/l/email-protection
+2025-02-10 12:16:57,799 - INFO - Found subproduct: Motor Accessories | Link: https://www.regalrexnord.com/products/electric-motors/accessories
+2025-02-10 12:16:57,799 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/products/electric-motors/accessories
+2025-02-10 12:17:01,859 - ERROR - Error scraping sub-subproducts from https://www.regalrexnord.com/products/electric-motors/accessories: HTTPSConnectionPool(host='www.regalrexnord.com', port=443): Max retries exceeded with url: /products/electric-motors/accessories (Caused by SSLError(SSLEOFError(8, '[SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1010)')))
+2025-02-10 12:17:01,861 - INFO - Found subproduct: About Electric Motors | Link: https://www.regalrexnord.com/products/regal-rexnord-electric-motors/about-electric-motors
+2025-02-10 12:17:01,861 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/products/regal-rexnord-electric-motors/about-electric-motors
+2025-02-10 12:17:02,753 - INFO - Found subproduct: What’s the Difference Between an AC Motor and a DC Motor? | Link: https://www.regalrexnord.com/regal-rexnord-insights/ac-motor-vs-dc-motor
+2025-02-10 12:17:02,754 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/regal-rexnord-insights/ac-motor-vs-dc-motor
+2025-02-10 12:17:03,651 - INFO - Found subproduct: How Do I Keep My Electric Motor Healthy? | Link: https://www.regalrexnord.com/regal-rexnord-insights/how-to-keep-an-electric-motor-healthy
+2025-02-10 12:17:03,651 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/regal-rexnord-insights/how-to-keep-an-electric-motor-healthy
+2025-02-10 12:17:04,597 - INFO - Found subproduct: History of the Electric Motor | Link: https://www.regalrexnord.com/regal-rexnord-insights/history-electric-motor
+2025-02-10 12:17:04,598 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/regal-rexnord-insights/history-electric-motor
+2025-02-10 12:17:05,454 - INFO - Found subproduct: ABCs of Commercial and Residential Motors | Link: https://www.regalrexnord.com/regal-rexnord-insights/abc-commercial-residential-motors
+2025-02-10 12:17:05,455 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/regal-rexnord-insights/abc-commercial-residential-motors
+2025-02-10 12:17:06,290 - INFO - Found subproduct: General Purpose Vs Definite Purpose Motors | Link: https://www.regalrexnord.com/regal-rexnord-insights/general-purpose-vs-definite-purpose-motors
+2025-02-10 12:17:06,291 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/regal-rexnord-insights/general-purpose-vs-definite-purpose-motors
+2025-02-10 12:17:07,423 - INFO - Found subproduct: Electric Motor Terminology | Link: https://www.regalrexnord.com/regal-rexnord-insights/electric-motor-terminology
+2025-02-10 12:17:07,424 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/regal-rexnord-insights/electric-motor-terminology
+2025-02-10 12:17:09,073 - INFO - Found main product: Electronic Components | Link: https://www.regalrexnord.com/Brands/Marathon-Special-Products
+2025-02-10 12:17:09,074 - INFO - Accessing subproduct URL: https://www.regalrexnord.com/Brands/Marathon-Special-Products
+2025-02-10 12:17:10,249 - INFO - Found subproduct: Fuse Holders | Link: https://www.regalrexnord.com/brands/marathon-special-products/products/fuse-holders
+2025-02-10 12:17:10,250 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/brands/marathon-special-products/products/fuse-holders
+2025-02-10 12:17:13,165 - INFO - Found subproduct: Power Block | Link: https://www.regalrexnord.com/brands/marathon-special-products/products/power-block
+2025-02-10 12:17:13,166 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/brands/marathon-special-products/products/power-block
+2025-02-10 12:17:14,808 - INFO - Found subproduct: Terminal Block | Link: https://www.regalrexnord.com/brands/marathon-special-products/products/terminal-block
+2025-02-10 12:17:14,808 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/brands/marathon-special-products/products/terminal-block
+2025-02-10 12:17:16,466 - INFO - Found main product: Gearing | Link: https://www.regalrexnord.com/products/gearing
+2025-02-10 12:17:16,467 - INFO - Accessing subproduct URL: https://www.regalrexnord.com/products/gearing
+2025-02-10 12:17:17,391 - INFO - Found subproduct: Right Angle Gearing | Link: https://www.regalrexnord.com/products/gearing/regal-right-angle-gearing
+2025-02-10 12:17:17,391 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/products/gearing/regal-right-angle-gearing
+2025-02-10 12:17:21,467 - ERROR - Error scraping sub-subproducts from https://www.regalrexnord.com/products/gearing/regal-right-angle-gearing: HTTPSConnectionPool(host='www.regalrexnord.com', port=443): Max retries exceeded with url: /products/gearing/regal-right-angle-gearing (Caused by SSLError(SSLEOFError(8, '[SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1010)')))
+2025-02-10 12:17:21,467 - INFO - Found subproduct: Shaft Mount Gearing | Link: https://www.regalrexnord.com/products/gearing/shaft-mount-gearing
+2025-02-10 12:17:21,468 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/products/gearing/shaft-mount-gearing
+2025-02-10 12:17:22,385 - INFO - Found sub-subproduct:  | Link: https://www.regalrexnord.com/cdn-cgi/l/email-protection
+2025-02-10 12:17:22,386 - INFO - Found subproduct: Inline Gearing | Link: https://www.regalrexnord.com/products/gearing/inline-gearing
+2025-02-10 12:17:22,387 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/products/gearing/inline-gearing
+2025-02-10 12:17:23,264 - INFO - Found subproduct: Parallel Shaft Gearing | Link: https://www.regalrexnord.com/products/gearing/regal-parallel-shaft-gearing
+2025-02-10 12:17:23,265 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/products/gearing/regal-parallel-shaft-gearing
+2025-02-10 12:17:24,154 - INFO - Found subproduct: Gearmotors | Link: https://www.regalrexnord.com/products/regal-rexnord-electric-motors/gearmotors
+2025-02-10 12:17:24,154 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/products/regal-rexnord-electric-motors/gearmotors
+2025-02-10 12:17:25,248 - INFO - Found subproduct: Custom Gearing Solutions | Link: https://www.regalrexnord.com/products/gearing/custom-gearing-solutions
+2025-02-10 12:17:25,249 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/products/gearing/custom-gearing-solutions
+2025-02-10 12:17:26,089 - INFO - Found subproduct: Gear Components | Link: https://www.regalrexnord.com/products/gearing/gearing-parts-and-kits
+2025-02-10 12:17:26,089 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/products/gearing/gearing-parts-and-kits
+2025-02-10 12:17:27,008 - INFO - Found sub-subproduct:  | Link: https://www.regalrexnord.com/cdn-cgi/l/email-protection
+2025-02-10 12:17:27,010 - INFO - Found main product: Generators | Link: https://www.regalrexnord.com/brands/marathon-generators
+2025-02-10 12:17:27,011 - INFO - Accessing subproduct URL: https://www.regalrexnord.com/brands/marathon-generators
+2025-02-10 12:17:30,095 - INFO - Found main product: Industrial Chain And Sprockets | Link: https://www.regalrexnord.com/products/industrial-chain
+2025-02-10 12:17:30,096 - INFO - Accessing subproduct URL: https://www.regalrexnord.com/products/industrial-chain
+2025-02-10 12:17:30,990 - INFO - Found subproduct: Roller Chain | Link: https://www.regalrexnord.com/products/industrial-chain/roller-chain
+2025-02-10 12:17:30,991 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/products/industrial-chain/roller-chain
+2025-02-10 12:17:31,896 - INFO - Found subproduct: Leaf Chain | Link: https://www.regalrexnord.com/products/industrial-chain/leaf-chain
+2025-02-10 12:17:31,896 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/products/industrial-chain/leaf-chain
+2025-02-10 12:17:32,766 - INFO - Found subproduct: Engineered Steel Chain | Link: https://www.regalrexnord.com/products/industrial-chain/engineered-steel-chain
+2025-02-10 12:17:32,767 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/products/industrial-chain/engineered-steel-chain
+2025-02-10 12:17:33,625 - INFO - Found subproduct: Drop Forged Chain | Link: https://www.regalrexnord.com/products/industrial-chain/drop-forged
+2025-02-10 12:17:33,625 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/products/industrial-chain/drop-forged
+2025-02-10 12:17:34,549 - INFO - Found sub-subproduct:  | Link: https://www.regalrexnord.com/cdn-cgi/l/email-protection
+2025-02-10 12:17:34,550 - INFO - Found subproduct: Silent Chain | Link: https://www.regalrexnord.com/products/industrial-chain/silent-chain
+2025-02-10 12:17:34,551 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/products/industrial-chain/silent-chain
+2025-02-10 12:17:35,381 - INFO - Found subproduct: Sprockets and Wheels | Link: https://www.regalrexnord.com/products/industrial-chain/sprockets-and-wheels
+2025-02-10 12:17:35,382 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/products/industrial-chain/sprockets-and-wheels
+2025-02-10 12:17:36,294 - INFO - Found subproduct: Chain Accessories | Link: https://www.regalrexnord.com/products/industrial-chain/chain-accessories
+2025-02-10 12:17:36,295 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/products/industrial-chain/chain-accessories
+2025-02-10 12:17:37,145 - INFO - Found subproduct: Conveyor Components | Link: https://www.regalrexnord.com/products/industrial-chain/conveyor-components
+2025-02-10 12:17:37,146 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/products/industrial-chain/conveyor-components
+2025-02-10 12:17:38,016 - INFO - Found subproduct: Idlers | Link: https://www.regalrexnord.com/products/industrial-chain/conveying-idlers
+2025-02-10 12:17:38,017 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/products/industrial-chain/conveying-idlers
+2025-02-10 12:17:39,198 - INFO - Found sub-subproduct:  | Link: https://www.regalrexnord.com/cdn-cgi/l/email-protection
+2025-02-10 12:17:39,198 - INFO - Found main product: Linear Motion | Link: https://www.regalrexnord.comhttps://www.thomsonlinear.com/en/index
+2025-02-10 12:17:39,200 - INFO - Accessing subproduct URL: https://www.regalrexnord.comhttps://www.thomsonlinear.com/en/index
+2025-02-10 12:17:39,211 - ERROR - Error scraping subproducts from https://www.regalrexnord.comhttps://www.thomsonlinear.com/en/index: HTTPSConnectionPool(host='www.regalrexnord.comhttps', port=443): Max retries exceeded with url: /www.thomsonlinear.com/en/index (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x000002021BCD0920>: Failed to resolve 'www.regalrexnord.comhttps' ([Errno 11001] getaddrinfo failed)"))
+2025-02-10 12:17:39,212 - INFO - Found main product: Mechanical Power Transmission Components | Link: https://www.regalrexnord.com/products/mechanical-power-transmission-components
+2025-02-10 12:17:39,212 - INFO - Accessing subproduct URL: https://www.regalrexnord.com/products/mechanical-power-transmission-components
+2025-02-10 12:17:40,129 - INFO - Found subproduct: Mechanical Clutches & Torque Overload Devices | Link: https://www.regalrexnord.com/products/mechanical-power-transmission-components/regal-mechanical-clutches
+2025-02-10 12:17:40,129 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/products/mechanical-power-transmission-components/regal-mechanical-clutches
+2025-02-10 12:17:41,607 - INFO - Found subproduct: Belt Drives | Link: https://www.regalrexnord.com/products/mechanical-power-transmission-components/regal-belt-drives
+2025-02-10 12:17:41,608 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/products/mechanical-power-transmission-components/regal-belt-drives
+2025-02-10 12:17:42,444 - INFO - Found subproduct: Bushings | Link: https://www.regalrexnord.com/products/mechanical-power-transmission-components/regal-bushings
+2025-02-10 12:17:42,444 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/products/mechanical-power-transmission-components/regal-bushings
+2025-02-10 12:17:43,273 - INFO - Found subproduct: Tighteners-Idlers | Link: https://www.regalrexnord.com/products/mechanical-power-transmission-components/regal-tighteners-idlers
+2025-02-10 12:17:43,274 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/products/mechanical-power-transmission-components/regal-tighteners-idlers
+2025-02-10 12:17:44,131 - INFO - Found subproduct: Open Gearing | Link: https://www.regalrexnord.com/products/mechanical-power-transmission-components/open-gearing
+2025-02-10 12:17:44,131 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/products/mechanical-power-transmission-components/open-gearing
+2025-02-10 12:17:45,143 - INFO - Found sub-subproduct:  | Link: https://www.regalrexnord.com/cdn-cgi/l/email-protection
+2025-02-10 12:17:45,144 - INFO - Found subproduct: Farm Solutions | Link: https://www.regalrexnord.com/products/mechanical-power-transmission-components/farm-solutions
+2025-02-10 12:17:45,145 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/products/mechanical-power-transmission-components/farm-solutions
+2025-02-10 12:17:46,023 - INFO - Found main product: Miniature Motors | Link: https://www.regalrexnord.comhttps://www.portescap.com/en/products
+2025-02-10 12:17:46,024 - INFO - Accessing subproduct URL: https://www.regalrexnord.comhttps://www.portescap.com/en/products
+2025-02-10 12:17:46,032 - ERROR - Error scraping subproducts from https://www.regalrexnord.comhttps://www.portescap.com/en/products: HTTPSConnectionPool(host='www.regalrexnord.comhttps', port=443): Max retries exceeded with url: /www.portescap.com/en/products (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x000002021B348320>: Failed to resolve 'www.regalrexnord.comhttps' ([Errno 11001] getaddrinfo failed)"))
+2025-02-10 12:17:46,033 - INFO - Found main product: Precision Motion & Automation | Link: https://www.regalrexnord.comhttps://www.kollmorgen.com/en-us/products
+2025-02-10 12:17:46,033 - INFO - Accessing subproduct URL: https://www.regalrexnord.comhttps://www.kollmorgen.com/en-us/products
+2025-02-10 12:17:46,035 - ERROR - Error scraping subproducts from https://www.regalrexnord.comhttps://www.kollmorgen.com/en-us/products: HTTPSConnectionPool(host='www.regalrexnord.comhttps', port=443): Max retries exceeded with url: /www.kollmorgen.com/en-us/products (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x000002021C11BEC0>: Failed to resolve 'www.regalrexnord.comhttps' ([Errno 11001] getaddrinfo failed)"))
+2025-02-10 12:17:46,036 - INFO - Found main product: Predictive Maintenance | Link: https://www.regalrexnord.com/products/predictive-maintenance
+2025-02-10 12:17:46,036 - INFO - Accessing subproduct URL: https://www.regalrexnord.com/products/predictive-maintenance
+2025-02-10 12:17:46,924 - INFO - Found subproduct: Condition Monitoring System | Link: https://www.regalrexnord.com/products/predictive-maintenance/condition-monitoring
+2025-02-10 12:17:46,924 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/products/predictive-maintenance/condition-monitoring
+2025-02-10 12:17:47,776 - INFO - Found subproduct: Connected Products | Link: https://www.regalrexnord.com/brands/perceptiv/perceptiv-connected-products
+2025-02-10 12:17:47,777 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/brands/perceptiv/perceptiv-connected-products
+2025-02-10 12:17:50,810 - INFO - Found subproduct: Lowering the Cost of Unplanned Downtime | Link: https://www.regalrexnord.com/brands/perceptiv/solutions/prevent-downtime
+2025-02-10 12:17:50,810 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/brands/perceptiv/solutions/prevent-downtime
+2025-02-10 12:17:52,407 - INFO - Found subproduct: The Practical Guide to Condition Monitoring | Link: https://www.regalrexnord.com/brands/perceptiv/solutions/industrial-remote-monitoring-expectations-vs-reality
+2025-02-10 12:17:52,408 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/brands/perceptiv/solutions/industrial-remote-monitoring-expectations-vs-reality
+2025-02-10 12:17:54,028 - INFO - Found subproduct: Benefits of Proactive Maintenance | Link: https://www.regalrexnord.com/brands/perceptiv/knowledge-base/benefits-of-proactive-maintenance
+2025-02-10 12:17:54,029 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/brands/perceptiv/knowledge-base/benefits-of-proactive-maintenance
+2025-02-10 12:17:55,899 - INFO - Found subproduct: Growing Footprint of Reliability Systems | Link: https://www.regalrexnord.com/brands/perceptiv/solutions/growing-footprint-of-reliability-systems
+2025-02-10 12:17:55,899 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/brands/perceptiv/solutions/growing-footprint-of-reliability-systems
+2025-02-10 12:17:57,702 - INFO - Found main product: Switchgear, Transfer Switches and Controls | Link: https://www.regalrexnord.com/products/switchgear-transfer-switches-controls
+2025-02-10 12:17:57,703 - INFO - Accessing subproduct URL: https://www.regalrexnord.com/products/switchgear-transfer-switches-controls
+2025-02-10 12:17:58,772 - INFO - Found subproduct: Transfer Switches | Link: https://www.regalrexnord.com/products/switchgear-transfer-switches-controls/regal-transfer-switches
+2025-02-10 12:17:58,772 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/products/switchgear-transfer-switches-controls/regal-transfer-switches
+2025-02-10 12:18:00,514 - INFO - Found subproduct: Switchgear | Link: https://www.regalrexnord.com/products/switchgear-transfer-switches-controls/switchgear
+2025-02-10 12:18:00,514 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/products/switchgear-transfer-switches-controls/switchgear
+2025-02-10 12:18:01,589 - INFO - Found subproduct: Load Bank | Link: https://www.regalrexnord.com/products/switchgear-transfer-switches-controls/loadbanks
+2025-02-10 12:18:01,590 - INFO - Accessing sub-subproduct URL: https://www.regalrexnord.com/products/switchgear-transfer-switches-controls/loadbanks
+2025-02-10 12:18:02,458 - INFO - Saved 17 products to product_names.json
