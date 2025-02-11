@@ -14,7 +14,7 @@ import {
   Checkbox,
   TextField,
 } from "@mui/material";
-import { Inbox, Add, Description, Link, Cloud, Public } from "@mui/icons-material";
+import {  Add, Description } from "@mui/icons-material";
 import UstLogo from "../assets/ustlogo.svg"; // Import the UST logo
 
 export default function UserManualGenerator() {
@@ -32,7 +32,7 @@ export default function UserManualGenerator() {
     azureBlob: false,
     confluence: false,
   });
-  const [pdfFile, setPdfFile] = useState(null);
+  const [, setPdfFile] = useState(null);
   const [link, setLink] = useState("");
   const [azureBlob, setAzureBlob] = useState("");
   const [confluence, setConfluence] = useState("");
@@ -66,16 +66,16 @@ export default function UserManualGenerator() {
     if (error) setError("");
   };
 
-  const handleFileUpload = (event) => {
-    const file = event.target.files[0];
-    if (file && file.type === "application/pdf") {
-      setUploadedFile(file);
-      setError("");
-    } else {
-      setError("Please upload a valid PDF file.");
-      setUploadedFile(null);
-    }
-  };
+  // const handleFileUpload = (event) => {
+  //   const file = event.target.files[0];
+  //   if (file && file.type === "application/pdf") {
+  //     setUploadedFile(file);
+  //     setError("");
+  //   } else {
+  //     setError("Please upload a valid PDF file.");
+  //     setUploadedFile(null);
+  //   }
+  // };
 
   const handleGenerateManual = async () => {
     if (!language.length || !selectedProduct || !uploadedFile) {

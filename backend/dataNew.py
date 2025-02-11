@@ -335,8 +335,7 @@ async def generate_manual(
     except Exception as e:
         logger.error(f"Error generating manual: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
-
-# Load product data from JSON file
+    
 PRODUCTS_FILE_PATH = os.path.join(os.path.dirname(__file__), "product_names.json")
 
 # Load the JSON file
