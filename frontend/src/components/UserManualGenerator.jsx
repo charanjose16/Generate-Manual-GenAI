@@ -1,22 +1,41 @@
 import { useState, useEffect } from "react";
 import {
-  
   Select,
   MenuItem,
   Button,
   Grid,
   Box,
   Typography,
+  Drawer,
+  List,
+  ListItem,
+  ListItemIcon,
+  ListItemText,
+  Checkbox,
+  TextField,
 } from "@mui/material";
+import { Inbox, Add, Description, Link, Cloud, Public } from "@mui/icons-material";
+import UstLogo from "../assets/ustlogo.svg"; // Import the UST logo
 
 export default function UserManualGenerator() {
-  const [language, setLanguage] = useState("");
+  const [language, setLanguage] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [products, setProducts] = useState([]);
   const [selectedProduct, setSelectedProduct] = useState("");
   const [selectedSubProduct, setSelectedSubProduct] = useState("");
   const [uploadedFile, setUploadedFile] = useState(null);
+  const [activePage, setActivePage] = useState("generateManual");
+  const [selectedDataSources, setSelectedDataSources] = useState({
+    uploadPDF: false,
+    uploadLink: false,
+    azureBlob: false,
+    confluence: false,
+  });
+  const [pdfFile, setPdfFile] = useState(null);
+  const [link, setLink] = useState("");
+  const [azureBlob, setAzureBlob] = useState("");
+  const [confluence, setConfluence] = useState("");
 
   // Fetch products data from the FastAPI backend
   useEffect(() => {
@@ -59,7 +78,7 @@ export default function UserManualGenerator() {
   };
 
   const handleGenerateManual = async () => {
-    if (!language || !selectedProduct || !uploadedFile) {
+    if (!language.length || !selectedProduct || !uploadedFile) {
       setError("Please fill in all required fields and upload a PDF file.");
       return;
     }
@@ -71,7 +90,7 @@ export default function UserManualGenerator() {
       const formData = new FormData();
       formData.append("product_category", selectedProduct);
       formData.append("rag_source", uploadedFile);
-      formData.append("language", language.trim());
+      formData.append("language", language.join(",").trim()); // Handle multiple languages
 
       const response = await fetch("http://localhost:8000/generate-manual", {
         method: "POST",
@@ -96,7 +115,7 @@ export default function UserManualGenerator() {
       setSelectedProduct("");
       setSelectedSubProduct("");
       setUploadedFile(null);
-      setLanguage("");
+      setLanguage([]);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -104,32 +123,132 @@ export default function UserManualGenerator() {
     }
   };
 
-  return (
-    <Box
-      sx={{
-        height: "100vh",
-        width: "100vw",
-        display: "flex",
-        flexDirection: "column",
-        justifyContent: "center",
-        alignItems: "center",
-        p: 3,
-        bgcolor: "background.paper",
-      }}
-    >
-      <Typography
-        variant="h4"
-        component="h1"
-        align="center"
-        sx={{
-          mb: 4,
-          fontWeight: "bold",
-          color: "text.primary",
-        }}
-      >
-        User Manual Generator
+  const handleDataSourceChange = (event) => {
+    setSelectedDataSources({
+      ...selectedDataSources,
+      [event.target.name]: event.target.checked,
+    });
+  };
+
+  const handleUploadData = () => {
+    // Handle data upload logic here
+    setActivePage("generateManual");
+  };
+
+  const renderAddDataSourcePage = () => (
+    <Box sx={{ p: 4, width: "100%", height: "100%" }}>
+      <Typography variant="h5" gutterBottom>
+        Add Data Source
       </Typography>
-      <Grid container spacing={3} sx={{ maxWidth: 600 }}>
+      <Grid container spacing={3}>
+        <Grid item xs={12}>
+          <Typography variant="subtitle1" gutterBottom>
+            Select Data Sources
+          </Typography>
+          <Grid container spacing={2}>
+            <Grid item xs={12}>
+              <Box sx={{ display: "flex", alignItems: "center" }}>
+                <Checkbox
+                  name="uploadPDF"
+                  checked={selectedDataSources.uploadPDF}
+                  onChange={handleDataSourceChange}
+                />
+                <Typography>Upload PDF</Typography>
+              </Box>
+              {selectedDataSources.uploadPDF && (
+                <TextField
+                  fullWidth
+                  type="file"
+                  accept="application/pdf"
+                  onChange={(e) => setPdfFile(e.target.files[0])}
+                  sx={{ mt: 1 }}
+                />
+              )}
+            </Grid>
+            <Grid item xs={12}>
+              <Box sx={{ display: "flex", alignItems: "center" }}>
+                <Checkbox
+                  name="uploadLink"
+                  checked={selectedDataSources.uploadLink}
+                  onChange={handleDataSourceChange}
+                />
+                <Typography>Upload Link</Typography>
+              </Box>
+              {selectedDataSources.uploadLink && (
+                <TextField
+                  fullWidth
+                  placeholder="Enter link"
+                  value={link}
+                  onChange={(e) => setLink(e.target.value)}
+                  sx={{ mt: 1 }}
+                />
+              )}
+            </Grid>
+            <Grid item xs={12}>
+              <Box sx={{ display: "flex", alignItems: "center" }}>
+                <Checkbox
+                  name="azureBlob"
+                  checked={selectedDataSources.azureBlob}
+                  onChange={handleDataSourceChange}
+                />
+                <Typography>Azure Blob Storage</Typography>
+              </Box>
+              {selectedDataSources.azureBlob && (
+                <TextField
+                  fullWidth
+                  placeholder="Enter Azure Blob Storage details"
+                  value={azureBlob}
+                  onChange={(e) => setAzureBlob(e.target.value)}
+                  sx={{ mt: 1 }}
+                />
+              )}
+            </Grid>
+            <Grid item xs={12}>
+              <Box sx={{ display: "flex", alignItems: "center" }}>
+                <Checkbox
+                  name="confluence"
+                  checked={selectedDataSources.confluence}
+                  onChange={handleDataSourceChange}
+                />
+                <Typography>Confluence</Typography>
+              </Box>
+              {selectedDataSources.confluence && (
+                <TextField
+                  fullWidth
+                  placeholder="Enter Confluence details"
+                  value={confluence}
+                  onChange={(e) => setConfluence(e.target.value)}
+                  sx={{ mt: 1 }}
+                />
+              )}
+            </Grid>
+          </Grid>
+        </Grid>
+        <Grid item xs={12}>
+          <Button
+            variant="contained"
+            onClick={handleUploadData}
+            sx={{
+              bgcolor: "#2669f2",
+              color: "background.paper",
+              "&:hover": {
+                bgcolor: "text.secondary",
+              },
+            }}
+          >
+            Upload
+          </Button>
+        </Grid>
+      </Grid>
+    </Box>
+  );
+
+  const renderGenerateManualPage = () => (
+    <Box sx={{ p: 4, width: "100%", height: "100%" }}>
+      <Typography variant="h5" gutterBottom>
+        Generate User Manual
+      </Typography>
+      <Grid container spacing={3} sx={{ maxWidth: 800 }}>
         {/* Product Selection */}
         <Grid item xs={12}>
           <Typography variant="subtitle1" gutterBottom>
@@ -182,64 +301,36 @@ export default function UserManualGenerator() {
           </Grid>
         )}
 
-        {/* Document Upload */}
-        <Grid item xs={12}>
-          <Typography variant="subtitle1" gutterBottom>
-            Upload Product Document (PDF)
-          </Typography>
-          <Button
-            variant="contained"
-            component="label"
-            fullWidth
-            disabled={loading}
-            sx={{
-              bgcolor: "text.primary",
-              color: "background.paper",
-              "&:hover": {
-                bgcolor: "text.secondary",
-              },
-            }}
-          >
-            Upload PDF
-            <input
-              type="file"
-              accept="application/pdf"
-              hidden
-              onChange={handleFileUpload}
-            />
-          </Button>
-          {uploadedFile && (
-            <Typography variant="body2" sx={{ mt: 1 }}>
-              Uploaded: {uploadedFile.name}
-            </Typography>
-          )}
-        </Grid>
-
         {/* Language Selection */}
-        <Grid item xs={12}>
-          <Typography variant="subtitle1" gutterBottom>
-            Language
-          </Typography>
-          <Select
-            fullWidth
-            value={language}
-            onChange={(e) => setLanguage(e.target.value)}
-            displayEmpty
-            variant="outlined"
-            disabled={loading}
-            error={Boolean(error && !language)}
-          >
-            <MenuItem value="" disabled>
-              Select a language
-            </MenuItem>
-            <MenuItem value="en">English</MenuItem>
-            <MenuItem value="es">Spanish (Español)</MenuItem>
-            <MenuItem value="fr">French (Français)</MenuItem>
-            <MenuItem value="de">German (Deutsch)</MenuItem>
-            <MenuItem value="it">Italian (Italiano)</MenuItem>
-          </Select>
-        </Grid>
-      </Grid>
+<Grid item xs={12}>
+  <Typography variant="subtitle1" gutterBottom>
+    Language
+  </Typography>
+  <Box sx={{ display: "flex", flexDirection: "column" }}>
+    {[
+      { code: "en", name: "English" },
+      { code: "es", name: "Spanish" },
+      { code: "fr", name: "French" },
+      { code: "de", name: "German" },
+      { code: "it", name: "Italian" },
+    ].map(({ code, name }) => (
+      <Box sx={{ display: "flex", alignItems: "center" }} key={code}>
+        <Checkbox
+          checked={language.includes(code)}
+          onChange={(e) => {
+            if (e.target.checked) {
+              setLanguage([...language, code]);
+            } else {
+              setLanguage(language.filter((l) => l !== code));
+            }
+          }}
+        />
+        <Typography>{name}</Typography>
+      </Box>
+    ))}
+  </Box>
+</Grid>
+</Grid>
 
       {/* Error Message */}
       {error && (
@@ -255,7 +346,7 @@ export default function UserManualGenerator() {
           onClick={handleGenerateManual}
           disabled={loading}
           sx={{
-            bgcolor: "text.primary",
+            bgcolor: "#2669f2",
             color: "background.paper",
             "&:hover": {
               bgcolor: "text.secondary",
@@ -264,6 +355,94 @@ export default function UserManualGenerator() {
         >
           {loading ? "GENERATING..." : "GENERATE USER MANUAL"}
         </Button>
+        <Button
+          variant="outlined"
+          sx={{
+            color: "text.primary",
+            borderColor: "text.primary",
+            "&:hover": {
+              borderColor: "text.secondary",
+            },
+          }}
+        >
+          FAQ
+        </Button>
+      </Box>
+    </Box>
+  );
+
+  return (
+    <Box sx={{ display: "flex", flexDirection: "column", height: "100vh", width: "100vw", overflow: "hidden" }}>
+      {/* Main Content */}
+      <Box sx={{ display: "flex", flexGrow: 1, overflow: "hidden" }}>
+        {/* Side Panel */}
+        <Drawer
+          variant="permanent"
+          sx={{
+            width: 240,
+            flexShrink: 0,
+            "& .MuiDrawer-paper": {
+              width: 240,
+              boxSizing: "border-box",
+              bgcolor: "#02062c",
+              color: "#fff",
+            },
+          }}
+        >
+          <Box sx={{ p: 2, display: "flex", alignItems: "center", gap: 1 }}>
+            <img src={UstLogo} alt="UST Logo" style={{ width: 24, height: 24 }} />
+            <Typography variant="h6" marginLeft="15px"> Configuration</Typography>
+          </Box>
+          <List>
+            <ListItem
+              button
+              onClick={() => setActivePage("generateManual")}
+              sx={{
+                bgcolor: activePage === "generateManual" ? "#333" : "transparent",
+                "&:hover": {
+                  cursor: "pointer",
+                  bgcolor: "#02062c", // Match the side panel hover color
+                },
+              }}
+            >
+              <ListItemIcon>
+                <Description sx={{ color: "#fff" }} />
+              </ListItemIcon>
+              <ListItemText primary="Generate Manual" />
+            </ListItem>
+            <ListItem
+              button
+              onClick={() => setActivePage("addDataSource")}
+              sx={{
+                bgcolor: activePage === "addDataSource" ? "#333" : "transparent",
+                "&:hover": {
+                  cursor: "pointer",
+                  bgcolor: "#02062c", // Match the side panel hover color
+                },
+              }}
+            >
+              <ListItemIcon>
+                <Add sx={{ color: "#fff" }} />
+              </ListItemIcon>
+              <ListItemText primary="Add Data Source" />
+            </ListItem>
+          </List>
+        </Drawer>
+  
+        {/* Main Content Area */}
+        <Box
+          sx={{
+            flexGrow: 1,
+            bgcolor: "background.paper",
+            overflow: "auto",
+            p: 3,
+            height: "100%",
+          }}
+        >
+          {activePage === "generateManual"
+            ? renderGenerateManualPage()
+            : renderAddDataSourcePage()}
+        </Box>
       </Box>
     </Box>
   );
