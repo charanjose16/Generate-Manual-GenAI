@@ -11,14 +11,14 @@ import {
   ListItem,
   ListItemIcon,
   ListItemText,
-  Checkbox,
   TextField,
 } from "@mui/material";
-import {  Add, Description } from "@mui/icons-material";
+import { Add, Description } from "@mui/icons-material";
 import UstLogo from "../assets/ustlogo.svg"; // Import the UST logo
 
 export default function UserManualGenerator() {
-  const [language, setLanguage] = useState([]);
+  // Change language state to a string (single language code)
+  const [language, setLanguage] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [products, setProducts] = useState([]);
@@ -26,13 +26,14 @@ export default function UserManualGenerator() {
   const [selectedSubProduct, setSelectedSubProduct] = useState("");
   const [uploadedFile, setUploadedFile] = useState(null);
   const [activePage, setActivePage] = useState("generateManual");
+
+  // Data source states for the secondary page (if needed)
   const [selectedDataSources, setSelectedDataSources] = useState({
     uploadPDF: false,
     uploadLink: false,
     azureBlob: false,
     confluence: false,
   });
-  const [, setPdfFile] = useState(null);
   const [link, setLink] = useState("");
   const [azureBlob, setAzureBlob] = useState("");
   const [confluence, setConfluence] = useState("");
@@ -66,19 +67,21 @@ export default function UserManualGenerator() {
     if (error) setError("");
   };
 
-  // const handleFileUpload = (event) => {
-  //   const file = event.target.files[0];
-  //   if (file && file.type === "application/pdf") {
-  //     setUploadedFile(file);
-  //     setError("");
-  //   } else {
-  //     setError("Please upload a valid PDF file.");
-  //     setUploadedFile(null);
-  //   }
-  // };
+  // Handle PDF file upload
+  const handleFileUpload = (event) => {
+    const file = event.target.files[0];
+    if (file && file.type === "application/pdf") {
+      setUploadedFile(file);
+      setError("");
+    } else {
+      setError("Please upload a valid PDF file.");
+      setUploadedFile(null);
+    }
+  };
 
   const handleGenerateManual = async () => {
-    if (!language.length || !selectedProduct || !uploadedFile) {
+    // Validate required fields: language (non-empty string), selectedProduct, and uploaded PDF file.
+    if (!language || !selectedProduct || !uploadedFile) {
       setError("Please fill in all required fields and upload a PDF file.");
       return;
     }
@@ -90,7 +93,7 @@ export default function UserManualGenerator() {
       const formData = new FormData();
       formData.append("product_category", selectedProduct);
       formData.append("rag_source", uploadedFile);
-      formData.append("language", language.join(",").trim()); // Handle multiple languages
+      formData.append("language", language);
 
       const response = await fetch("http://localhost:8000/generate-manual", {
         method: "POST",
@@ -106,16 +109,18 @@ export default function UserManualGenerator() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `user_manual_${language}.pdf`;
+      // You can modify the filename as needed:
+      a.download = `user_manual_${selectedProduct}_${language}.pdf`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
 
+      // Reset form fields after successful generation
       setSelectedProduct("");
       setSelectedSubProduct("");
       setUploadedFile(null);
-      setLanguage([]);
+      setLanguage("");
     } catch (err) {
       setError(err.message);
     } finally {
@@ -148,29 +153,24 @@ export default function UserManualGenerator() {
           <Grid container spacing={2}>
             <Grid item xs={12}>
               <Box sx={{ display: "flex", alignItems: "center" }}>
-                <Checkbox
+                <input
+                  type="checkbox"
                   name="uploadPDF"
                   checked={selectedDataSources.uploadPDF}
                   onChange={handleDataSourceChange}
+                  style={{ marginRight: 8 }}
                 />
                 <Typography>Upload PDF</Typography>
               </Box>
-              {selectedDataSources.uploadPDF && (
-                <TextField
-                  fullWidth
-                  type="file"
-                  accept="application/pdf"
-                  onChange={(e) => setPdfFile(e.target.files[0])}
-                  sx={{ mt: 1 }}
-                />
-              )}
             </Grid>
             <Grid item xs={12}>
               <Box sx={{ display: "flex", alignItems: "center" }}>
-                <Checkbox
+                <input
+                  type="checkbox"
                   name="uploadLink"
                   checked={selectedDataSources.uploadLink}
                   onChange={handleDataSourceChange}
+                  style={{ marginRight: 8 }}
                 />
                 <Typography>Upload Link</Typography>
               </Box>
@@ -186,10 +186,12 @@ export default function UserManualGenerator() {
             </Grid>
             <Grid item xs={12}>
               <Box sx={{ display: "flex", alignItems: "center" }}>
-                <Checkbox
+                <input
+                  type="checkbox"
                   name="azureBlob"
                   checked={selectedDataSources.azureBlob}
                   onChange={handleDataSourceChange}
+                  style={{ marginRight: 8 }}
                 />
                 <Typography>Azure Blob Storage</Typography>
               </Box>
@@ -205,10 +207,12 @@ export default function UserManualGenerator() {
             </Grid>
             <Grid item xs={12}>
               <Box sx={{ display: "flex", alignItems: "center" }}>
-                <Checkbox
+                <input
+                  type="checkbox"
                   name="confluence"
                   checked={selectedDataSources.confluence}
                   onChange={handleDataSourceChange}
+                  style={{ marginRight: 8 }}
                 />
                 <Typography>Confluence</Typography>
               </Box>
@@ -302,35 +306,55 @@ export default function UserManualGenerator() {
         )}
 
         {/* Language Selection */}
-<Grid item xs={12}>
-  <Typography variant="subtitle1" gutterBottom>
-    Language
-  </Typography>
-  <Box sx={{ display: "flex", flexDirection: "column" }}>
-    {[
-      { code: "en", name: "English" },
-      { code: "es", name: "Spanish" },
-      { code: "fr", name: "French" },
-      { code: "de", name: "German" },
-      { code: "it", name: "Italian" },
-    ].map(({ code, name }) => (
-      <Box sx={{ display: "flex", alignItems: "center" }} key={code}>
-        <Checkbox
-          checked={language.includes(code)}
-          onChange={(e) => {
-            if (e.target.checked) {
-              setLanguage([...language, code]);
-            } else {
-              setLanguage(language.filter((l) => l !== code));
-            }
-          }}
-        />
-        <Typography>{name}</Typography>
-      </Box>
-    ))}
-  </Box>
-</Grid>
-</Grid>
+        <Grid item xs={12}>
+          <Typography variant="subtitle1" gutterBottom>
+            Language
+          </Typography>
+          <Select
+            fullWidth
+            value={language}
+            onChange={(e) => setLanguage(e.target.value)}
+            displayEmpty
+            variant="outlined"
+            disabled={loading}
+          >
+            <MenuItem value="" disabled>
+              Select a language
+            </MenuItem>
+            <MenuItem value="en">English</MenuItem>
+            <MenuItem value="es">Spanish</MenuItem>
+            <MenuItem value="fr">French</MenuItem>
+            <MenuItem value="de">German</MenuItem>
+            <MenuItem value="it">Italian</MenuItem>
+          </Select>
+        </Grid>
+
+        {/* PDF Upload */}
+        <Grid item xs={12}>
+          <Typography variant="subtitle1" gutterBottom>
+            Upload PDF File
+          </Typography>
+          <Button
+            variant="outlined"
+            component="label"
+            disabled={loading}
+            sx={{ textTransform: "none" }}
+          >
+            {uploadedFile ? "PDF Selected" : "Choose PDF"}
+            <input
+              type="file"
+              accept="application/pdf"
+              hidden
+              onChange={handleFileUpload}
+            />
+          </Button>
+          {uploadedFile && (
+            <Typography variant="body2" sx={{ mt: 1 }}>
+              {uploadedFile.name}
+            </Typography>
+          )}
+        </Grid>
+      </Grid>
 
       {/* Error Message */}
       {error && (
@@ -372,7 +396,15 @@ export default function UserManualGenerator() {
   );
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", height: "100vh", width: "100vw", overflow: "hidden" }}>
+    <Box
+      sx={{
+        display: "flex",
+        flexDirection: "column",
+        height: "100vh",
+        width: "100vw",
+        overflow: "hidden",
+      }}
+    >
       {/* Main Content */}
       <Box sx={{ display: "flex", flexGrow: 1, overflow: "hidden" }}>
         {/* Side Panel */}
@@ -391,7 +423,9 @@ export default function UserManualGenerator() {
         >
           <Box sx={{ p: 2, display: "flex", alignItems: "center", gap: 1 }}>
             <img src={UstLogo} alt="UST Logo" style={{ width: 24, height: 24 }} />
-            <Typography variant="h6" marginLeft="15px"> Configuration</Typography>
+            <Typography variant="h6" marginLeft="15px">
+              Configuration
+            </Typography>
           </Box>
           <List>
             <ListItem
@@ -401,7 +435,7 @@ export default function UserManualGenerator() {
                 bgcolor: activePage === "generateManual" ? "#333" : "transparent",
                 "&:hover": {
                   cursor: "pointer",
-                  bgcolor: "#02062c", // Match the side panel hover color
+                  bgcolor: "#02062c",
                 },
               }}
             >
@@ -417,7 +451,7 @@ export default function UserManualGenerator() {
                 bgcolor: activePage === "addDataSource" ? "#333" : "transparent",
                 "&:hover": {
                   cursor: "pointer",
-                  bgcolor: "#02062c", // Match the side panel hover color
+                  bgcolor: "#02062c",
                 },
               }}
             >
@@ -428,7 +462,7 @@ export default function UserManualGenerator() {
             </ListItem>
           </List>
         </Drawer>
-  
+
         {/* Main Content Area */}
         <Box
           sx={{

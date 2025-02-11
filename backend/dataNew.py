@@ -153,7 +153,10 @@ def retrieve_content(vector_store, query):
         raise HTTPException(status_code=500, detail=f"Failed to retrieve content: {str(e)}")
 
 def generate_content_prompts(product_data, language, retrieved_content):
-    """Generate language-specific prompts for each section."""
+    """
+    Generate language-specific prompts for each section using the retrieved PDF content 
+    as additional context. This helps the language model generate more relevant output.
+    """
     product_category = product_data["product_category"]
     language_texts = get_language_texts(language)
     
@@ -161,26 +164,28 @@ def generate_content_prompts(product_data, language, retrieved_content):
     language_instruction = f"""
     You are a professional technical writer creating content in {language}.
     Instructions:
-    1. Generate ALL content in {language} language
-    2. Maintain technical accuracy in the translation
-    3. Use appropriate formal tone for user manuals in {language}
-    4. Preserve all technical terms and measurements
-    5. Keep the same structured format as the original
-    6. Ensure all headings and subheadings are in {language}
+    1. Generate ALL content in {language} language.
+    2. Maintain technical accuracy in the translation.
+    3. Use an appropriate formal tone for user manuals in {language}.
+    4. Preserve all technical terms and measurements.
+    5. Keep the same structured format as the original.
+    6. Ensure all headings and subheadings are in {language}.
     """
     
-    # Generate prompts for each section using language-specific headings
+    # Append retrieved content for context
+    context_text = f"\n\nRelevant context extracted from the provided PDF:\n{retrieved_content}\n\n"
+    
     return {
-        language_texts["introduction"]: f"{language_instruction}\n\nTask: Write a structured introduction in {language} ",
-        language_texts["key_features"]: f"{language_instruction}\n\nTask: Describe these features in {language}",
-        language_texts["technical_specifications"]: f"{language_instruction}\n\nTask: Present these specifications in {language}",
-        language_texts["safety_information"]: f"{language_instruction}\n\nTask: Create safety guidelines in {language} ",
-        language_texts["setup_instructions"]: f"{language_instruction}\n\nTask: Write setup instructions in {language}",
-        language_texts["operation_instructions"]: f"{language_instruction}\n\nTask: Create operation guidelines in {language} ",
-        language_texts["maintenance_and_care"]: f"{language_instruction}\n\nTask: Write maintenance procedures in {language} ",
-        language_texts["troubleshooting"]: f"{language_instruction}\n\nTask: Create a troubleshooting guide in {language} ",
-        language_texts["faq"]: f"{language_instruction}\n\nTask: Generate FAQs in {language} ",
-        language_texts["warranty_information"]: f"{language_instruction}\n\nTask: Write warranty details in {language} "
+        language_texts["introduction"]: f"{language_instruction}{context_text}Task: Write a structured introduction in {language}.",
+        language_texts["key_features"]: f"{language_instruction}{context_text}Task: Describe the key features in {language}.",
+        language_texts["technical_specifications"]: f"{language_instruction}{context_text}Task: Present technical specifications in {language}.",
+        language_texts["safety_information"]: f"{language_instruction}{context_text}Task: Create safety guidelines in {language}.",
+        language_texts["setup_instructions"]: f"{language_instruction}{context_text}Task: Write setup instructions in {language}.",
+        language_texts["operation_instructions"]: f"{language_instruction}{context_text}Task: Create operation guidelines in {language}.",
+        language_texts["maintenance_and_care"]: f"{language_instruction}{context_text}Task: Write maintenance procedures in {language}.",
+        language_texts["troubleshooting"]: f"{language_instruction}{context_text}Task: Create a troubleshooting guide in {language}.",
+        language_texts["faq"]: f"{language_instruction}{context_text}Task: Generate FAQs in {language}.",
+        language_texts["warranty_information"]: f"{language_instruction}{context_text}Task: Write warranty details in {language}."
     }
 
 def clean_content(text):
