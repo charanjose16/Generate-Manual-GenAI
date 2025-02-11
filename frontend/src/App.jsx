@@ -5,7 +5,7 @@ import UserManualGenerator from "./components/UserManualGenerator";
 function App() {
   return (
     <div>
-       <UserManualGenerator />
+      <UserManualGenerator />
     </div>
   );
 }
