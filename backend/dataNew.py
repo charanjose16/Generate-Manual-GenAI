@@ -1,7 +1,7 @@
 import os
 import logging
 from fastapi import FastAPI, HTTPException, File, UploadFile, Form
-from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi.responses import StreamingResponse
 from io import BytesIO
 from dotenv import load_dotenv
 import dspy
@@ -16,11 +16,12 @@ from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT
 import re
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-from langchain.embeddings import HuggingFaceEmbeddings
+from langchain_huggingface import HuggingFaceEmbeddings  # Updated import
 from langchain.vectorstores import FAISS
 from langchain.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 import json
+from fastapi.responses import JSONResponse
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -28,6 +29,12 @@ logger = logging.getLogger(__name__)
 
 # Load environment variables
 load_dotenv()
+
+# Path to the SSL certificate file
+CERTIFICATE_PATH = os.path.join(os.path.dirname(__file__), "huggingface.co.crt")
+
+# Set the environment variable for SSL verification
+os.environ["REQUESTS_CA_BUNDLE"] = CERTIFICATE_PATH
 
 # FastAPI app
 app = FastAPI()
@@ -99,23 +106,51 @@ def get_language_texts(language):
 
 def load_and_index_pdf(pdf_path):
     """Load PDF content and create a FAISS index for RAG."""
-    loader = PyPDFLoader(pdf_path)
-    documents = loader.load()
-    
-    # Split text into smaller chunks
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
-    texts = text_splitter.split_documents(documents)
-    
-    # Generate embeddings and create FAISS index
-    embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-    vector_store = FAISS.from_documents(texts, embeddings)
-    return vector_store
+    try:
+        loader = PyPDFLoader(pdf_path)
+        documents = loader.load()
+        logger.info(f"Loaded {len(documents)} documents from PDF.")
+        
+        if not documents:
+            logger.error("No documents found in the uploaded PDF.")
+            raise HTTPException(status_code=400, detail="Uploaded PDF contains no valid text.")
+        
+        # Split text into smaller chunks
+        text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+        texts = text_splitter.split_documents(documents)
+        
+        if not texts:
+            logger.error("Failed to split documents into chunks.")
+            raise HTTPException(status_code=400, detail="Failed to process PDF content.")
+        
+        # Generate embeddings and create FAISS index
+        embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+        vector_store = FAISS.from_documents(texts, embeddings)
+        return vector_store
+    except Exception as e:
+        logger.error(f"Error loading and indexing PDF: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to process PDF: {str(e)}")
 
 def retrieve_content(vector_store, query):
     """Retrieve relevant content using RAG."""
-    docs = vector_store.similarity_search(query, k=5)  # Retrieve top 5 matches
-    retrieved_content = "\n".join([doc.page_content for doc in docs])
-    return retrieved_content
+    try:
+        docs = vector_store.similarity_search(query, k=5)  # Retrieve top 5 matches
+        
+        if not docs:
+            logger.warning("No relevant content found for query: %s", query)
+            return "No relevant content found."
+        
+        # Ensure all documents have valid `page_content`
+        retrieved_content = "\n".join([doc.page_content for doc in docs if hasattr(doc, 'page_content')])
+        
+        if not retrieved_content.strip():
+            logger.warning("Retrieved content is empty for query: %s", query)
+            return "No relevant content found."
+        
+        return retrieved_content
+    except Exception as e:
+        logger.error(f"Error retrieving content: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve content: {str(e)}")
 
 def generate_content_prompts(product_data, language, retrieved_content):
     """Generate language-specific prompts for each section."""
@@ -136,10 +171,16 @@ def generate_content_prompts(product_data, language, retrieved_content):
     
     # Generate prompts for each section using language-specific headings
     return {
-        language_texts["introduction"]: f"{language_instruction}\n\nTask: Write a structured introduction in {language} for:\nProduct Category: {product_category}\nRetrieved Content: {retrieved_content}",
-        language_texts["key_features"]: f"{language_instruction}\n\nTask: Describe key features in {language} for:\nProduct Category: {product_category}\nRetrieved Content: {retrieved_content}",
-        language_texts["technical_specifications"]: f"{language_instruction}\n\nTask: Present technical specifications in {language} for:\nProduct Category: {product_category}\nRetrieved Content: {retrieved_content}",
-        # Add other sections similarly...
+        language_texts["introduction"]: f"{language_instruction}\n\nTask: Write a structured introduction in {language} ",
+        language_texts["key_features"]: f"{language_instruction}\n\nTask: Describe these features in {language}",
+        language_texts["technical_specifications"]: f"{language_instruction}\n\nTask: Present these specifications in {language}",
+        language_texts["safety_information"]: f"{language_instruction}\n\nTask: Create safety guidelines in {language} ",
+        language_texts["setup_instructions"]: f"{language_instruction}\n\nTask: Write setup instructions in {language}",
+        language_texts["operation_instructions"]: f"{language_instruction}\n\nTask: Create operation guidelines in {language} ",
+        language_texts["maintenance_and_care"]: f"{language_instruction}\n\nTask: Write maintenance procedures in {language} ",
+        language_texts["troubleshooting"]: f"{language_instruction}\n\nTask: Create a troubleshooting guide in {language} ",
+        language_texts["faq"]: f"{language_instruction}\n\nTask: Generate FAQs in {language} ",
+        language_texts["warranty_information"]: f"{language_instruction}\n\nTask: Write warranty details in {language} "
     }
 
 def clean_content(text):
@@ -234,70 +275,72 @@ async def generate_manual(
         
         # Save uploaded file temporarily
         pdf_path = f"temp_{rag_source.filename}"
-        try:
-            with open(pdf_path, "wb") as buffer:
-                buffer.write(await rag_source.read())
-            
-            # Step 1: Load PDF and create RAG index
-            vector_store = load_and_index_pdf(pdf_path)
-            
-            # Step 2: Retrieve relevant content using RAG
-            query = f"User manual content for {product_category}"
-            retrieved_content = retrieve_content(vector_store, query)
-            
-            # Step 3: Generate prompts for each section
-            content_prompts = generate_content_prompts({
-                "product_category": product_category
-            }, language, retrieved_content)
-            
-            # Step 4: Generate content using DSPy
-            generate_content = Predict(GenerateContent)
-            generated_content = {}
-            for section, prompt in content_prompts.items():
-                logger.info(f"Generating content for section: {section} in {language}")
-                result = generate_content(
-                    section_title=section,
-                    prompt=prompt,
-                    language=language,
-                    temperature=0.7,
-                    max_tokens=1000
-                )
-                generated_content[section] = result.output
-            
-            # Step 5: Generate PDF
-            pdf_buffer = generate_pdf({
-                "product_category": product_category,
-                "language": language
-            }, generated_content)
-            
-            # Clean up temporary file
-            os.remove(pdf_path)
-            
-            filename = f"user_manual_{product_category}_{language}.pdf"
-            return StreamingResponse(
-                pdf_buffer,
-                media_type="application/pdf",
-                headers={"Content-Disposition": f"attachment; filename={filename}"}
+        with open(pdf_path, "wb") as buffer:
+            buffer.write(await rag_source.read())  # Read binary data
+        
+        # Step 1: Load PDF and create RAG index
+        logger.info(f"Loading and indexing PDF from path: {pdf_path}")
+        vector_store = load_and_index_pdf(pdf_path)
+        
+        # Step 2: Retrieve relevant content using RAG
+        query = f"User manual content for {product_category}"
+        logger.info(f"Retrieving content for query: {query}")
+        retrieved_content = retrieve_content(vector_store, query)
+        logger.info(f"Retrieved content: {retrieved_content}")
+        
+        # Validate retrieved content
+        if not retrieved_content.strip() or retrieved_content == "No relevant content found.":
+            logger.error("No valid content retrieved for manual generation.")
+            raise HTTPException(status_code=400, detail="No relevant content found in the uploaded PDF.")
+        
+        # Step 3: Generate prompts for each section
+        content_prompts = generate_content_prompts({
+            "product_category": product_category
+        }, language, retrieved_content)
+        
+        # Step 4: Generate content using DSPy
+        generate_content = Predict(GenerateContent)
+        generated_content = {}
+        for section, prompt in content_prompts.items():
+            logger.info(f"Generating content for section: {section} in {language}")
+            result = generate_content(
+                section_title=section,
+                prompt=prompt,
+                language=language,
+                temperature=0.7,
+                max_tokens=1000
             )
-        finally:
-            if os.path.exists(pdf_path):
-                os.remove(pdf_path)
+            
+            if not result.output.strip():
+                logger.warning(f"No content generated for section: {section}")
+                generated_content[section] = "No content available."
+            else:
+                generated_content[section] = result.output
+        
+        # Step 5: Generate PDF
+        pdf_buffer = generate_pdf({
+            "product_category": product_category,
+            "language": language
+        }, generated_content)
+        
+        # Clean up temporary file
+        os.remove(pdf_path)
+        
+        filename = f"user_manual_{product_category}_{language}.pdf"
+        return StreamingResponse(
+            pdf_buffer,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
     except Exception as e:
         logger.error(f"Error generating manual: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+    
+PRODUCTS_FILE_PATH = os.path.join(os.path.dirname(__file__), "product_names.json")
 
-# Load product data from JSON file
-PRODUCTS_FILE_PATH = os.path.join(os.path.dirname(__file__), "backend", "product_names.json")
-
-try:
-    with open(PRODUCTS_FILE_PATH, "r") as file:
-        products_data = json.load(file)
-except FileNotFoundError:
-    logger.error(f"Products file not found at path: {PRODUCTS_FILE_PATH}")
-    products_data = {"products": []}
-except json.JSONDecodeError:
-    logger.error(f"Failed to decode JSON from file: {PRODUCTS_FILE_PATH}")
-    products_data = {"products": []}
+# Load the JSON file
+with open(PRODUCTS_FILE_PATH, "r") as file:
+    products_data = json.load(file)
 
 # API endpoint to serve product data
 @app.get("/api/products")
