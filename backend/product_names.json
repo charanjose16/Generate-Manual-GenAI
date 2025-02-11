@@ -374,46 +374,6 @@
                             "sub_subproduct_link": "https://www.regalrexnord.com/cdn-cgi/l/email-protection"
                         }
                     ]
-                },
-                {
-                    "subproduct_name": "Motor Accessories",
-                    "subproduct_link": "https://www.regalrexnord.com/products/electric-motors/accessories",
-                    "sub_subproducts": []
-                },
-                {
-                    "subproduct_name": "About Electric Motors",
-                    "subproduct_link": "https://www.regalrexnord.com/products/regal-rexnord-electric-motors/about-electric-motors",
-                    "sub_subproducts": []
-                },
-                {
-                    "subproduct_name": "What\u2019s the Difference Between an AC Motor and a DC Motor?",
-                    "subproduct_link": "https://www.regalrexnord.com/regal-rexnord-insights/ac-motor-vs-dc-motor",
-                    "sub_subproducts": []
-                },
-                {
-                    "subproduct_name": "How Do I Keep My Electric Motor Healthy?",
-                    "subproduct_link": "https://www.regalrexnord.com/regal-rexnord-insights/how-to-keep-an-electric-motor-healthy",
-                    "sub_subproducts": []
-                },
-                {
-                    "subproduct_name": "History of the Electric Motor",
-                    "subproduct_link": "https://www.regalrexnord.com/regal-rexnord-insights/history-electric-motor",
-                    "sub_subproducts": []
-                },
-                {
-                    "subproduct_name": "ABCs of Commercial and Residential Motors",
-                    "subproduct_link": "https://www.regalrexnord.com/regal-rexnord-insights/abc-commercial-residential-motors",
-                    "sub_subproducts": []
-                },
-                {
-                    "subproduct_name": "General Purpose Vs Definite Purpose Motors",
-                    "subproduct_link": "https://www.regalrexnord.com/regal-rexnord-insights/general-purpose-vs-definite-purpose-motors",
-                    "sub_subproducts": []
-                },
-                {
-                    "subproduct_name": "Electric Motor Terminology",
-                    "subproduct_link": "https://www.regalrexnord.com/regal-rexnord-insights/electric-motor-terminology",
-                    "sub_subproducts": []
                 }
             ]
         },

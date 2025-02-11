@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import {
-  TextField,
+  
   Select,
   MenuItem,
   Button,
@@ -10,13 +10,13 @@ import {
 } from "@mui/material";
 
 export default function UserManualGenerator() {
-  const [link, setLink] = useState("");
   const [language, setLanguage] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [products, setProducts] = useState([]);
   const [selectedProduct, setSelectedProduct] = useState("");
   const [selectedSubProduct, setSelectedSubProduct] = useState("");
+  const [uploadedFile, setUploadedFile] = useState(null);
 
   // Fetch products data from the FastAPI backend
   useEffect(() => {
@@ -47,46 +47,42 @@ export default function UserManualGenerator() {
     if (error) setError("");
   };
 
-  const validateUrl = (url) => {
-    try {
-      new URL(url);
-      return true;
-    } catch {
-      return false;
+  const handleFileUpload = (event) => {
+    const file = event.target.files[0];
+    if (file && file.type === "application/pdf") {
+      setUploadedFile(file);
+      setError("");
+    } else {
+      setError("Please upload a valid PDF file.");
+      setUploadedFile(null);
     }
   };
 
   const handleGenerateManual = async () => {
-    if (!link || !language || !selectedProduct) {
-      setError("Please fill in all required fields");
+    if (!language || !selectedProduct || !uploadedFile) {
+      setError("Please fill in all required fields and upload a PDF file.");
       return;
     }
-    if (!validateUrl(link)) {
-      setError("Please enter a valid URL");
-      return;
-    }
+
     setLoading(true);
     setError("");
+
     try {
-      const trimmedLink = link.trim();
-      const formattedLink = trimmedLink.startsWith("http")
-        ? trimmedLink
-        : `https://${trimmedLink}`;
-      const payload = {
-        website_link: formattedLink,
-        product: selectedProduct,
-        sub_product: selectedSubProduct,
-        language: language.trim(),
-      };
+      const formData = new FormData();
+      formData.append("product_category", selectedProduct);
+      formData.append("rag_source", uploadedFile);
+      formData.append("language", language.trim());
+
       const response = await fetch("http://localhost:8000/generate-manual", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: formData,
       });
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => null);
         throw new Error(errorData?.detail || "Failed to generate manual");
       }
+
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -96,9 +92,10 @@ export default function UserManualGenerator() {
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
-      setLink("");
+
       setSelectedProduct("");
       setSelectedSubProduct("");
+      setUploadedFile(null);
       setLanguage("");
     } catch (err) {
       setError(err.message);
@@ -133,20 +130,7 @@ export default function UserManualGenerator() {
         User Manual Generator
       </Typography>
       <Grid container spacing={3} sx={{ maxWidth: 600 }}>
-        <Grid item xs={12}>
-          <Typography variant="subtitle1" gutterBottom>
-            Link
-          </Typography>
-          <TextField
-            fullWidth
-            variant="outlined"
-            placeholder="Enter link here"
-            value={link}
-            onChange={(e) => setLink(e.target.value)}
-            disabled={loading}
-            error={Boolean(error && !link)}
-          />
-        </Grid>
+        {/* Product Selection */}
         <Grid item xs={12}>
           <Typography variant="subtitle1" gutterBottom>
             Product
@@ -169,6 +153,7 @@ export default function UserManualGenerator() {
             ))}
           </Select>
         </Grid>
+
         {/* Sub-Product Dropdown */}
         {selectedProduct && (
           <Grid item xs={12}>
@@ -196,6 +181,41 @@ export default function UserManualGenerator() {
             </Select>
           </Grid>
         )}
+
+        {/* Document Upload */}
+        <Grid item xs={12}>
+          <Typography variant="subtitle1" gutterBottom>
+            Upload Product Document (PDF)
+          </Typography>
+          <Button
+            variant="contained"
+            component="label"
+            fullWidth
+            disabled={loading}
+            sx={{
+              bgcolor: "text.primary",
+              color: "background.paper",
+              "&:hover": {
+                bgcolor: "text.secondary",
+              },
+            }}
+          >
+            Upload PDF
+            <input
+              type="file"
+              accept="application/pdf"
+              hidden
+              onChange={handleFileUpload}
+            />
+          </Button>
+          {uploadedFile && (
+            <Typography variant="body2" sx={{ mt: 1 }}>
+              Uploaded: {uploadedFile.name}
+            </Typography>
+          )}
+        </Grid>
+
+        {/* Language Selection */}
         <Grid item xs={12}>
           <Typography variant="subtitle1" gutterBottom>
             Language
@@ -220,11 +240,15 @@ export default function UserManualGenerator() {
           </Select>
         </Grid>
       </Grid>
+
+      {/* Error Message */}
       {error && (
         <Typography color="error" align="center" sx={{ mt: 2 }}>
           {error}
         </Typography>
       )}
+
+      {/* Generate Button */}
       <Box sx={{ display: "flex", justifyContent: "center", gap: 2, mt: 4 }}>
         <Button
           variant="contained"
@@ -240,19 +264,6 @@ export default function UserManualGenerator() {
         >
           {loading ? "GENERATING..." : "GENERATE USER MANUAL"}
         </Button>
-        {/* <Button
-          variant="outlined"
-          sx={{
-            color: "text.primary",
-            borderColor: "text.primary",
-            "&:hover": {
-              bgcolor: "action.hover",
-              borderColor: "text.secondary",
-            },
-          }}
-        >
-          FAQ
-        </Button> */}
       </Box>
     </Box>
   );
