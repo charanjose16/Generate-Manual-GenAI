@@ -46,10 +46,7 @@ class ProductData(BaseModel):
     product_category: str = Field(
         description="Category of the product (e.g., 'Electronics', 'Appliances', 'Tools')"
     )
-    rag_source: str = Field(
-        None,
-        description="Path to the PDF file or source for RAG content retrieval"
-    )
+    rag_source: UploadFile = File(..., description="Uploaded PDF file for RAG content retrieval")
     language: str = Field(
         default="en",
         description="Target language for the manual (e.g., 'en', 'es', 'fr', 'de', 'it')"
@@ -290,7 +287,7 @@ async def generate_manual(
         raise HTTPException(status_code=500, detail=str(e))
 
 # Load product data from JSON file
-PRODUCTS_FILE_PATH = os.path.join(os.path.dirname(__file__), "product_names.json")
+PRODUCTS_FILE_PATH = os.path.join(os.path.dirname(__file__), "backend", "product_names.json")
 
 try:
     with open(PRODUCTS_FILE_PATH, "r") as file:
