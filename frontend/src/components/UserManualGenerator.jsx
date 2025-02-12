@@ -24,6 +24,7 @@ export default function UserManualGenerator() {
   const [products, setProducts] = useState([]);
   const [selectedProduct, setSelectedProduct] = useState("");
   const [selectedSubProduct, setSelectedSubProduct] = useState("");
+  const [selectedItem, setSelectedItem] = useState(""); // New state for Items
   const [activePage, setActivePage] = useState("generateManual");
 
   const baseUrl = import.meta.env.VITE_BASE_URL;
@@ -65,12 +66,16 @@ export default function UserManualGenerator() {
   const handleProductChange = (event) => {
     const productName = event.target.value;
     setSelectedProduct(productName);
+    // Reset lower-level selections when product changes
     setSelectedSubProduct("");
+    setSelectedItem("");
     if (error) setError("");
   };
 
   const handleSubProductChange = (event) => {
     setSelectedSubProduct(event.target.value);
+    // Reset item selection when sub-product changes
+    setSelectedItem("");
     if (error) setError("");
   };
 
@@ -120,7 +125,8 @@ export default function UserManualGenerator() {
   };
 
   const handleGenerateManual = async () => {
-    if (!language || !selectedProduct) {
+    // Require that language and selected item (from Items dropdown) are provided.
+    if (!language || !selectedItem) {
       setError("Please fill in all required fields.");
       return;
     }
@@ -135,7 +141,8 @@ export default function UserManualGenerator() {
 
     try {
       const formData = new FormData();
-      formData.append("product_category", selectedProduct);
+      // Use selectedItem (sub_subproduct_name) as product_category
+      formData.append("product_category", selectedItem);
       formData.append("language", language);
 
       if (dataSources.pdf.enabled && dataSources.pdf.file) {
@@ -159,7 +166,7 @@ export default function UserManualGenerator() {
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const a = document.createElement("a");
       a.href = url;
-      a.download = `user_manual_${selectedProduct}_${language}.pdf`;
+      a.download = `user_manual_${selectedItem}_${language}.pdf`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -168,6 +175,7 @@ export default function UserManualGenerator() {
       // Reset form fields after successful generation
       setSelectedProduct("");
       setSelectedSubProduct("");
+      setSelectedItem("");
       setLanguage("");
     } catch (err) {
       setError(err.response?.data?.detail || err.message);
@@ -328,7 +336,7 @@ export default function UserManualGenerator() {
         Generate User Manual
       </Typography>
       <Grid container spacing={3} sx={{ maxWidth: 800 }}>
-        {/* Product Selection */}
+        {/* Product Dropdown */}
         <Grid item xs={12}>
           <Typography variant="subtitle1" gutterBottom>
             Product
@@ -376,6 +384,47 @@ export default function UserManualGenerator() {
                     {subproduct.subproduct_name}
                   </MenuItem>
                 ))}
+            </Select>
+          </Grid>
+        )}
+
+        {/* Items Dropdown (using sub_subproduct_name) */}
+        {selectedSubProduct && (
+          <Grid item xs={12}>
+            <Typography variant="subtitle1" gutterBottom>
+              Items
+            </Typography>
+            <Select
+              fullWidth
+              value={selectedItem}
+              onChange={(e) => setSelectedItem(e.target.value)}
+              displayEmpty
+              variant="outlined"
+              disabled={loading}
+            >
+              <MenuItem value="" disabled>
+                Select an item
+              </MenuItem>
+              {(() => {
+                // Find the selected product and sub-product, then list its sub_subproducts
+                const product = products.find(
+                  (p) => p.product_name === selectedProduct
+                );
+                const subProduct = product?.subproducts.find(
+                  (sp) => sp.subproduct_name === selectedSubProduct
+                );
+                if (subProduct && subProduct.sub_subproducts) {
+                  return subProduct.sub_subproducts.map((item, index) => (
+                    <MenuItem
+                      key={index}
+                      value={item.sub_subproduct_name}
+                    >
+                      {item.sub_subproduct_name}
+                    </MenuItem>
+                  ));
+                }
+                return null;
+              })()}
             </Select>
           </Grid>
         )}

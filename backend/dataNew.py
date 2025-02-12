@@ -16,12 +16,13 @@ from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT
 import re
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-from langchain_huggingface import HuggingFaceEmbeddings  # Updated import
+from langchain_huggingface import HuggingFaceEmbeddings
 from langchain.vectorstores import FAISS
 from langchain.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 import json
 from fastapi.responses import JSONResponse
+from fastapi.responses import StreamingResponse
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -390,13 +391,12 @@ async def generate_manual(
         
         # Clean up temporary file
         os.remove(pdf_path)
-        
+
         filename = f"user_manual_{product_category}_{language}.pdf"
-        return StreamingResponse(
-            pdf_buffer,
-            media_type="application/pdf",
-            headers={"Content-Disposition": f"attachment; filename={filename}"}
-        )
+        response = StreamingResponse(pdf_buffer, media_type="application/pdf")
+        response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
+        return response
+
     except Exception as e:
         logger.error(f"Error generating manual: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
