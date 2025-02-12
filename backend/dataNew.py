@@ -101,6 +101,66 @@ def get_language_texts(language):
             "warranty_information": "Warranty Information"
         },
         # Add other languages similarly...
+        "es": {
+            "title": "MANUAL DE USUARIO PARA",
+            "toc": "Índice de Contenidos",
+            "page": "Página",
+            "introduction": "Introducción",
+            "key_features": "Características Principales",
+            "technical_specifications": "Especificaciones Técnicas",
+            "safety_information": "Información de Seguridad",
+            "setup_instructions": "Instrucciones de Configuración",
+            "operation_instructions": "Instrucciones de Operación",
+            "maintenance_and_care": "Mantenimiento y Cuidado",
+            "troubleshooting": "Solución de Problemas",
+            "faq": "Preguntas Frecuentes",
+            "warranty_information": "Información de Garantía"
+        },
+        "fr": {
+            "title": "MANUEL D'UTILISATION POUR",
+            "toc": "Table des Matières",
+            "page": "Page",
+            "introduction": "Introduction",
+            "key_features": "Caractéristiques Clés",
+            "technical_specifications": "Spécifications Techniques",
+            "safety_information": "Informations de Sécurité",
+            "setup_instructions": "Instructions d'Installation",
+            "operation_instructions": "Instructions d'Utilisation",
+            "maintenance_and_care": "Maintenance et Entretien",
+            "troubleshooting": "Dépannage",
+            "faq": "FAQ",
+            "warranty_information": "Informations sur la Garantie"
+        },
+        "de": {
+            "title": "BENUTZERHANDBUCH FÜR",
+            "toc": "Inhaltsverzeichnis",
+            "page": "Seite",
+            "introduction": "Einführung",
+            "key_features": "Hauptmerkmale",
+            "technical_specifications": "Technische Spezifikationen",
+            "safety_information": "Sicherheitshinweise",
+            "setup_instructions": "Einrichtungsanweisungen",
+            "operation_instructions": "Betriebsanweisungen",
+            "maintenance_and_care": "Wartung und Pflege",
+            "troubleshooting": "Fehlerbehebung",
+            "faq": "FAQ",
+            "warranty_information": "Garantieinformationen"
+        },
+        "it": {
+            "title": "MANUALE UTENTE PER",
+            "toc": "Indice dei Contenuti",
+            "page": "Pagina",
+            "introduction": "Introduzione",
+            "key_features": "Caratteristiche Principali",
+            "technical_specifications": "Specifiche Tecniche",
+            "safety_information": "Informazioni sulla Sicurezza",
+            "setup_instructions": "Istruzioni di Installazione",
+            "operation_instructions": "Istruzioni di Funzionamento",
+            "maintenance_and_care": "Manutenzione e Cura",
+            "troubleshooting": "Risoluzione dei Problemi",
+            "faq": "FAQ",
+            "warranty_information": "Informazioni sulla Garanzia"
+        }
     }
     return texts.get(language, texts["en"])
 
