@@ -25,6 +25,8 @@ export default function UserManualGenerator() {
   const [selectedSubProduct, setSelectedSubProduct] = useState("");
   const [activePage, setActivePage] = useState("generateManual");
 
+  const baseUrl = import.meta.env.VITE_BASE_URL;
+
   // Data source states
   const [dataSources, setDataSources] = useState({
     pdf: {
@@ -50,7 +52,7 @@ export default function UserManualGenerator() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const response = await fetch("http://localhost:8000/api/products");
+        const response = await fetch(`${baseUrl}/api/products`);
         if (!response.ok) {
           throw new Error("Failed to fetch products");
         }
@@ -153,7 +155,7 @@ export default function UserManualGenerator() {
         formData.append("confluence_source", dataSources.confluence.value);
       }
 
-      const response = await fetch("http://localhost:8000/generate-manual", {
+      const response = await fetch(`${baseUrl}/generate-manual`, {
         method: "POST",
         body: formData,
       });
