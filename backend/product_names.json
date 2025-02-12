@@ -9,8 +9,16 @@
                     "subproduct_link": "https://www.regalrexnord.com/products/ac-dc-controls/dc-drives",
                     "sub_subproducts": [
                         {
-                            "sub_subproduct_name": "",
-                            "sub_subproduct_link": "https://www.regalrexnord.com/cdn-cgi/l/email-protection"
+                            "sub_subproduct_name": "Leeson FHP® Series DC SCR CONTROL.NEMA 1.REVERSING.1.1/8-1HP/1/4-2HP.115/230V - 174308.00",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/ac-dc-controls/dc-drives/dc-scr-control-nema-1-reversing-1-1-8-1hp-1-4-2hp-115-230v-174308-00"
+                        },
+                        {
+                            "sub_subproduct_name": "Leeson FHP® Series DC SCR CONTROL.NEMA 1.NON-REVERSING.1.1/8-1HP/1/4-2HP.115/230V - 174307.00",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/ac-dc-controls/dc-drives/dc-scr-control-nema-1-non-reversing-1-1-8-1hp-1-4-2hp-115-230v-174307-00"
+                        },
+                        {
+                            "sub_subproduct_name": "Leeson FHP® Series ..15 Series Chassis Control......................... - 174694.00",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/ac-dc-controls/dc-drives/-15-series-chassis-control-174694-00"
                         }
                     ]
                 },
@@ -19,15 +27,36 @@
                     "subproduct_link": "https://www.regalrexnord.com/products/ac-dc-controls/ac-drives",
                     "sub_subproducts": [
                         {
-                            "sub_subproduct_name": "",
-                            "sub_subproduct_link": "https://www.regalrexnord.com/cdn-cgi/l/email-protection"
+                            "sub_subproduct_name": "Leeson SM2 Vector NEMA 1 AC Drives, 3 HP, 208-240 V, 9.6 Amps - 174611.00",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/ac-dc-controls/ac-drives/ac-drives-3-hp-208-240-v-9-6-amps-174611-00"
+                        },
+                        {
+                            "sub_subproduct_name": "Leeson SM4 Vector NEMA 4 AC Drives, 1 HP, 115/230 V, 4.2 Amps - 174653.00",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/ac-dc-controls/ac-drives/ac-drives-1-hp-115-230-v-4-2-amps-174653-00"
+                        },
+                        {
+                            "sub_subproduct_name": "Leeson SM4 Vector NEMA 4 AC Drives, 1 HP, 208-240 V, 2.4 Amps - 174656.00",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/ac-dc-controls/ac-drives/ac-drives-1-hp-208-240-v-2-4-amps-174656-00"
                         }
                     ]
                 },
                 {
                     "subproduct_name": "Adjustable Speed Drive Accessories",
                     "subproduct_link": "https://www.regalrexnord.com/brands/leeson/products/ac-dc-controls/kits",
-                    "sub_subproducts": []
+                    "sub_subproducts": [
+                        {
+                            "sub_subproduct_name": "Marathon 229MP1004 INV BLW MTR (230/460) - A680",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/electric-motors/accessories/accessory-kits/229mp1004-inv-blw-mtr-230-460-4900030"
+                        },
+                        {
+                            "sub_subproduct_name": "LEESON MODEL 34 FR. CON BOX K-107/STOCK COND. BOX KIT - M1760007.00",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/electric-motors/accessories/accessory-kits/model-34-fr-con-box-k-107-stock-cond-box-kit-m1760007-00"
+                        },
+                        {
+                            "sub_subproduct_name": "LEESON Conduit Box - M1760012.00",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/electric-motors/accessories/accessory-kits/conduit-box-m1760012-00"
+                        }
+                    ]
                 }
             ]
         },
@@ -36,24 +65,184 @@
             "product_link": "https://www.regalrexnord.com/products/bearings",
             "subproducts": [
                 {
-                    "subproduct_name": "Mounted Bearings",
+                    "subproduct_name": "Mounted Ball Bearings",
                     "subproduct_link": "https://www.regalrexnord.com/products/bearings/regal-mounted-bearings",
-                    "sub_subproducts": []
+                    "sub_subproducts": [
+                        {
+                            "sub_subproduct_name": "Sealmaster Mounted Cast Iron Two Bolt Pillow Block Ball Bearing - 52100 Bearing Steel, Black Oxided - Setscrew Lock - MP-47",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/bearings/mounted/ball/mounted-cast-iron-two-bolt-pillow-block-ball-bearing-52100-bearing-steel-black-oxided-setscrew-lock-701881"
+                        },
+                        {
+                            "sub_subproduct_name": "Sealmaster Mounted Cast Iron Two Bolt Pillow Block Ball Bearing - 52100 Bearing Steel, Black Oxided - Setscrew Lock - MP-39",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/bearings/mounted/ball/mounted-cast-iron-two-bolt-pillow-block-ball-bearing-52100-bearing-steel-black-oxided-setscrew-lock-701876"
+                        },
+                        {
+                            "sub_subproduct_name": "Sealmaster Mounted Cast Iron Two Bolt Pillow Block Ball Bearing - 52100 Bearing Steel, Black Oxided - Setscrew Lock - NP-23",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/bearings/mounted/ball/mounted-cast-iron-two-bolt-pillow-block-ball-bearing-52100-bearing-steel-black-oxided-setscrew-lock-700188"
+                        }
+                    ]
                 },
                 {
-                    "subproduct_name": "Unmounted Bearings",
+                    "subproduct_name": "Mounted Spherical Roller Bearings",
                     "subproduct_link": "https://www.regalrexnord.com/products/bearings/regal-unmounted-bearings",
-                    "sub_subproducts": []
+                    "sub_subproducts": [
+                        {
+                            "sub_subproduct_name": "Sealmaster Mounted Cast Iron Two Bolt Pillow Block Spherical Roller - 52100 Bearing Steel, Black Oxided - Collar Mount Lock - USRB5000-207-C",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/bearings/mounted/spherical-roller/mounted-cast-iron-two-bolt-pillow-block-spherical-roller-52100-bearing-steel-black-oxided-collar-mount-lock-737021"
+                        },
+                        {
+                            "sub_subproduct_name": "Sealmaster Mounted Cast Iron Two Bolt Pillow Block Spherical Roller - 52100 Bearing Steel, Black Oxided - Collar Mount Lock - USRB5000-115",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/bearings/mounted/spherical-roller/mounted-cast-iron-two-bolt-pillow-block-spherical-roller-52100-bearing-steel-black-oxided-collar-mount-lock-737014"
+                        },
+                        {
+                            "sub_subproduct_name": "Sealmaster Mounted Ductile Iron Four Bolt Pillow Block Spherical Roller - 52100 Bearing Steel, Black Oxided - Adapter Mount Lock - USRB-715-1263",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/bearings/mounted/spherical-roller/mounted-ductile-iron-four-bolt-pillow-block-spherical-roller-52100-bearing-steel-black-oxided-adapter-mount-lock-737420"
+                        }
+                    ]
                 },
                 {
-                    "subproduct_name": "Specialty and Plain Bearings",
+                    "subproduct_name": "Mounted Tapered Roller Bearings",
                     "subproduct_link": "https://www.regalrexnord.com/products/bearings/regal-specialty-and-plain-bearings",
-                    "sub_subproducts": []
+                    "sub_subproducts": [
+                        {
+                            "sub_subproduct_name": "Sealmaster Mounted Cast Iron Two Bolt Pillow Block Tapered Roller - 52100 Bearing Steel - Double Collar Mount Lock - RPB 207-2",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/bearings/mounted/taper-roller/mounted-cast-iron-two-bolt-pillow-block-tapered-roller-52100-bearing-steel-double-collar-mount-lock-550217"
+                        },
+                        {
+                            "sub_subproduct_name": "Sealmaster Mounted Cast Iron Two Bolt Pillow Block Tapered Roller - 52100 Bearing Steel - Double Collar Mount Lock - RPB 215-2",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/bearings/mounted/taper-roller/mounted-cast-iron-two-bolt-pillow-block-tapered-roller-52100-bearing-steel-double-collar-mount-lock-550221"
+                        },
+                        {
+                            "sub_subproduct_name": "Sealmaster Mounted Cast Iron Two Bolt Pillow Block Tapered Roller - 52100 Bearing Steel - Double Collar Mount Lock - RPB 208-2",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/bearings/mounted/taper-roller/mounted-cast-iron-two-bolt-pillow-block-tapered-roller-52100-bearing-steel-double-collar-mount-lock-550218"
+                        }
+                    ]
                 },
                 {
-                    "subproduct_name": "Bearing Parts and Kits",
+                    "subproduct_name": "Mounted Sleeve Bearings",
                     "subproduct_link": "https://www.regalrexnord.com/products/bearings/regal-bearing-accessories",
-                    "sub_subproducts": []
+                    "sub_subproducts": [
+                        {
+                            "sub_subproduct_name": "Link-Belt 21431Z Pillow Blocks Sleeve Bearings - 21431Z",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/bearings/mounted/sleeve/21431z-pillow-blocks-sleeve-bearings-10416144"
+                        },
+                        {
+                            "sub_subproduct_name": "Link-Belt 21224Z Pillow Blocks Sleeve Bearings - 21224Z",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/bearings/mounted/sleeve/21224z-pillow-blocks-sleeve-bearings-10434406"
+                        },
+                        {
+                            "sub_subproduct_name": "Link-Belt 21216 Pillow Blocks Sleeve Bearings - 21216",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/bearings/mounted/sleeve/21216-pillow-blocks-sleeve-bearings-10429602"
+                        }
+                    ]
+                },
+                {
+                    "subproduct_name": "Angular Contact Ball",
+                    "subproduct_link": "https://www.regalrexnord.com/products/bearings/regal-bearing-accessories",
+                    "sub_subproducts": [
+                        {
+                            "sub_subproduct_name": "Rollway Angular Contact Ball Bearing - Straight Bore - 7210 B",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/bearings/unmounted/angular-contact-ball/angular-contact-ball-bearing-straight-bore-7210-b"
+                        },
+                        {
+                            "sub_subproduct_name": "Rollway Angular Contact Ball Bearing - Straight Bore - 7209 BM",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/bearings/unmounted/angular-contact-ball/angular-contact-ball-bearing-straight-bore-7209-bm"
+                        },
+                        {
+                            "sub_subproduct_name": "Rollway Angular Contact Ball Bearing - Double Row - Straight Bore - Sealed - 3214 2RS",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/bearings/unmounted/angular-contact-ball/angular-contact-ball-bearing-double-row-straight-bore-sealed-3214-2rs"
+                        }
+                    ]
+                },
+                {
+                    "subproduct_name": "Cam Followers",
+                    "subproduct_link": "https://www.regalrexnord.com/products/bearings/regal-bearing-accessories",
+                    "sub_subproducts": [
+                        {
+                            "sub_subproduct_name": "McGill Heavy Stud CAMROL® Cylindrical Inch Cam Follower - Stud Mount Roller - Hex Hole - Sealed - CFH 1 1/4 SB",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/bearings/unmounted/cam-follower/heavy-stud-camrol-cylindrical-inch-cam-follower-stud-mount-roller-hex-hole-sealed-2120512000"
+                        },
+                        {
+                            "sub_subproduct_name": "McGill Heavy Stud CAMROL® Cylindrical Inch Cam Follower - Stud Mount Roller - Hex Hole - Sealed - CFH 5/8 SB",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/bearings/unmounted/cam-follower/heavy-stud-camrol-cylindrical-inch-cam-follower-stud-mount-roller-hex-hole-sealed-2040512000"
+                        },
+                        {
+                            "sub_subproduct_name": "McGill Heavy Stud CAMROL® Cylindrical Inch Cam Follower - Stud Mount Roller - Hex Hole - Sealed - CFH 4 SB",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/bearings/unmounted/cam-follower/heavy-stud-camrol-cylindrical-inch-cam-follower-stud-mount-roller-hex-hole-sealed-2400512000"
+                        }
+                    ]
+                },
+                {
+                    "subproduct_name": "Cylindrical Roller Bearings",
+                    "subproduct_link": "https://www.regalrexnord.com/products/bearings/regal-bearing-accessories",
+                    "sub_subproducts": [
+                        {
+                            "sub_subproduct_name": "Rollway Radial Cylindrical Roller Bearing – Caged Roller - Straight Bore - Unsealed - E-5219-B",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/bearings/unmounted/cylindrical-roller/radial-cylindrical-roller-bearing-caged-roller-straight-bore-unsealed-e5219b"
+                        },
+                        {
+                            "sub_subproduct_name": "Rollway Radial Cylindrical Roller Bearing – Caged Roller - Straight Bore - Unsealed - E-5244-UMR",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/bearings/unmounted/cylindrical-roller/radial-cylindrical-roller-bearing-caged-roller-straight-bore-unsealed-e5244umr"
+                        },
+                        {
+                            "sub_subproduct_name": "Rollway Radial Cylindrical Roller Bearing – Caged Roller - Straight Bore - Unsealed - E-5220-B",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/bearings/unmounted/cylindrical-roller/radial-cylindrical-roller-bearing-caged-roller-straight-bore-unsealed-e5220b"
+                        }
+                    ]
+                },
+                {
+                    "subproduct_name": "Rod Ends",
+                    "subproduct_link": "https://www.regalrexnord.com/products/bearings/regal-bearing-accessories",
+                    "sub_subproducts": [
+                        {
+                            "sub_subproduct_name": "Sealmaster Male Rod End Bearing - Three-Piece Greasable Carbon Steel Race - TRE 8",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/bearings/specialty-and-plain/rod-ends/male-rod-end-bearing-three-piece-greasable-carbon-steel-race-1400800000"
+                        },
+                        {
+                            "sub_subproduct_name": "Sealmaster Female Rod End Bearing - Three-Piece Greasable Carbon Steel Race - TR 16",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/bearings/specialty-and-plain/rod-ends/female-rod-end-bearing-three-piece-greasable-carbon-steel-race-1411600000"
+                        },
+                        {
+                            "sub_subproduct_name": "Sealmaster Male Rod End Bearing - Three-Piece Rod End Bronze Race - TM 10",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/bearings/specialty-and-plain/rod-ends/male-rod-end-bearing-three-piece-rod-end-bronze-race-1421000000"
+                        }
+                    ]
+                },
+                {
+                    "subproduct_name": "Spherical Plain Bearings",
+                    "subproduct_link": "https://www.regalrexnord.com/products/bearings/regal-bearing-accessories",
+                    "sub_subproducts": [
+                        {
+                            "sub_subproduct_name": "Sealmaster Plain Spherical Bearing - Two Piece Heat-Treated Steel Race - SBG 8S",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/bearings/specialty-and-plain/spherical-plain/plain-spherical-bearing-two-piece-heat-treated-steel-race-1800801000"
+                        },
+                        {
+                            "sub_subproduct_name": "Sealmaster Plain Spherical Bearing - Heavy Duty Two Piece Carbon Steel Race - BH 32LS",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/bearings/specialty-and-plain/spherical-plain/plain-spherical-bearing-heavy-duty-two-piece-carbon-steel-race-1853205000"
+                        },
+                        {
+                            "sub_subproduct_name": "Sealmaster Plain Spherical Bearing - Heavy Duty Two Piece Carbon Steel Race - BH 28LS",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/bearings/specialty-and-plain/spherical-plain/plain-spherical-bearing-heavy-duty-two-piece-carbon-steel-race-1852805000"
+                        }
+                    ]
+                },
+                {
+                    "subproduct_name": "Composite",
+                    "subproduct_link": "https://www.regalrexnord.com/products/bearings/regal-bearing-accessories",
+                    "sub_subproducts": [
+                        {
+                            "sub_subproduct_name": "Duralon 701-00012-024 Duralon Filament Bearings - 701-00012-024",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/bearings/specialty-and-plain/composite/701-00012-024-duralon-filament-bearings-10387178"
+                        },
+                        {
+                            "sub_subproduct_name": "Duralon 701-00040-320 Duralon Filament Bearings - 701-00040-320",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/bearings/specialty-and-plain/composite/701-00040-320-duralon-filament-bearings-10387984"
+                        },
+                        {
+                            "sub_subproduct_name": "Rex RPT 7GP1-4044-040 .125 in Wall Straight Sleeve Filament Bearing - 7GP1-4044-040",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/bearings/specialty-and-plain/composite/7gp1-4044-040-125-in-wall-straight-sleeve-filament-bearing-10396293"
+                        }
+                    ]
                 }
             ]
         },
