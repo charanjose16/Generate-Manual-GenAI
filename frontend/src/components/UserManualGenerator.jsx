@@ -25,32 +25,24 @@ export default function UserManualGenerator() {
   const [selectedSubProduct, setSelectedSubProduct] = useState("");
   const [activePage, setActivePage] = useState("generateManual");
 
-  // Data source states
-  const [dataSources, setDataSources] = useState({
-    pdf: {
-      enabled: false,
-      file: null,
-      fileName: ""
-    },
-    link: {
-      enabled: false,
-      value: ""
-    },
-    azureBlob: {
-      enabled: false,
-      value: ""
-    },
-    confluence: {
-      enabled: false,
-      value: ""
-    }
+  // Data source states for the secondary page (if needed)
+  const [selectedDataSources, setSelectedDataSources] = useState({
+    uploadPDF: false,
+    uploadLink: false,
+    azureBlob: false,
+    confluence: false,
   });
+  const [link, setLink] = useState("");
+  const [azureBlob, setAzureBlob] = useState("");
+  const [confluence, setConfluence] = useState("");
+
+  const baseUrl = import.meta.env.VITE_BASE_URL;
 
   // Fetch products data from the FastAPI backend
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const response = await fetch("http://localhost:8000/api/products");
+        const response = await fetch(`${baseUrl}/api/products`);
         if (!response.ok) {
           throw new Error("Failed to fetch products");
         }
@@ -139,21 +131,7 @@ export default function UserManualGenerator() {
       formData.append("product_category", selectedProduct);
       formData.append("language", language);
 
-      // Append data sources based on what's enabled
-      if (dataSources.pdf.enabled && dataSources.pdf.file) {
-        formData.append("rag_source", dataSources.pdf.file);
-      }
-      if (dataSources.link.enabled) {
-        formData.append("link_source", dataSources.link.value);
-      }
-      if (dataSources.azureBlob.enabled) {
-        formData.append("azure_source", dataSources.azureBlob.value);
-      }
-      if (dataSources.confluence.enabled) {
-        formData.append("confluence_source", dataSources.confluence.value);
-      }
-
-      const response = await fetch("http://localhost:8000/generate-manual", {
+      const response = await fetch(`${baseUrl}/generate-manual`, {
         method: "POST",
         body: formData,
       });
