@@ -15,6 +15,7 @@ import {
 } from "@mui/material";
 import { Add, Description } from "@mui/icons-material";
 import UstLogo from "../assets/ustlogo.svg";
+import axios from "axios";
 
 export default function UserManualGenerator() {
   const [language, setLanguage] = useState("");
@@ -32,38 +33,34 @@ export default function UserManualGenerator() {
     pdf: {
       enabled: false,
       file: null,
-      fileName: ""
+      fileName: "",
     },
     link: {
       enabled: false,
-      value: ""
+      value: "",
     },
     azureBlob: {
       enabled: false,
-      value: ""
+      value: "",
     },
     confluence: {
       enabled: false,
-      value: ""
-    }
+      value: "",
+    },
   });
 
-  // Fetch products data from the FastAPI backend
+  // Fetch products data from the FastAPI backend using axios
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const response = await fetch(`${baseUrl}/api/products`);
-        if (!response.ok) {
-          throw new Error("Failed to fetch products");
-        }
-        const data = await response.json();
-        setProducts(data.products);
+        const response = await axios.get(`${baseUrl}/api/products`);
+        setProducts(response.data.products);
       } catch (err) {
         setError(`Failed to load products: ${err.message}`);
       }
     };
     fetchData();
-  }, []);
+  }, [baseUrl]);
 
   const handleProductChange = (event) => {
     const productName = event.target.value;
@@ -78,46 +75,46 @@ export default function UserManualGenerator() {
   };
 
   const handleDataSourceToggle = (sourceType) => {
-    setDataSources(prev => ({
+    setDataSources((prev) => ({
       ...prev,
       [sourceType]: {
         ...prev[sourceType],
-        enabled: !prev[sourceType].enabled
-      }
+        enabled: !prev[sourceType].enabled,
+      },
     }));
   };
 
   const handleDataSourceValueChange = (sourceType, value) => {
-    setDataSources(prev => ({
+    setDataSources((prev) => ({
       ...prev,
       [sourceType]: {
         ...prev[sourceType],
-        value: value
-      }
+        value: value,
+      },
     }));
   };
 
   const handleFileUpload = (event) => {
     const file = event.target.files[0];
     if (file && file.type === "application/pdf") {
-      setDataSources(prev => ({
+      setDataSources((prev) => ({
         ...prev,
         pdf: {
           ...prev.pdf,
           file: file,
-          fileName: file.name
-        }
+          fileName: file.name,
+        },
       }));
       setError("");
     } else {
       setError("Please upload a valid PDF file.");
-      setDataSources(prev => ({
+      setDataSources((prev) => ({
         ...prev,
         pdf: {
           ...prev.pdf,
           file: null,
-          fileName: ""
-        }
+          fileName: "",
+        },
       }));
     }
   };
@@ -128,7 +125,7 @@ export default function UserManualGenerator() {
       return;
     }
 
-    if (!Object.values(dataSources).some(source => source.enabled)) {
+    if (!Object.values(dataSources).some((source) => source.enabled)) {
       setError("Please select at least one data source.");
       return;
     }
@@ -141,7 +138,6 @@ export default function UserManualGenerator() {
       formData.append("product_category", selectedProduct);
       formData.append("language", language);
 
-      // Append data sources based on what's enabled
       if (dataSources.pdf.enabled && dataSources.pdf.file) {
         formData.append("rag_source", dataSources.pdf.file);
       }
@@ -155,18 +151,12 @@ export default function UserManualGenerator() {
         formData.append("confluence_source", dataSources.confluence.value);
       }
 
-      const response = await fetch(`${baseUrl}/generate-manual`, {
-        method: "POST",
-        body: formData,
+      const response = await axios.post(`${baseUrl}/generate-manual`, formData, {
+        responseType: "blob",
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => null);
-        throw new Error(errorData?.detail || "Failed to generate manual");
-      }
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
+      // Create a URL for the blob and trigger a download
+      const url = window.URL.createObjectURL(new Blob([response.data]));
       const a = document.createElement("a");
       a.href = url;
       a.download = `user_manual_${selectedProduct}_${language}.pdf`;
@@ -180,7 +170,7 @@ export default function UserManualGenerator() {
       setSelectedSubProduct("");
       setLanguage("");
     } catch (err) {
-      setError(err.message);
+      setError(err.response?.data?.detail || err.message);
     } finally {
       setLoading(false);
     }
@@ -203,7 +193,7 @@ export default function UserManualGenerator() {
                 <input
                   type="checkbox"
                   checked={dataSources.pdf.enabled}
-                  onChange={() => handleDataSourceToggle('pdf')}
+                  onChange={() => handleDataSourceToggle("pdf")}
                   style={{ marginRight: 8 }}
                 />
                 <Typography>Upload PDF</Typography>
@@ -239,7 +229,7 @@ export default function UserManualGenerator() {
                 <input
                   type="checkbox"
                   checked={dataSources.link.enabled}
-                  onChange={() => handleDataSourceToggle('link')}
+                  onChange={() => handleDataSourceToggle("link")}
                   style={{ marginRight: 8 }}
                 />
                 <Typography>Upload Link</Typography>
@@ -249,7 +239,9 @@ export default function UserManualGenerator() {
                   fullWidth
                   placeholder="Enter link"
                   value={dataSources.link.value}
-                  onChange={(e) => handleDataSourceValueChange('link', e.target.value)}
+                  onChange={(e) =>
+                    handleDataSourceValueChange("link", e.target.value)
+                  }
                   sx={{ mt: 1 }}
                 />
               )}
@@ -261,7 +253,7 @@ export default function UserManualGenerator() {
                 <input
                   type="checkbox"
                   checked={dataSources.azureBlob.enabled}
-                  onChange={() => handleDataSourceToggle('azureBlob')}
+                  onChange={() => handleDataSourceToggle("azureBlob")}
                   style={{ marginRight: 8 }}
                 />
                 <Typography>Azure Blob Storage</Typography>
@@ -271,7 +263,9 @@ export default function UserManualGenerator() {
                   fullWidth
                   placeholder="Enter Azure Blob Storage details"
                   value={dataSources.azureBlob.value}
-                  onChange={(e) => handleDataSourceValueChange('azureBlob', e.target.value)}
+                  onChange={(e) =>
+                    handleDataSourceValueChange("azureBlob", e.target.value)
+                  }
                   sx={{ mt: 1 }}
                 />
               )}
@@ -283,7 +277,7 @@ export default function UserManualGenerator() {
                 <input
                   type="checkbox"
                   checked={dataSources.confluence.enabled}
-                  onChange={() => handleDataSourceToggle('confluence')}
+                  onChange={() => handleDataSourceToggle("confluence")}
                   style={{ marginRight: 8 }}
                 />
                 <Typography>Confluence</Typography>
@@ -293,7 +287,9 @@ export default function UserManualGenerator() {
                   fullWidth
                   placeholder="Enter Confluence details"
                   value={dataSources.confluence.value}
-                  onChange={(e) => handleDataSourceValueChange('confluence', e.target.value)}
+                  onChange={(e) =>
+                    handleDataSourceValueChange("confluence", e.target.value)
+                  }
                   sx={{ mt: 1 }}
                 />
               )}
@@ -409,14 +405,12 @@ export default function UserManualGenerator() {
         </Grid>
       </Grid>
 
-      {/* Error Message */}
       {error && (
         <Typography color="error" align="center" sx={{ mt: 2 }}>
           {error}
         </Typography>
       )}
 
-      {/* Generate Button */}
       <Box sx={{ display: "flex", justifyContent: "center", gap: 2, mt: 4 }}>
         <Button
           variant="contained"
