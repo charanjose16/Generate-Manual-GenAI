@@ -1,4 +1,4 @@
-import React from 'react';
+
 import logo from '../assets/ustlogo.svg'; // Ensure the path is correct
 import LinkedInIcon from '@mui/icons-material/LinkedIn';
 import TwitterIcon from '@mui/icons-material/Twitter';
