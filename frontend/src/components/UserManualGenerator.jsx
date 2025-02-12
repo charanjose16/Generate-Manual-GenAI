@@ -14,29 +14,37 @@ import {
   TextField,
 } from "@mui/material";
 import { Add, Description } from "@mui/icons-material";
-import UstLogo from "../assets/ustlogo.svg"; // Import the UST logo
+import UstLogo from "../assets/ustlogo.svg";
 
 export default function UserManualGenerator() {
-  // Change language state to a string (single language code)
   const [language, setLanguage] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [products, setProducts] = useState([]);
   const [selectedProduct, setSelectedProduct] = useState("");
   const [selectedSubProduct, setSelectedSubProduct] = useState("");
-  const [uploadedFile, setUploadedFile] = useState(null);
   const [activePage, setActivePage] = useState("generateManual");
 
-  // Data source states for the secondary page (if needed)
-  const [selectedDataSources, setSelectedDataSources] = useState({
-    uploadPDF: false,
-    uploadLink: false,
-    azureBlob: false,
-    confluence: false,
+  // Data source states
+  const [dataSources, setDataSources] = useState({
+    pdf: {
+      enabled: false,
+      file: null,
+      fileName: ""
+    },
+    link: {
+      enabled: false,
+      value: ""
+    },
+    azureBlob: {
+      enabled: false,
+      value: ""
+    },
+    confluence: {
+      enabled: false,
+      value: ""
+    }
   });
-  const [link, setLink] = useState("");
-  const [azureBlob, setAzureBlob] = useState("");
-  const [confluence, setConfluence] = useState("");
 
   // Fetch products data from the FastAPI backend
   useEffect(() => {
@@ -47,7 +55,7 @@ export default function UserManualGenerator() {
           throw new Error("Failed to fetch products");
         }
         const data = await response.json();
-        setProducts(data.products); // Assuming the API returns { products: [...] }
+        setProducts(data.products);
       } catch (err) {
         setError(`Failed to load products: ${err.message}`);
       }
@@ -58,7 +66,7 @@ export default function UserManualGenerator() {
   const handleProductChange = (event) => {
     const productName = event.target.value;
     setSelectedProduct(productName);
-    setSelectedSubProduct(""); // Reset sub-product when main product changes
+    setSelectedSubProduct("");
     if (error) setError("");
   };
 
@@ -67,22 +75,59 @@ export default function UserManualGenerator() {
     if (error) setError("");
   };
 
-  // Handle PDF file upload
+  const handleDataSourceToggle = (sourceType) => {
+    setDataSources(prev => ({
+      ...prev,
+      [sourceType]: {
+        ...prev[sourceType],
+        enabled: !prev[sourceType].enabled
+      }
+    }));
+  };
+
+  const handleDataSourceValueChange = (sourceType, value) => {
+    setDataSources(prev => ({
+      ...prev,
+      [sourceType]: {
+        ...prev[sourceType],
+        value: value
+      }
+    }));
+  };
+
   const handleFileUpload = (event) => {
     const file = event.target.files[0];
     if (file && file.type === "application/pdf") {
-      setUploadedFile(file);
+      setDataSources(prev => ({
+        ...prev,
+        pdf: {
+          ...prev.pdf,
+          file: file,
+          fileName: file.name
+        }
+      }));
       setError("");
     } else {
       setError("Please upload a valid PDF file.");
-      setUploadedFile(null);
+      setDataSources(prev => ({
+        ...prev,
+        pdf: {
+          ...prev.pdf,
+          file: null,
+          fileName: ""
+        }
+      }));
     }
   };
 
   const handleGenerateManual = async () => {
-    // Validate required fields: language (non-empty string), selectedProduct, and uploaded PDF file.
-    if (!language || !selectedProduct || !uploadedFile) {
-      setError("Please fill in all required fields and upload a PDF file.");
+    if (!language || !selectedProduct) {
+      setError("Please fill in all required fields.");
+      return;
+    }
+
+    if (!Object.values(dataSources).some(source => source.enabled)) {
+      setError("Please select at least one data source.");
       return;
     }
 
@@ -92,8 +137,21 @@ export default function UserManualGenerator() {
     try {
       const formData = new FormData();
       formData.append("product_category", selectedProduct);
-      formData.append("rag_source", uploadedFile);
       formData.append("language", language);
+
+      // Append data sources based on what's enabled
+      if (dataSources.pdf.enabled && dataSources.pdf.file) {
+        formData.append("rag_source", dataSources.pdf.file);
+      }
+      if (dataSources.link.enabled) {
+        formData.append("link_source", dataSources.link.value);
+      }
+      if (dataSources.azureBlob.enabled) {
+        formData.append("azure_source", dataSources.azureBlob.value);
+      }
+      if (dataSources.confluence.enabled) {
+        formData.append("confluence_source", dataSources.confluence.value);
+      }
 
       const response = await fetch("http://localhost:8000/generate-manual", {
         method: "POST",
@@ -109,7 +167,6 @@ export default function UserManualGenerator() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      // You can modify the filename as needed:
       a.download = `user_manual_${selectedProduct}_${language}.pdf`;
       document.body.appendChild(a);
       a.click();
@@ -119,25 +176,12 @@ export default function UserManualGenerator() {
       // Reset form fields after successful generation
       setSelectedProduct("");
       setSelectedSubProduct("");
-      setUploadedFile(null);
       setLanguage("");
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleDataSourceChange = (event) => {
-    setSelectedDataSources({
-      ...selectedDataSources,
-      [event.target.name]: event.target.checked,
-    });
-  };
-
-  const handleUploadData = () => {
-    // Handle data upload logic here
-    setActivePage("generateManual");
   };
 
   const renderAddDataSourcePage = () => (
@@ -151,87 +195,120 @@ export default function UserManualGenerator() {
             Select Data Sources
           </Typography>
           <Grid container spacing={2}>
+            {/* PDF Upload Section */}
             <Grid item xs={12}>
               <Box sx={{ display: "flex", alignItems: "center" }}>
                 <input
                   type="checkbox"
-                  name="uploadPDF"
-                  checked={selectedDataSources.uploadPDF}
-                  onChange={handleDataSourceChange}
+                  checked={dataSources.pdf.enabled}
+                  onChange={() => handleDataSourceToggle('pdf')}
                   style={{ marginRight: 8 }}
                 />
                 <Typography>Upload PDF</Typography>
               </Box>
+              {dataSources.pdf.enabled && (
+                <Box sx={{ mt: 1 }}>
+                  <Button
+                    variant="outlined"
+                    component="label"
+                    disabled={loading}
+                    sx={{ textTransform: "none" }}
+                  >
+                    {dataSources.pdf.fileName || "Choose PDF"}
+                    <input
+                      type="file"
+                      accept="application/pdf"
+                      hidden
+                      onChange={handleFileUpload}
+                    />
+                  </Button>
+                  {dataSources.pdf.fileName && (
+                    <Typography variant="body2" sx={{ mt: 1 }}>
+                      {dataSources.pdf.fileName}
+                    </Typography>
+                  )}
+                </Box>
+              )}
             </Grid>
+
+            {/* Link Upload Section */}
             <Grid item xs={12}>
               <Box sx={{ display: "flex", alignItems: "center" }}>
                 <input
                   type="checkbox"
-                  name="uploadLink"
-                  checked={selectedDataSources.uploadLink}
-                  onChange={handleDataSourceChange}
+                  checked={dataSources.link.enabled}
+                  onChange={() => handleDataSourceToggle('link')}
                   style={{ marginRight: 8 }}
                 />
                 <Typography>Upload Link</Typography>
               </Box>
-              {selectedDataSources.uploadLink && (
+              {dataSources.link.enabled && (
                 <TextField
                   fullWidth
                   placeholder="Enter link"
-                  value={link}
-                  onChange={(e) => setLink(e.target.value)}
+                  value={dataSources.link.value}
+                  onChange={(e) => handleDataSourceValueChange('link', e.target.value)}
                   sx={{ mt: 1 }}
                 />
               )}
             </Grid>
+
+            {/* Azure Blob Section */}
             <Grid item xs={12}>
               <Box sx={{ display: "flex", alignItems: "center" }}>
                 <input
                   type="checkbox"
-                  name="azureBlob"
-                  checked={selectedDataSources.azureBlob}
-                  onChange={handleDataSourceChange}
+                  checked={dataSources.azureBlob.enabled}
+                  onChange={() => handleDataSourceToggle('azureBlob')}
                   style={{ marginRight: 8 }}
                 />
                 <Typography>Azure Blob Storage</Typography>
               </Box>
-              {selectedDataSources.azureBlob && (
+              {dataSources.azureBlob.enabled && (
                 <TextField
                   fullWidth
                   placeholder="Enter Azure Blob Storage details"
-                  value={azureBlob}
-                  onChange={(e) => setAzureBlob(e.target.value)}
+                  value={dataSources.azureBlob.value}
+                  onChange={(e) => handleDataSourceValueChange('azureBlob', e.target.value)}
                   sx={{ mt: 1 }}
                 />
               )}
             </Grid>
+
+            {/* Confluence Section */}
             <Grid item xs={12}>
               <Box sx={{ display: "flex", alignItems: "center" }}>
                 <input
                   type="checkbox"
-                  name="confluence"
-                  checked={selectedDataSources.confluence}
-                  onChange={handleDataSourceChange}
+                  checked={dataSources.confluence.enabled}
+                  onChange={() => handleDataSourceToggle('confluence')}
                   style={{ marginRight: 8 }}
                 />
                 <Typography>Confluence</Typography>
               </Box>
-              {selectedDataSources.confluence && (
+              {dataSources.confluence.enabled && (
                 <TextField
                   fullWidth
                   placeholder="Enter Confluence details"
-                  value={confluence}
-                  onChange={(e) => setConfluence(e.target.value)}
+                  value={dataSources.confluence.value}
+                  onChange={(e) => handleDataSourceValueChange('confluence', e.target.value)}
                   sx={{ mt: 1 }}
                 />
               )}
             </Grid>
           </Grid>
         </Grid>
+
+        {error && (
+          <Grid item xs={12}>
+            <Typography color="error">{error}</Typography>
+          </Grid>
+        )}
+
         <Grid item xs={12}>
           <Button
             variant="contained"
-            onClick={handleUploadData}
+            onClick={() => setActivePage("generateManual")}
             sx={{
               bgcolor: "#2669f2",
               color: "background.paper",
@@ -240,7 +317,7 @@ export default function UserManualGenerator() {
               },
             }}
           >
-            Upload
+            Save Data Sources
           </Button>
         </Grid>
       </Grid>
@@ -328,32 +405,6 @@ export default function UserManualGenerator() {
             <MenuItem value="it">Italian</MenuItem>
           </Select>
         </Grid>
-
-        {/* PDF Upload */}
-        <Grid item xs={12}>
-          <Typography variant="subtitle1" gutterBottom>
-            Upload PDF File
-          </Typography>
-          <Button
-            variant="outlined"
-            component="label"
-            disabled={loading}
-            sx={{ textTransform: "none" }}
-          >
-            {uploadedFile ? "PDF Selected" : "Choose PDF"}
-            <input
-              type="file"
-              accept="application/pdf"
-              hidden
-              onChange={handleFileUpload}
-            />
-          </Button>
-          {uploadedFile && (
-            <Typography variant="body2" sx={{ mt: 1 }}>
-              {uploadedFile.name}
-            </Typography>
-          )}
-        </Grid>
       </Grid>
 
       {/* Error Message */}
@@ -405,9 +456,7 @@ export default function UserManualGenerator() {
         overflow: "hidden",
       }}
     >
-      {/* Main Content */}
       <Box sx={{ display: "flex", flexGrow: 1, overflow: "hidden" }}>
-        {/* Side Panel */}
         <Drawer
           variant="permanent"
           sx={{
@@ -463,7 +512,6 @@ export default function UserManualGenerator() {
           </List>
         </Drawer>
 
-        {/* Main Content Area */}
         <Box
           sx={{
             flexGrow: 1,
