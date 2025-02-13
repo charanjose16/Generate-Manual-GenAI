@@ -23,6 +23,7 @@ from langchain.vectorstores import FAISS
 from langchain.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 import json
+from requests.auth import HTTPBasicAuth
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -36,6 +37,12 @@ CERTIFICATE_PATH = os.path.join(os.path.dirname(__file__), "huggingface.co.crt")
 
 # Set the environment variable for SSL verification
 os.environ["REQUESTS_CA_BUNDLE"] = CERTIFICATE_PATH
+
+# Confluence API credentials
+# Environment variables for Confluence
+CONFLUENCE_BASE_URL = os.getenv("CONFLUENCE_BASE_URL")  # e.g., "https://bharadwajyamini07.atlassian.net/wiki"
+CONFLUENCE_USERNAME = os.getenv("CONFLUENCE_USERNAME")  # e.g., your_email@example.com
+CONFLUENCE_API_TOKEN = os.getenv("CONFLUENCE_API_TOKEN")
 
 # FastAPI app
 app = FastAPI()
@@ -54,7 +61,7 @@ class ProductData(BaseModel):
     product_category: str = Field(
         description="Category of the product (e.g., 'Electronics', 'Appliances', 'Tools')"
     )
-    rag_source: UploadFile = File(..., description="Uploaded PDF file for RAG content retrieval")
+    rag_source: UploadFile = File(None, description="Uploaded PDF file for RAG content retrieval")
     language: str = Field(
         default="en",
         description="Target language for the manual (e.g., 'en', 'es', 'fr', 'de', 'it')"
@@ -102,66 +109,6 @@ def get_language_texts(language):
             "warranty_information": "Warranty Information"
         },
         # Other languages...
-        "es": {
-            "title": "MANUAL DE USUARIO PARA",
-            "toc": "Índice de Contenidos",
-            "page": "Página",
-            "introduction": "Introducción",
-            "key_features": "Características Principales",
-            "technical_specifications": "Especificaciones Técnicas",
-            "safety_information": "Información de Seguridad",
-            "setup_instructions": "Instrucciones de Configuración",
-            "operation_instructions": "Instrucciones de Operación",
-            "maintenance_and_care": "Mantenimiento y Cuidado",
-            "troubleshooting": "Solución de Problemas",
-            "faq": "Preguntas Frecuentes",
-            "warranty_information": "Información de Garantía"
-        },
-        "fr": {
-            "title": "MANUEL D'UTILISATION POUR",
-            "toc": "Table des Matières",
-            "page": "Page",
-            "introduction": "Introduction",
-            "key_features": "Caractéristiques Clés",
-            "technical_specifications": "Spécifications Techniques",
-            "safety_information": "Informations de Sécurité",
-            "setup_instructions": "Instructions d'Installation",
-            "operation_instructions": "Instructions d'Utilisation",
-            "maintenance_and_care": "Maintenance et Entretien",
-            "troubleshooting": "Dépannage",
-            "faq": "FAQ",
-            "warranty_information": "Informations sur la Garantie"
-        },
-        "de": {
-            "title": "BENUTZERHANDBUCH FÜR",
-            "toc": "Inhaltsverzeichnis",
-            "page": "Seite",
-            "introduction": "Einführung",
-            "key_features": "Hauptmerkmale",
-            "technical_specifications": "Technische Spezifikationen",
-            "safety_information": "Sicherheitshinweise",
-            "setup_instructions": "Einrichtungsanweisungen",
-            "operation_instructions": "Betriebsanweisungen",
-            "maintenance_and_care": "Wartung und Pflege",
-            "troubleshooting": "Fehlerbehebung",
-            "faq": "FAQ",
-            "warranty_information": "Garantieinformationen"
-        },
-        "it": {
-            "title": "MANUALE UTENTE PER",
-            "toc": "Indice dei Contenuti",
-            "page": "Pagina",
-            "introduction": "Introduzione",
-            "key_features": "Caratteristiche Principali",
-            "technical_specifications": "Specifiche Tecniche",
-            "safety_information": "Informazioni sulla Sicurezza",
-            "setup_instructions": "Istruzioni di Installazione",
-            "operation_instructions": "Istruzioni di Funzionamento",
-            "maintenance_and_care": "Manutenzione e Cura",
-            "troubleshooting": "Risoluzione dei Problemi",
-            "faq": "FAQ",
-            "warranty_information": "Informazioni sulla Garanzia"
-        }
     }
     return texts.get(language, texts["en"])
 
@@ -213,11 +160,55 @@ def retrieve_content(vector_store, query):
         logger.error(f"Error retrieving content: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to retrieve content: {str(e)}")
 
+def search_confluence(query):
+    """Search Confluence for relevant pages based on a query."""
+    url = f"{CONFLUENCE_BASE_URL}/rest/api/content/search"
+    params = {
+        "cql": f"text ~ \"{query}\"",
+        "expand": "body.view"
+    }
+    auth = HTTPBasicAuth(CONFLUENCE_USERNAME, CONFLUENCE_API_TOKEN)
+    
+    try:
+        logger.info(f"Searching Confluence for query: {query}")
+        response = requests.get(url, params=params, auth=auth)
+        response.raise_for_status()
+        search_results = response.json()
+        logger.info(f"Received {len(search_results.get('results', []))} results from Confluence.")
+        return search_results
+    except Exception as e:
+        logger.error(f"Error searching Confluence: {str(e)}")
+        return None
+
+def get_confluence_page_content(page_id):
+    """Retrieve the content of a specific Confluence page."""
+    url = f"{CONFLUENCE_BASE_URL}/rest/api/content/{page_id}"
+    params = {
+        "expand": "body.view"
+    }
+    auth = HTTPBasicAuth(CONFLUENCE_USERNAME, CONFLUENCE_API_TOKEN)
+    
+    try:
+        response = requests.get(url, params=params, auth=auth)
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        logger.error(f"Error retrieving Confluence page content: {str(e)}")
+        return None
+
+def extract_confluence_content(search_results):
+    """Extract and concatenate content from Confluence search results."""
+    content = ""
+    for result in search_results.get("results", []):
+        page_id = result.get("id")
+        page_content = get_confluence_page_content(page_id)
+        if page_content:
+            content += page_content.get("body", {}).get("view", {}).get("value", "") + "\n\n"
+    logger.info(f"Extracted {len(content)} characters from Confluence.")
+    return content
+
 def generate_content_prompts(product_data, language, retrieved_content):
-    """
-    Generate language-specific prompts for each section using the retrieved content 
-    as additional context. This helps the language model generate more relevant output.
-    """
+    """Generate language-specific prompts for each section using the retrieved content."""
     product_category = product_data["product_category"]
     language_texts = get_language_texts(language)
     
@@ -329,12 +320,8 @@ def generate_pdf(product_data, content):
             detail=f"Failed to generate PDF: {str(e)}"
         )
 
-# --- New Helper Functions for Scraping ---
-
 def scrape_product_data(url):
-    """
-    Scrape product data from the given URL using requests and BeautifulSoup.
-    """
+    """Scrape product data from the given URL using requests and BeautifulSoup."""
     try:
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
@@ -407,6 +394,8 @@ def scrape_product_data(url):
         logger.error(f"Error scraping product data: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to scrape product data: {str(e)}")
 
+   
+
 def get_product_link(selected_item):
     """
     Look up the product link from the products JSON data based on the selected item.
@@ -423,7 +412,7 @@ def get_product_link(selected_item):
 @app.post("/generate-manual")
 async def generate_manual(
     product_category: str = Form(...),
-    rag_source: UploadFile = File(...),
+    rag_source: UploadFile = File(None),  # Make it optional
     language: str = Form(...)
 ):
     """Generate a user manual PDF based on product category and RAG content."""
@@ -450,7 +439,6 @@ async def generate_manual(
 
         # --- Step 2: Process PDF if uploaded (for additional context) ---
         pdf_retrieved_content = ""
-        pdf_path = None
         if rag_source:
             pdf_path = f"temp_{rag_source.filename}"
             with open(pdf_path, "wb") as buffer:
@@ -463,19 +451,30 @@ async def generate_manual(
             # Clean up temporary file
             os.remove(pdf_path)
 
-        # --- Step 3: Combine contexts ---
+        # --- Step 3: Search Confluence for additional content ---
+        confluence_content = ""
+        if not pdf_retrieved_content.strip() or pdf_retrieved_content == "No relevant content found.":
+            logger.info("Searching Confluence for additional content...")
+            search_results = search_confluence(product_category)
+            if search_results:
+                confluence_content = extract_confluence_content(search_results)
+                logger.info(f"Retrieved {len(confluence_content)} characters from Confluence.")
+
+        # --- Step 4: Combine contexts ---
         combined_context = scraped_context
         if pdf_retrieved_content.strip() and pdf_retrieved_content != "No relevant content found.":
             combined_context += "\nRelevant context extracted from PDF:\n" + pdf_retrieved_content
+        if confluence_content.strip():
+            combined_context += "\nRelevant context extracted from Confluence:\n" + confluence_content
 
         logger.info(f"Combined context for manual generation: {combined_context}")
 
-        # --- Step 4: Generate prompts for each section ---
+        # --- Step 5: Generate prompts for each section ---
         content_prompts = generate_content_prompts({
             "product_category": product_category
         }, language, combined_context)
         
-        # --- Step 5: Generate content using DSPy ---
+        # --- Step 6: Generate content using DSPy ---
         generate_content = Predict(GenerateContent)
         generated_content = {}
         for section, prompt in content_prompts.items():
@@ -494,7 +493,7 @@ async def generate_manual(
             else:
                 generated_content[section] = result.output
         
-        # --- Step 6: Generate PDF ---
+        # --- Step 7: Generate PDF ---
         pdf_buffer = generate_pdf({
             "product_category": product_category,
             "language": language
@@ -504,6 +503,10 @@ async def generate_manual(
         response = StreamingResponse(pdf_buffer, media_type="application/pdf")
         response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
         return response
+
+    except Exception as e:
+        logger.error(f"Error generating manual: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
     except Exception as e:
         logger.error(f"Error generating manual: {str(e)}")
