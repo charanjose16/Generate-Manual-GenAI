@@ -1,7 +1,9 @@
 import os
 import logging
+import requests
+from bs4 import BeautifulSoup
 from fastapi import FastAPI, HTTPException, File, UploadFile, Form
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 from io import BytesIO
 from dotenv import load_dotenv
 import dspy
@@ -21,8 +23,6 @@ from langchain.vectorstores import FAISS
 from langchain.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 import json
-from fastapi.responses import JSONResponse
-from fastapi.responses import StreamingResponse
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -101,7 +101,7 @@ def get_language_texts(language):
             "faq": "FAQ",
             "warranty_information": "Warranty Information"
         },
-        # Add other languages similarly...
+        # Other languages...
         "es": {
             "title": "MANUAL DE USUARIO PARA",
             "toc": "Índice de Contenidos",
@@ -215,7 +215,7 @@ def retrieve_content(vector_store, query):
 
 def generate_content_prompts(product_data, language, retrieved_content):
     """
-    Generate language-specific prompts for each section using the retrieved PDF content 
+    Generate language-specific prompts for each section using the retrieved content 
     as additional context. This helps the language model generate more relevant output.
     """
     product_category = product_data["product_category"]
@@ -234,7 +234,7 @@ def generate_content_prompts(product_data, language, retrieved_content):
     """
     
     # Append retrieved content for context
-    context_text = f"\n\nRelevant context extracted from the provided PDF:\n{retrieved_content}\n\n"
+    context_text = f"\n\nRelevant context extracted from the provided sources:\n{retrieved_content}\n\n"
     
     return {
         language_texts["introduction"]: f"{language_instruction}{context_text}Task: Write a structured introduction in {language}.",
@@ -329,6 +329,97 @@ def generate_pdf(product_data, content):
             detail=f"Failed to generate PDF: {str(e)}"
         )
 
+# --- New Helper Functions for Scraping ---
+
+def scrape_product_data(url):
+    """
+    Scrape product data from the given URL using requests and BeautifulSoup.
+    """
+    try:
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Referer": "https://www.google.com/"
+        }
+        response = requests.get(url, headers=headers, verify=False)  # Disable SSL verification
+        response.raise_for_status()
+        soup = BeautifulSoup(response.content, 'html.parser')
+
+        # Extract product name
+        product_name = "Unknown Product"
+        h1_tag = soup.find('h1')
+        if h1_tag:
+            product_name = h1_tag.get_text(strip=True)
+
+        # Extract summary (if available)
+        summary = ""
+        summary_div = soup.find('div', class_='product-summary')
+        if summary_div:
+            summary = summary_div.get_text(strip=True)
+
+        # Extract Key Features
+        key_features = []
+        key_features_container = soup.find('div', class_='product-info')
+        if key_features_container:
+            feature_list = key_features_container.find('ul')
+            if feature_list:
+                features = feature_list.find_all('li')
+                for feature in features:
+                    key_features.append(feature.get_text(strip=True))
+
+        # Extract Technical Specifications
+        technical_specs = {}
+        tech_specs_div = soup.find('div', id='tab-0')
+        if tech_specs_div:
+            tech_specs_table = tech_specs_div.find('table', class_='specifications-table')
+            if tech_specs_table:
+                for row in tech_specs_table.find_all('tr'):
+                    cols = row.find_all('td')
+                    if len(cols) == 4:  # Two key-value pairs per row
+                        key1 = cols[0].get_text(strip=True).rstrip(":")
+                        value1 = cols[1].get_text(strip=True)
+                        key2 = cols[2].get_text(strip=True).rstrip(":")
+                        value2 = cols[3].get_text(strip=True)
+                        technical_specs[key1] = value1
+                        technical_specs[key2] = value2
+
+        # Extract General Specifications
+        general_specs = {}
+        general_specs_div = soup.find('div', id='tab-1')
+        if general_specs_div:
+            general_specs_table = general_specs_div.find('table', class_='specifications-table')
+            if general_specs_table:
+                for row in general_specs_table.find_all('tr'):
+                    cols = row.find_all('td')
+                    if len(cols) == 2:  # One key-value pair per row
+                        key = cols[0].get_text(strip=True).rstrip(":")
+                        value = cols[1].get_text(strip=True)
+                        general_specs[key] = value
+
+        return {
+            "product_name": product_name,
+            "summary": summary,
+            "key_features": key_features,
+            "technical_specifications": technical_specs,
+            "general_specifications": general_specs
+        }
+    except Exception as e:
+        logger.error(f"Error scraping product data: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to scrape product data: {str(e)}")
+
+def get_product_link(selected_item):
+    """
+    Look up the product link from the products JSON data based on the selected item.
+    """
+    for product in products_data.get("products", []):
+        for subproduct in product.get("subproducts", []):
+            for item in subproduct.get("sub_subproducts", []):
+                if item.get("sub_subproduct_name") == selected_item:
+                    return item.get("sub_subproduct_link")
+    return None
+
+# --- End of New Helper Functions ---
+
 @app.post("/generate-manual")
 async def generate_manual(
     product_category: str = Form(...),
@@ -338,33 +429,53 @@ async def generate_manual(
     """Generate a user manual PDF based on product category and RAG content."""
     try:
         logger.info(f"Starting manual generation for category: {product_category} in {language}")
-        
-        # Save uploaded file temporarily
-        pdf_path = f"temp_{rag_source.filename}"
-        with open(pdf_path, "wb") as buffer:
-            buffer.write(await rag_source.read())  # Read binary data
-        
-        # Step 1: Load PDF and create RAG index
-        logger.info(f"Loading and indexing PDF from path: {pdf_path}")
-        vector_store = load_and_index_pdf(pdf_path)
-        
-        # Step 2: Retrieve relevant content using RAG
-        query = f"User manual content for {product_category}"
-        logger.info(f"Retrieving content for query: {query}")
-        retrieved_content = retrieve_content(vector_store, query)
-        logger.info(f"Retrieved content: {retrieved_content}")
-        
-        # Validate retrieved content
-        if not retrieved_content.strip() or retrieved_content == "No relevant content found.":
-            logger.error("No valid content retrieved for manual generation.")
-            raise HTTPException(status_code=400, detail="No relevant content found in the uploaded PDF.")
-        
-        # Step 3: Generate prompts for each section
+
+        # --- Step 1: Scrape product data based on the selected item ---
+        product_link = get_product_link(product_category)
+        if not product_link:
+            logger.error("Product link not found for the selected item.")
+            raise HTTPException(status_code=400, detail="Product link not found for the selected item.")
+        logger.info(f"Scraping product data from: {product_link}")
+        scraped_data = scrape_product_data(product_link)
+        # Prepare scraped context text
+        scraped_context = f"Product Name: {scraped_data['product_name']}\n"
+        scraped_context += f"Summary: {scraped_data['summary']}\n"
+        scraped_context += f"Key Features: {', '.join(scraped_data['key_features'])}\n"
+        scraped_context += "Technical Specifications:\n"
+        for key, value in scraped_data['technical_specifications'].items():
+            scraped_context += f" - {key}: {value}\n"
+        scraped_context += "General Specifications:\n"
+        for key, value in scraped_data['general_specifications'].items():
+            scraped_context += f" - {key}: {value}\n"
+
+        # --- Step 2: Process PDF if uploaded (for additional context) ---
+        pdf_retrieved_content = ""
+        pdf_path = None
+        if rag_source:
+            pdf_path = f"temp_{rag_source.filename}"
+            with open(pdf_path, "wb") as buffer:
+                buffer.write(await rag_source.read())
+            logger.info(f"Loading and indexing PDF from path: {pdf_path}")
+            vector_store = load_and_index_pdf(pdf_path)
+            query = f"User manual content for {product_category}"
+            logger.info(f"Retrieving PDF content for query: {query}")
+            pdf_retrieved_content = retrieve_content(vector_store, query)
+            # Clean up temporary file
+            os.remove(pdf_path)
+
+        # --- Step 3: Combine contexts ---
+        combined_context = scraped_context
+        if pdf_retrieved_content.strip() and pdf_retrieved_content != "No relevant content found.":
+            combined_context += "\nRelevant context extracted from PDF:\n" + pdf_retrieved_content
+
+        logger.info(f"Combined context for manual generation: {combined_context}")
+
+        # --- Step 4: Generate prompts for each section ---
         content_prompts = generate_content_prompts({
             "product_category": product_category
-        }, language, retrieved_content)
+        }, language, combined_context)
         
-        # Step 4: Generate content using DSPy
+        # --- Step 5: Generate content using DSPy ---
         generate_content = Predict(GenerateContent)
         generated_content = {}
         for section, prompt in content_prompts.items():
@@ -383,15 +494,12 @@ async def generate_manual(
             else:
                 generated_content[section] = result.output
         
-        # Step 5: Generate PDF
+        # --- Step 6: Generate PDF ---
         pdf_buffer = generate_pdf({
             "product_category": product_category,
             "language": language
         }, generated_content)
         
-        # Clean up temporary file
-        os.remove(pdf_path)
-
         filename = f"user_manual_{product_category}_{language}.pdf"
         response = StreamingResponse(pdf_buffer, media_type="application/pdf")
         response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
@@ -403,7 +511,7 @@ async def generate_manual(
     
 PRODUCTS_FILE_PATH = os.path.join(os.path.dirname(__file__), "product_names.json")
 
-# Load the JSON file
+# Load the JSON file with product data
 with open(PRODUCTS_FILE_PATH, "r") as file:
     products_data = json.load(file)
 
@@ -414,4 +522,4 @@ async def get_products():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app)
