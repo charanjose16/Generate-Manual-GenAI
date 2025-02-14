@@ -130,21 +130,16 @@ export default function UserManualGenerator() {
       setError("Please fill in all required fields.");
       return;
     }
-
-    if (!Object.values(dataSources).some((source) => source.enabled)) {
-      setError("Please select at least one data source.");
-      return;
-    }
-
+  
     setLoading(true);
     setError("");
-
+  
     try {
       const formData = new FormData();
       // Use selectedItem (sub_subproduct_name) as product_category
       formData.append("product_category", selectedItem);
       formData.append("language", language);
-
+  
       if (dataSources.pdf.enabled && dataSources.pdf.file) {
         formData.append("rag_source", dataSources.pdf.file);
       }
@@ -157,11 +152,11 @@ export default function UserManualGenerator() {
       if (dataSources.confluence.enabled) {
         formData.append("confluence_source", dataSources.confluence.value);
       }
-
+  
       const response = await axios.post(`${baseUrl}/generate-manual`, formData, {
         responseType: "blob",
       });
-
+  
       // Create a URL for the blob and trigger a download
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const a = document.createElement("a");
@@ -171,7 +166,7 @@ export default function UserManualGenerator() {
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
-
+  
       // Reset form fields after successful generation
       setSelectedProduct("");
       setSelectedSubProduct("");
@@ -183,6 +178,7 @@ export default function UserManualGenerator() {
       setLoading(false);
     }
   };
+  
 
   const renderAddDataSourcePage = () => (
     <Box sx={{ p: 4, width: "100%", height: "100%" }}>

@@ -19,8 +19,8 @@ import re
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from langchain_huggingface import HuggingFaceEmbeddings
-from langchain.vectorstores import FAISS
-from langchain.document_loaders import PyPDFLoader
+from langchain_community.vectorstores import FAISS
+from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 import json
 from requests.auth import HTTPBasicAuth
@@ -277,7 +277,6 @@ def combine_all_content(scraped_data, pdf_content, confluence_content):
     if scraped_data:
         combined_content.append("=== Product Information ===")
         combined_content.append(f"Product Name: {scraped_data.get('product_name', 'N/A')}")
-        combined_content.append(f"Summary: {scraped_data.get('summary', 'N/A')}")
         
         if features := scraped_data.get('key_features', []):
             combined_content.append("\nKey Features:")
@@ -441,21 +440,16 @@ def scrape_product_data(url):
             "Accept-Language": "en-US,en;q=0.9",
             "Referer": "https://www.google.com/"
         }
-        response = requests.get(url, headers=headers, verify=False)  # Disable SSL verification
+        response = requests.get(url, headers=headers, verify=False)  # Disable SSL verification for testing
         response.raise_for_status()
         soup = BeautifulSoup(response.content, 'html.parser')
 
-        # Extract product name
+        # Extract product name from <h1>
         product_name = "Unknown Product"
         h1_tag = soup.find('h1')
         if h1_tag:
             product_name = h1_tag.get_text(strip=True)
-
-        # Extract summary (if available)
-        summary = ""
-        summary_div = soup.find('div', class_='product-summary')
-        if summary_div:
-            summary = summary_div.get_text(strip=True)
+        logger.info(f"Scraped product name: {product_name}")
 
         # Extract Key Features
         key_features = []
@@ -466,6 +460,7 @@ def scrape_product_data(url):
                 features = feature_list.find_all('li')
                 for feature in features:
                     key_features.append(feature.get_text(strip=True))
+        logger.info(f"Scraped {len(key_features)} key features")
 
         # Extract Technical Specifications
         technical_specs = {}
@@ -475,13 +470,20 @@ def scrape_product_data(url):
             if tech_specs_table:
                 for row in tech_specs_table.find_all('tr'):
                     cols = row.find_all('td')
-                    if len(cols) == 4:  # Two key-value pairs per row
+                    # If there are exactly 4 cells, assume two key-value pairs per row
+                    if len(cols) == 4:
                         key1 = cols[0].get_text(strip=True).rstrip(":")
                         value1 = cols[1].get_text(strip=True)
                         key2 = cols[2].get_text(strip=True).rstrip(":")
                         value2 = cols[3].get_text(strip=True)
                         technical_specs[key1] = value1
                         technical_specs[key2] = value2
+                    # If there are 2 cells, assume a single key-value pair
+                    elif len(cols) == 2:
+                        key = cols[0].get_text(strip=True).rstrip(":")
+                        value = cols[1].get_text(strip=True)
+                        technical_specs[key] = value
+        logger.info(f"Scraped {len(technical_specs)} technical specifications")
 
         # Extract General Specifications
         general_specs = {}
@@ -491,14 +493,23 @@ def scrape_product_data(url):
             if general_specs_table:
                 for row in general_specs_table.find_all('tr'):
                     cols = row.find_all('td')
-                    if len(cols) == 2:  # One key-value pair per row
+                    # If there are 2 cells, treat them as one key-value pair
+                    if len(cols) == 2:
                         key = cols[0].get_text(strip=True).rstrip(":")
                         value = cols[1].get_text(strip=True)
                         general_specs[key] = value
+                    # If there are 4 cells, process as two pairs (just in case)
+                    elif len(cols) == 4:
+                        key1 = cols[0].get_text(strip=True).rstrip(":")
+                        value1 = cols[1].get_text(strip=True)
+                        key2 = cols[2].get_text(strip=True).rstrip(":")
+                        value2 = cols[3].get_text(strip=True)
+                        general_specs[key1] = value1
+                        general_specs[key2] = value2
+        logger.info(f"Scraped {len(general_specs)} general specifications")
 
         return {
             "product_name": product_name,
-            "summary": summary,
             "key_features": key_features,
             "technical_specifications": technical_specs,
             "general_specifications": general_specs
