@@ -24,6 +24,9 @@ from langchain.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 import json
 from requests.auth import HTTPBasicAuth
+import urllib3
+
+urllib3.disable_warnings()
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -39,8 +42,7 @@ CERTIFICATE_PATH = os.path.join(os.path.dirname(__file__), "huggingface.co.crt")
 os.environ["REQUESTS_CA_BUNDLE"] = CERTIFICATE_PATH
 
 # Confluence API credentials
-# Environment variables for Confluence
-CONFLUENCE_BASE_URL = os.getenv("CONFLUENCE_BASE_URL")  # e.g., "https://bharadwajyamini07.atlassian.net/wiki"
+CONFLUENCE_BASE_URL = os.getenv("CONFLUENCE_BASE_URL")  # e.g., "https://your-domain.atlassian.net/wiki"
 CONFLUENCE_USERNAME = os.getenv("CONFLUENCE_USERNAME")  # e.g., your_email@example.com
 CONFLUENCE_API_TOKEN = os.getenv("CONFLUENCE_API_TOKEN")
 
@@ -161,24 +163,28 @@ def retrieve_content(vector_store, query):
         raise HTTPException(status_code=500, detail=f"Failed to retrieve content: {str(e)}")
 
 def search_confluence(query):
-    """Search Confluence for relevant pages based on a query."""
-    url = f"{CONFLUENCE_BASE_URL}/rest/api/content/search"
-    params = {
-        "cql": f"text ~ \"{query}\"",
-        "expand": "body.view"
-    }
-    auth = HTTPBasicAuth(CONFLUENCE_USERNAME, CONFLUENCE_API_TOKEN)
-    
+    """Search Confluence for relevant pages based on a query using wildcards."""
     try:
-        logger.info(f"Searching Confluence for query: {query}")
-        response = requests.get(url, params=params, auth=auth)
+        url = f"{CONFLUENCE_BASE_URL}/rest/api/content/search"
+        # Use wildcards (*) for a broader match
+        cql_query = f'(title ~ "*{query}*" OR text ~ "*{query}*") AND type = page'
+        params = {
+            "cql": cql_query,
+            "expand": "body.storage,space,version",
+            "limit": 10
+        }
+        auth = HTTPBasicAuth(CONFLUENCE_USERNAME, CONFLUENCE_API_TOKEN)
+        
+        logger.info(f"Searching Confluence for query: {query} with CQL: {cql_query}")
+        response = requests.get(url, params=params, auth=auth, verify=False)
         response.raise_for_status()
-        search_results = response.json()
-        logger.info(f"Received {len(search_results.get('results', []))} results from Confluence.")
-        return search_results
+        
+        results = response.json().get("results", [])
+        logger.info(f"Found {len(results)} Confluence pages matching the query")
+        return results
     except Exception as e:
         logger.error(f"Error searching Confluence: {str(e)}")
-        return None
+        return []
 
 def get_confluence_page_content(page_id):
     """Retrieve the content of a specific Confluence page."""
@@ -196,16 +202,106 @@ def get_confluence_page_content(page_id):
         logger.error(f"Error retrieving Confluence page content: {str(e)}")
         return None
 
-def extract_confluence_content(search_results):
-    """Extract and concatenate content from Confluence search results."""
-    content = ""
-    for result in search_results.get("results", []):
-        page_id = result.get("id")
-        page_content = get_confluence_page_content(page_id)
-        if page_content:
-            content += page_content.get("body", {}).get("view", {}).get("value", "") + "\n\n"
-    logger.info(f"Extracted {len(content)} characters from Confluence.")
-    return content
+def extract_confluence_content(pages):
+    """Extract and process content from Confluence pages."""
+    try:
+        content = []
+        for page in pages:
+            # Extract basic page information
+            page_id = page.get("id")
+            page_title = page.get("title", "")
+            page_space = page.get("space", {}).get("name", "")
+            
+            # Get the page content
+            body = page.get("body", {}).get("storage", {}).get("value", "")
+            
+            # Clean HTML content using BeautifulSoup
+            if body:
+                soup = BeautifulSoup(body, 'html.parser')
+                
+                # Remove unwanted elements
+                for element in soup.find_all(['script', 'style']):
+                    element.decompose()
+                
+                # Extract text content
+                text = soup.get_text(separator='\n', strip=True)
+                
+                # Format the content
+                formatted_content = f"""
+                Page: {page_title}
+                Space: {page_space}
+                Content:
+                {text}
+                """
+                content.append(formatted_content)
+        
+        combined_content = "\n\n".join(content)
+        logger.info(f"Extracted {len(combined_content)} characters from {len(pages)} Confluence pages")
+        return combined_content
+    except Exception as e:
+        logger.error(f"Error extracting Confluence content: {str(e)}")
+        return ""
+    
+def get_confluence_vector_store(content):
+    """Create a vector store from Confluence content."""
+    try:
+        if not content.strip():
+            return None
+            
+        # Split content into chunks
+        text_splitter = RecursiveCharacterTextSplitter(
+            chunk_size=1000,
+            chunk_overlap=200
+        )
+        texts = text_splitter.create_documents([content])
+        
+        if not texts:
+            return None
+            
+        # Create embeddings and vector store
+        embeddings = HuggingFaceEmbeddings(
+            model_name="sentence-transformers/all-MiniLM-L6-v2"
+        )
+        vector_store = FAISS.from_documents(texts, embeddings)
+        
+        return vector_store
+    except Exception as e:
+        logger.error(f"Error creating Confluence vector store: {str(e)}")
+        return None
+
+def combine_all_content(scraped_data, pdf_content, confluence_content):
+    """Combine content from all sources with proper formatting."""
+    combined_content = []
+    
+    # Add scraped data
+    if scraped_data:
+        combined_content.append("=== Product Information ===")
+        combined_content.append(f"Product Name: {scraped_data.get('product_name', 'N/A')}")
+        combined_content.append(f"Summary: {scraped_data.get('summary', 'N/A')}")
+        
+        if features := scraped_data.get('key_features', []):
+            combined_content.append("\nKey Features:")
+            combined_content.extend([f"- {feature}" for feature in features])
+            
+        if tech_specs := scraped_data.get('technical_specifications', {}):
+            combined_content.append("\nTechnical Specifications:")
+            combined_content.extend([f"- {key}: {value}" for key, value in tech_specs.items()])
+            
+        if gen_specs := scraped_data.get('general_specifications', {}):
+            combined_content.append("\nGeneral Specifications:")
+            combined_content.extend([f"- {key}: {value}" for key, value in gen_specs.items()])
+    
+    # Add PDF content
+    if pdf_content and pdf_content != "No relevant content found.":
+        combined_content.append("\n=== Product Documentation ===")
+        combined_content.append(pdf_content)
+    
+    # Add Confluence content
+    if confluence_content and confluence_content.strip():
+        combined_content.append("\n=== Additional Product Information ===")
+        combined_content.append(confluence_content)
+    
+    return "\n\n".join(combined_content)
 
 def generate_content_prompts(product_data, language, retrieved_content):
     """Generate language-specific prompts for each section using the retrieved content."""
@@ -247,6 +343,23 @@ def clean_content(text):
     text = re.sub(r'\[.*?\]|\{.*?\}', '', text)
     text = re.sub(r'\n{3,}', '\n\n', text)
     return text.strip()
+
+def clean_product_query(product_name):
+    """
+    Clean the product name for Confluence search.
+    - If a dash exists, use the part before it.
+    - Remove special characters such as ® and punctuation.
+    - Replace non-alphanumeric characters with spaces.
+    """
+    if " - " in product_name:
+        product_name = product_name.split(" - ")[0].strip()
+    # Remove the ® symbol
+    product_name = product_name.replace("®", "")
+    # Replace any non-alphanumeric characters (except spaces) with a space
+    product_name = re.sub(r'[^\w\s]', ' ', product_name)
+    # Replace multiple spaces with a single space
+    product_name = re.sub(r'\s+', ' ', product_name)
+    return product_name.strip()
 
 def generate_pdf(product_data, content):
     """Generate PDF document with enhanced styling and error handling."""
@@ -394,8 +507,6 @@ def scrape_product_data(url):
         logger.error(f"Error scraping product data: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to scrape product data: {str(e)}")
 
-   
-
 def get_product_link(selected_item):
     """
     Look up the product link from the products JSON data based on the selected item.
@@ -407,109 +518,107 @@ def get_product_link(selected_item):
                     return item.get("sub_subproduct_link")
     return None
 
-# --- End of New Helper Functions ---
+# --- End of Helper Functions ---
 
 @app.post("/generate-manual")
 async def generate_manual(
     product_category: str = Form(...),
-    rag_source: UploadFile = File(None),  # Make it optional
+    rag_source: UploadFile = File(None),
     language: str = Form(...)
 ):
-    """Generate a user manual PDF based on product category and RAG content."""
+    """Generate user manual with content from multiple sources."""
     try:
-        logger.info(f"Starting manual generation for category: {product_category} in {language}")
-
-        # --- Step 1: Scrape product data based on the selected item ---
+        logger.info(f"Starting manual generation for {product_category} in {language}")
+        
+        # Step 1: Get product data using the selected product name from the dropdown
         product_link = get_product_link(product_category)
         if not product_link:
-            logger.error("Product link not found for the selected item.")
-            raise HTTPException(status_code=400, detail="Product link not found for the selected item.")
-        logger.info(f"Scraping product data from: {product_link}")
+            raise HTTPException(status_code=400, detail="Product link not found")
+        
         scraped_data = scrape_product_data(product_link)
-        # Prepare scraped context text
-        scraped_context = f"Product Name: {scraped_data['product_name']}\n"
-        scraped_context += f"Summary: {scraped_data['summary']}\n"
-        scraped_context += f"Key Features: {', '.join(scraped_data['key_features'])}\n"
-        scraped_context += "Technical Specifications:\n"
-        for key, value in scraped_data['technical_specifications'].items():
-            scraped_context += f" - {key}: {value}\n"
-        scraped_context += "General Specifications:\n"
-        for key, value in scraped_data['general_specifications'].items():
-            scraped_context += f" - {key}: {value}\n"
-
-        # --- Step 2: Process PDF if uploaded (for additional context) ---
-        pdf_retrieved_content = ""
+        
+        # Clean the product name for querying Confluence
+        cleaned_product_name = clean_product_query(scraped_data["product_name"])
+        
+        # Step 2: Process PDF content if available
+        pdf_content = "No relevant content found."
         if rag_source:
             pdf_path = f"temp_{rag_source.filename}"
             with open(pdf_path, "wb") as buffer:
                 buffer.write(await rag_source.read())
-            logger.info(f"Loading and indexing PDF from path: {pdf_path}")
+            
             vector_store = load_and_index_pdf(pdf_path)
-            query = f"User manual content for {product_category}"
-            logger.info(f"Retrieving PDF content for query: {query}")
-            pdf_retrieved_content = retrieve_content(vector_store, query)
-            # Clean up temporary file
+            pdf_content = retrieve_content(vector_store, product_category)
             os.remove(pdf_path)
-
-        # --- Step 3: Search Confluence for additional content ---
-        confluence_content = ""
-        if not pdf_retrieved_content.strip() or pdf_retrieved_content == "No relevant content found.":
-            logger.info("Searching Confluence for additional content...")
-            search_results = search_confluence(product_category)
-            if search_results:
-                confluence_content = extract_confluence_content(search_results)
-                logger.info(f"Retrieved {len(confluence_content)} characters from Confluence.")
-
-        # --- Step 4: Combine contexts ---
-        combined_context = scraped_context
-        if pdf_retrieved_content.strip() and pdf_retrieved_content != "No relevant content found.":
-            combined_context += "\nRelevant context extracted from PDF:\n" + pdf_retrieved_content
-        if confluence_content.strip():
-            combined_context += "\nRelevant context extracted from Confluence:\n" + confluence_content
-
-        logger.info(f"Combined context for manual generation: {combined_context}")
-
-        # --- Step 5: Generate prompts for each section ---
-        content_prompts = generate_content_prompts({
-            "product_category": product_category
-        }, language, combined_context)
         
-        # --- Step 6: Generate content using DSPy ---
-        generate_content = Predict(GenerateContent)
+        # Step 3: Get Confluence content using the cleaned product name
+        confluence_pages = search_confluence(cleaned_product_name)
+        confluence_content = extract_confluence_content(confluence_pages)
+        
+        # Create vector store for Confluence content if available
+        confluence_vector_store = None
+        if confluence_content:
+            confluence_vector_store = get_confluence_vector_store(confluence_content)
+        
+        # Step 4: Combine all content
+        combined_content = combine_all_content(
+            scraped_data,
+            pdf_content,
+            confluence_content
+        )
+        
+        # Step 5: Generate section-specific content
+        language_texts = get_language_texts(language)
+        sections = [
+            "introduction",
+            "key_features",
+            "technical_specifications",
+            "safety_information",
+            "setup_instructions",
+            "operation_instructions",
+            "maintenance_and_care",
+            "troubleshooting",
+            "warranty_information"
+        ]
+        
         generated_content = {}
-        for section, prompt in content_prompts.items():
-            logger.info(f"Generating content for section: {section} in {language}")
+        for section in sections:
+            section_title = language_texts[section]
+            
+            # Use the cleaned product name for the section query
+            section_query = f"{section_title} for {cleaned_product_name}"
+            section_content = combined_content
+            
+            if confluence_vector_store:
+                confluence_results = retrieve_content(confluence_vector_store, section_query)
+                if confluence_results != "No relevant content found.":
+                    section_content += f"\n\nRelevant Confluence content:\n{confluence_results}"
+            
+            # Generate content using DSPy
+            generate_content = Predict(GenerateContent)
             result = generate_content(
-                section_title=section,
-                prompt=prompt,
-                language=language,
-                temperature=0.7,
-                max_tokens=1000
+                section_title=section_title,
+                prompt=f"Based on this information:\n{section_content}\n\nGenerate a detailed {section_title} section in {language}.",
+                language=language
             )
             
-            if not result.output.strip():
-                logger.warning(f"No content generated for section: {section}")
-                generated_content[section] = "No content available."
-            else:
-                generated_content[section] = result.output
+            generated_content[section_title] = result.output
         
-        # --- Step 7: Generate PDF ---
+        # Step 6: Generate PDF
         pdf_buffer = generate_pdf({
             "product_category": product_category,
+            "product_name": scraped_data["product_name"],
             "language": language
         }, generated_content)
         
-        filename = f"user_manual_{product_category}_{language}.pdf"
+        # Return generated PDF
+        filename = f"user_manual_{scraped_data['product_name']}_{language}.pdf"
         response = StreamingResponse(pdf_buffer, media_type="application/pdf")
         response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
         return response
-
+        
     except Exception as e:
-        logger.error(f"Error generating manual: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-    except Exception as e:
-        logger.error(f"Error generating manual: {str(e)}")
+        logger.error(f"Error in manual generation: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
     
 PRODUCTS_FILE_PATH = os.path.join(os.path.dirname(__file__), "product_names.json")
