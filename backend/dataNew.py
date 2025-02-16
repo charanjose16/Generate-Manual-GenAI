@@ -92,27 +92,18 @@ class GenerateContent(Signature):
     language: str = InputField(desc="Target language for content generation")
     output: str = OutputField(desc="Generated content in specified language")
 
+def load_translations():
+    file_path = os.path.join(os.path.dirname(__file__), "translations.json")
+    with open(file_path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+# Load translations once
+TRANSLATIONS = load_translations()
+
 def get_language_texts(language):
     """Return language-specific texts for UI elements."""
-    texts = {
-        "en": {
-            "title": "USER MANUAL FOR",
-            "toc": "Table of Contents",
-            "page": "Page",
-            "introduction": "Introduction",
-            "key_features": "Key Features",
-            "technical_specifications": "Technical Specifications",
-            "safety_information": "Safety Information",
-            "setup_instructions": "Setup Instructions",
-            "operation_instructions": "Operation Instructions",
-            "maintenance_and_care": "Maintenance and Care",
-            "troubleshooting": "Troubleshooting",
-            "faq": "FAQ",
-            "warranty_information": "Warranty Information"
-        },
-        # Other languages...
-    }
-    return texts.get(language, texts["en"])
+    # If the provided language is not found, default to English.
+    return TRANSLATIONS.get(language, TRANSLATIONS["en"])
 
 def load_and_index_pdf(pdf_path):
     """Load PDF content and create a FAISS index for RAG."""
