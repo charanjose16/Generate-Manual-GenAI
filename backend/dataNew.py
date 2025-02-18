@@ -197,27 +197,55 @@ def search_confluence(query):
         logger.error(f"Error searching Confluence: {str(e)}")
         return []
 
-def extract_confluence_content(pages):
+def extract_confluence_content(pages, query):
     try:
         content = []
+        total_chars = 0
+        
         for page in pages:
             page_title = page.get("title", "")
             page_space = page.get("space", {}).get("name", "")
             body = page.get("body", {}).get("storage", {}).get("value", "")
+            
             if body:
                 soup = BeautifulSoup(body, 'html.parser')
+                
+                # Remove scripts and styles
                 for element in soup.find_all(['script', 'style']):
                     element.decompose()
-                text = soup.get_text(separator='\n', strip=True)
-                formatted_content = f"""
-                Page: {page_title}
-                Space: {page_space}
-                Content:
-                {text}
-                """
-                content.append(formatted_content)
+                
+                # Find all headers
+                headers = soup.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6'])
+                
+                for i, header in enumerate(headers):
+                    # Check if this header contains our product query
+                    if query.lower() in header.get_text().lower():
+                        # Get content until next header or end of document
+                        content_section = []
+                        current = header.next_sibling
+                        
+                        while current and (not current.name or current.name not in ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']):
+                            if isinstance(current, str):
+                                text = current.strip()
+                            else:
+                                text = current.get_text(strip=True)
+                            if text:
+                                content_section.append(text)
+                                total_chars += len(text)
+                            current = current.next_sibling
+                        
+                        if content_section:
+                            formatted_content = f"""
+                            Page: {page_title}
+                            Space: {page_space}
+                            Section: {header.get_text(strip=True)}
+                            Content:
+                            {' '.join(content_section)}
+                            """
+                            content.append(formatted_content)
+        
         combined_content = "\n\n".join(content)
-        logger.info(f"Extracted {len(combined_content)} characters from {len(pages)} Confluence pages")
+        logger.info(f"Total characters extracted from Confluence: {total_chars}")
         return combined_content
     except Exception as e:
         logger.error(f"Error extracting Confluence content: {str(e)}")
@@ -237,7 +265,6 @@ def get_confluence_vector_store(content):
     except Exception as e:
         logger.error(f"Error creating Confluence vector store: {str(e)}")
         return None
-
 # -------------------------------
 # AZURE BLOB STORAGE INTEGRATION
 # -------------------------------
@@ -480,29 +507,38 @@ def retrieve_azure_blob_content(query: str) -> str:
 # -------------------------------
 def combine_all_content(scraped_data, pdf_content, confluence_content, azure_blob_content):
     combined_content = []
-    if scraped_data:
-        combined_content.append("=== Product Information ===")
-        combined_content.append(f"Product Name: {scraped_data.get('product_name', 'N/A')}")
-        if features := scraped_data.get('key_features', []):
-            combined_content.append("\nKey Features:")
-            combined_content.extend([f"- {feature}" for feature in features])
-        if tech_specs := scraped_data.get('technical_specifications', {}):
-            combined_content.append("\nTechnical Specifications:")
-            combined_content.extend([f"- {key}: {value}" for key, value in tech_specs.items()])
-        if gen_specs := scraped_data.get('general_specifications', {}):
-            combined_content.append("\nGeneral Specifications:")
-            combined_content.extend([f"- {key}: {value}" for key, value in gen_specs.items()])
-    if pdf_content and pdf_content != "No relevant content found.":
-        combined_content.append("\n=== Product Documentation ===")
-        combined_content.append(pdf_content)
-    if confluence_content and confluence_content.strip():
-        combined_content.append("\n=== Additional Product Information (Confluence) ===")
-        combined_content.append(confluence_content)
-    if azure_blob_content and azure_blob_content != "No relevant Azure Blob Storage content found.":
-        combined_content.append("\n=== Additional Azure Blob Storage Information ===")
-        combined_content.append(azure_blob_content)
-    return "\n\n".join(combined_content)
+    used_content = set()  # Track used content to avoid duplicates
 
+    def add_content(section_title, content):
+        if content and content not in used_content:
+            combined_content.append(f"=== {section_title} ===")
+            combined_content.append(content)
+            used_content.add(content)
+
+    if scraped_data:
+        product_info = []
+        product_info.append(f"Product Name: {scraped_data.get('product_name', 'N/A')}")
+        if features := scraped_data.get('key_features', []):
+            product_info.append("\nKey Features:")
+            product_info.extend([f"- {feature}" for feature in features])
+        if tech_specs := scraped_data.get('technical_specifications', {}):
+            product_info.append("\nTechnical Specifications:")
+            product_info.extend([f"- {key}: {value}" for key, value in tech_specs.items()])
+        if gen_specs := scraped_data.get('general_specifications', {}):
+            product_info.append("\nGeneral Specifications:")
+            product_info.extend([f"- {key}: {value}" for key, value in gen_specs.items()])
+        add_content("Product Information", "\n".join(product_info))
+
+    if pdf_content and pdf_content != "No relevant content found.":
+        add_content("Product Documentation", pdf_content)
+
+    if confluence_content and confluence_content.strip():
+        add_content("Additional Product Information (Confluence)", confluence_content)
+
+    if azure_blob_content and azure_blob_content != "No relevant Azure Blob Storage content found.":
+        add_content("Additional Azure Blob Storage Information", azure_blob_content)
+
+    return "\n\n".join(combined_content)
 # -------------------------------
 # PDF GENERATION & WEB SCRAPING
 # -------------------------------
@@ -518,20 +554,57 @@ def generate_pdf(product_data, content):
             bottomMargin=72
         )
         styles = getSampleStyleSheet()
+        
+        # Create custom styles for better formatting
+        title_style = styles['Title']
+        title_style.fontName = 'Helvetica-Bold'
+        title_style.fontSize = 18
+        title_style.textColor = colors.HexColor('#1e40af')  # Professional blue color
+        
+        heading1_style = styles['Heading1']
+        heading1_style.fontName = 'Helvetica-Bold'
+        heading1_style.fontSize = 16
+        heading1_style.textColor = colors.HexColor('#1e3a8a')  # Darker blue for headings
+        
+        heading2_style = styles['Heading2']
+        heading2_style.fontName = 'Helvetica-Bold'
+        heading2_style.fontSize = 14
+        heading2_style.textColor = colors.HexColor('#2563eb')  # Medium blue for subheadings
+        
+        normal_style = styles['Normal']
+        normal_style.fontName = 'Helvetica'
+        normal_style.fontSize = 11
+        normal_style.leading = 14  # Proper line spacing
+        
         language_texts = get_language_texts(product_data.get("language", "en"))
         elements = []
+        
+        # Title page
         elements.append(Paragraph(
-            f"{language_texts['title']} {product_data['product_category']}",
-            styles['Title']
+            f"{language_texts['title']} {product_data['product_name']}",
+            title_style
+        ))
+        elements.append(Spacer(1, 0.25 * inch))
+        elements.append(Paragraph(
+            f"{product_data['product_category']}",
+            styles['Heading3']
         ))
         elements.append(Spacer(1, 0.5 * inch))
-        elements.append(Paragraph(language_texts['toc'], styles['Heading1']))
+        
+        # Add company logo placeholder if needed
+        # elements.append(Image("path_to_logo.png", width=2*inch, height=1*inch))
+        
+        elements.append(Spacer(1, inch))
+        elements.append(Paragraph(language_texts['toc'], heading1_style))
+        
+        # Table of contents with improved styling
         toc_data = [[language_texts['toc'], language_texts['page']]]
         page_number = 2
         for section in content.keys():
             clean_section = clean_content(section)
             toc_data.append([clean_section, str(page_number)])
             page_number += 1
+        
         toc_table = Table(toc_data, colWidths=[400, 100])
         toc_table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1e40af')),
@@ -549,23 +622,47 @@ def generate_pdf(product_data, content):
         ]))
         elements.append(toc_table)
         elements.append(PageBreak())
+        
+        # Content sections
         for section, section_content in content.items():
             clean_section = clean_content(section)
-            elements.append(Paragraph(clean_section, styles['Heading2']))
+            elements.append(Paragraph(clean_section, heading1_style))
+            elements.append(Spacer(1, 0.1 * inch))
+            
+            # Process content with improved formatting
             cleaned_content = clean_content(section_content)
+            
+            # Look for technical specifications section to add tables
+            if "technical_specifications" in section.lower() or "specifications" in section.lower():
+                specs_tables = format_specifications_tables(product_data)
+                if specs_tables:
+                    for table in specs_tables:
+                        elements.append(table)
+                        elements.append(Spacer(1, 0.2 * inch))
+                    continue  # Skip adding the same content as paragraphs
+            
+            # Format paragraphs with better spacing
             paragraphs = cleaned_content.split('\n')
             for paragraph in paragraphs:
                 if paragraph.strip():
-                    elements.append(Paragraph(paragraph.strip(), styles['Normal']))
-            elements.append(Spacer(1, 0.1 * inch))
+                    if paragraph.strip().endswith(':'):
+                        # This is likely a subheading
+                        elements.append(Paragraph(paragraph.strip(), heading2_style))
+                    else:
+                        # Regular paragraph
+                        elements.append(Paragraph(paragraph.strip(), normal_style))
+                    elements.append(Spacer(1, 0.05 * inch))
+            
+            elements.append(Spacer(1, 0.2 * inch))
             elements.append(PageBreak())
+        
         doc.build(elements)
         buffer.seek(0)
         return buffer
     except Exception as e:
         logger.error(f"Error generating PDF: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to generate PDF: {str(e)}")
-
+    
 def scrape_product_data(url):
     try:
         headers = {
@@ -656,6 +753,7 @@ def generate_content_prompts(cleaned_product_name, combined_content, language):
         "3. Preserve all technical terms and measurements.\n"
         "4. Keep the same structured format as the original.\n"
         "5. Ensure all headings and subheadings are in the target language.\n"
+        "6. IMPORTANT: Create unique content for each section that doesn't duplicate information from other sections.\n"
     )
     context_text = f"\n\nRelevant context:\n{combined_content}\n\n"
     prompts = {}
@@ -671,17 +769,222 @@ def generate_content_prompts(cleaned_product_name, combined_content, language):
         "faq": language_texts["faq"],
         "warranty_information": language_texts["warranty_information"]
     }
+    
+    # Special instructions for sections that often overlap
+    section_specific_instructions = {
+        "maintenance_and_care": "IMPORTANT: Focus on regular maintenance tasks like cleaning, lubrication, and inspection. Do not include content about fixing problems or diagnosing issues, as that belongs in Troubleshooting.",
+        "troubleshooting": "IMPORTANT: Focus on diagnosing and fixing specific problems or issues. Do not include routine maintenance tasks, as those belong in Maintenance and Care.",
+        "technical_specifications": "IMPORTANT: This section should consist of tabular data and precise measurements. Do not repeat detailed descriptions of features.",
+        "key_features": "IMPORTANT: Focus on the most important capabilities and benefits. Do not include detailed specifications as those belong in Technical Specifications."
+    }
+    
     for key, section_title in sections.items():
-        prompt = (
-            f"{language_instruction}{context_text}"
-            f"Task: Generate a detailed '{section_title}' section for {cleaned_product_name} in {language}."
-        )
+        prompt = f"{language_instruction}{context_text}"
+        
+        # Add section-specific instructions to reduce redundancy
+        if key in section_specific_instructions:
+            prompt += f"{section_specific_instructions[key]}\n\n"
+            
+        prompt += f"Task: Generate a detailed '{section_title}' section for {cleaned_product_name} in {language}."
         prompts[section_title] = prompt
+        
     return prompts
 
+def format_specifications_tables(product_data):
+    try:
+        tables = []
+        styles = getSampleStyleSheet()
+        
+        # Create a custom style for table headers
+        header_style = styles['Heading4']
+        header_style.fontName = 'Helvetica-Bold'
+        header_style.fontSize = 12
+        header_style.textColor = colors.HexColor('#1e40af')
+        
+        # Get the scraped data
+        scraped_data = product_data.get("scraped_data", {})
+        
+        # Technical Specifications Table
+        if tech_specs := scraped_data.get('technical_specifications', {}):
+            tables.append(Paragraph("Technical Specifications", header_style))
+            tables.append(Spacer(1, 0.1 * inch))
+            
+            data = [["Specification", "Value"]]
+            for key, value in tech_specs.items():
+                data.append([key, value])
+            
+            if len(data) > 1:  # Check if there's any data besides the header
+                table = Table(data, colWidths=[250, 250])
+                table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#e6efff')),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor('#1e40af')),
+                    ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0, 0), (-1, 0), 12),
+                    ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
+                    ('TOPPADDING', (0, 0), (-1, 0), 10),
+                    ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#e2e8f0')),
+                    ('BOX', (0, 0), (-1, -1), 2, colors.HexColor('#cbd5e1')),
+                    ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.HexColor('#ffffff'), colors.HexColor('#f8fafc')]),
+                    ('LEFTPADDING', (0, 0), (-1, -1), 10),
+                    ('RIGHTPADDING', (0, 0), (-1, -1), 10),
+                ]))
+                tables.append(table)
+        
+        # General Specifications Table
+        if gen_specs := scraped_data.get('general_specifications', {}):
+            tables.append(Spacer(1, 0.2 * inch))
+            tables.append(Paragraph("General Specifications", header_style))
+            tables.append(Spacer(1, 0.1 * inch))
+            
+            data = [["Specification", "Value"]]
+            for key, value in gen_specs.items():
+                data.append([key, value])
+            
+            if len(data) > 1:  # Check if there's any data besides the header
+                table = Table(data, colWidths=[250, 250])
+                table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#e6efff')),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor('#1e40af')),
+                    ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0, 0), (-1, 0), 12),
+                    ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
+                    ('TOPPADDING', (0, 0), (-1, 0), 10),
+                    ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#e2e8f0')),
+                    ('BOX', (0, 0), (-1, -1), 2, colors.HexColor('#cbd5e1')),
+                    ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.HexColor('#ffffff'), colors.HexColor('#f8fafc')]),
+                    ('LEFTPADDING', (0, 0), (-1, -1), 10),
+                    ('RIGHTPADDING', (0, 0), (-1, -1), 10),
+                ]))
+                tables.append(table)
+        
+        return tables
+    except Exception as e:
+        logger.error(f"Error formatting specification tables: {str(e)}")
+        return []
 # -------------------------------
 # ENDPOINTS
 # -------------------------------
+
+
+@app.post("/generate-manual")
+async def generate_manual(
+    product_category: str = Form(...),
+    rag_source: Optional[UploadFile] = File(None),
+    language: str = Form(...)
+):
+    try:
+        logger.info(f"Starting manual generation for {product_category} in {language}")
+        
+        # Get product link
+        product_link = get_product_link(product_category)
+        if not product_link:
+            raise HTTPException(status_code=400, detail="Product link not found")
+        
+        # Scrape product data
+        scraped_data = scrape_product_data(product_link)
+        cleaned_product_name = clean_product_query(scraped_data["product_name"])
+        
+        # Handle PDF upload if provided
+        pdf_content = "No relevant content found."
+        if rag_source:
+            pdf_path = f"temp_{rag_source.filename}"
+            with open(pdf_path, "wb") as buffer:
+                buffer.write(await rag_source.read())
+            vector_store = load_and_index_pdf(pdf_path)
+            pdf_content = retrieve_content(vector_store, product_category)
+            os.remove(pdf_path)
+        
+        # Search and extract Confluence content
+        confluence_pages = search_confluence(cleaned_product_name)
+        confluence_content = extract_confluence_content(confluence_pages, cleaned_product_name)
+        
+        # Create vector store for Confluence content
+        confluence_vector_store = None
+        if confluence_content:
+            confluence_vector_store = get_confluence_vector_store(confluence_content)
+        
+        # Get Azure Blob Storage content
+        azure_blob_content = retrieve_azure_blob_content(cleaned_product_name)
+        
+        # Combine all content sources
+        combined_content = combine_all_content(
+            scraped_data,
+            pdf_content,
+            confluence_content,
+            azure_blob_content
+        )
+        
+        # Generate content for each section while ensuring no duplication
+        prompts = generate_content_prompts(cleaned_product_name, combined_content, language)
+        generated_content = {}
+        seen_content = set()  # Track content to avoid duplication
+        
+        for section_title, prompt in prompts.items():
+            # Add Azure Blob context if available
+            if azure_blob_content and azure_blob_content != "No relevant Azure Blob Storage content found.":
+                prompt += f"\n\nRelevant Azure Blob Storage content:\n{azure_blob_content}"
+            
+            # Add Confluence context if available
+            if confluence_vector_store:
+                confluence_results = retrieve_content(
+                    confluence_vector_store, 
+                    f"{section_title} for {cleaned_product_name}"
+                )
+                if confluence_results != "No relevant content found.":
+                    prompt += f"\n\nRelevant Confluence content:\n{confluence_results}"
+            
+            # Check if this is a technical/troubleshooting section that might duplicate
+            if "troubleshooting" in section_title.lower() and "maintenance" in generated_content:
+                # Add specific instruction to avoid duplication with maintenance section
+                prompt += "\n\nIMPORTANT: Do not duplicate content from the Maintenance and Care section. Focus on unique troubleshooting procedures not already covered."
+            
+            if "maintenance" in section_title.lower() and "troubleshooting" in generated_content:
+                # Add specific instruction to avoid duplication with troubleshooting section
+                prompt += "\n\nIMPORTANT: Do not duplicate content from the Troubleshooting section. Focus on regular maintenance procedures."
+            
+            # Generate content for section
+            generate_content = Predict(GenerateContent)
+            result = generate_content(
+                section_title=section_title,
+                prompt=prompt,
+                language=language
+            )
+            
+            # Check for duplicate content
+            if result.output not in seen_content:
+                generated_content[section_title] = result.output
+                seen_content.add(result.output)
+            else:
+                # If duplicate, generate again with stricter uniqueness instruction
+                prompt += "\n\nVERY IMPORTANT: The previously generated content is too similar to existing sections. Create completely unique content that doesn't repeat information found elsewhere."
+                result = generate_content(
+                    section_title=section_title,
+                    prompt=prompt,
+                    language=language
+                )
+                generated_content[section_title] = result.output
+        
+        # Generate PDF with improved formatting and tables
+        pdf_buffer = generate_pdf({
+            "product_category": product_category,
+            "product_name": scraped_data["product_name"],
+            "language": language,
+            "scraped_data": scraped_data  # Pass scraped data for tables
+        }, generated_content)
+        
+        # Prepare response
+        filename = f"user_manual_{scraped_data['product_name']}_{language}.pdf"
+        response = StreamingResponse(pdf_buffer, media_type="application/pdf")
+        response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
+        
+        return response
+
+    except Exception as e:
+        logger.error(f"Error in manual generation: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+        
 @app.post("/generate-manual")
 async def generate_manual(
     product_category: str = Form(...),
@@ -690,6 +993,7 @@ async def generate_manual(
 ):
     try:
         logger.info(f"Starting manual generation for {product_category} in {language}")
+        
         product_link = get_product_link(product_category)
         if not product_link:
             raise HTTPException(status_code=400, detail="Product link not found")
@@ -707,7 +1011,7 @@ async def generate_manual(
             os.remove(pdf_path)
         
         confluence_pages = search_confluence(cleaned_product_name)
-        confluence_content = extract_confluence_content(confluence_pages)
+        confluence_content = extract_confluence_content(confluence_pages, cleaned_product_name)
         
         confluence_vector_store = None
         if confluence_content:
@@ -752,6 +1056,7 @@ async def generate_manual(
         response = StreamingResponse(pdf_buffer, media_type="application/pdf")
         response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
         return response
+    
     except Exception as e:
         logger.error(f"Error in manual generation: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
