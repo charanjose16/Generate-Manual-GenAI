@@ -36,6 +36,7 @@ from werkzeug.utils import secure_filename
 from azure.storage.blob import BlobServiceClient
 import urllib.parse
 
+
 # Disable warnings and configure logging
 urllib3.disable_warnings()
 warnings.simplefilter('ignore', InsecureRequestWarning)
@@ -177,10 +178,21 @@ def retrieve_content(vector_store, query):
 # -------------------------------
 # CONFLUENCE HANDLING
 # -------------------------------
-def search_confluence(query):
+def normalize_text(text):
+    """
+    Normalize text by removing special characters, extra spaces, and converting to lowercase.
+    """
+    # Remove special characters and extra spaces
+    text = re.sub(r'[^a-zA-Z0-9\s]', ' ', text)
+    text = re.sub(r'\s+', ' ', text).strip()
+    return text.lower()
+
+def search_confluence(query, start_boundary=None, end_boundary=None):
     try:
         url = f"{CONFLUENCE_BASE_URL}/rest/api/content/search"
-        cql_query = f'(title ~ "{query}" OR text ~ "{query}") AND type = page'  # Remove asterisks for better matching
+        # Normalize the query for better matching
+        normalized_query = normalize_text(query)
+        cql_query = f'(text ~ "{normalized_query}") AND type = page'
         params = {
             "cql": cql_query,
             "expand": "body.storage,space,version",
@@ -192,50 +204,98 @@ def search_confluence(query):
         response.raise_for_status()
         results = response.json().get("results", [])
         logger.info(f"Found {len(results)} Confluence pages matching the query")
-        return results
+
+        # Process each page to extract content within boundaries
+        extracted_content = []
+        for page in results:
+            page_title = page.get("title", "")
+            page_space = page.get("space", {}).get("name", "")
+            body = page.get("body", {}).get("storage", {}).get("value", "")
+
+            if not body:
+                logger.warning(f"No body content found for page: {page_title}")
+                continue
+
+            # Find the start and end indices of the boundaries
+            start_index = body.find(start_boundary) if start_boundary else 0
+            end_index = body.find(end_boundary, start_index) if end_boundary else len(body)
+
+            if start_index == -1:
+                logger.warning(f"Start boundary '{start_boundary}' not found in page: {page_title}")
+                continue
+
+            if end_index == -1:
+                end_index = len(body)
+
+            # Extract the content within the boundaries
+            extracted_section = body[start_index:end_index]
+            if extracted_section:
+                # Format the extracted content
+                formatted_content = f"""
+                Page: {page_title}
+                Space: {page_space}
+                Content:
+                {extracted_section}
+                """
+                extracted_content.append(formatted_content)
+
+        combined_content = "\n\n".join(extracted_content)
+        logger.info(f"Total characters extracted from Confluence: {len(combined_content)}")
+
+        if not combined_content.strip():
+            return f"No content found in Confluence for product: {query}"
+
+        return combined_content
     except Exception as e:
         logger.error(f"Error searching Confluence: {str(e)}")
-        return []
+        return ""
 
-def extract_confluence_content(pages, query):
+def extract_confluence_content(pages, product_name):
     try:
         content = []
         total_chars = 0
+        
+        # Normalize the product name for matching
+        normalized_product_name = normalize_text(product_name)
         
         for page in pages:
             page_title = page.get("title", "")
             page_space = page.get("space", {}).get("name", "")
             body = page.get("body", {}).get("storage", {}).get("value", "")
             
-            if body:
-                soup = BeautifulSoup(body, 'html.parser')
-                
-                # Remove scripts and styles
-                for element in soup.find_all(['script', 'style']):
-                    element.decompose()
-                
-                # Find all headers and paragraphs
-                elements = soup.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p'])
-                
-                for element in elements:
-                    if query.lower() in element.get_text().lower():
-                        # Extract the text content
-                        text = element.get_text(strip=True)
-                        if text:
-                            formatted_content = f"""
-                            Page: {page_title}
-                            Space: {page_space}
-                            Content:
-                            {text}
-                            """
-                            content.append(formatted_content)
-                            total_chars += len(text)
+            if not body:
+                logger.warning(f"No body content found for page: {page_title}")
+                continue
+            
+            soup = BeautifulSoup(body, 'html.parser')
+            
+            # Remove scripts and styles
+            for element in soup.find_all(['script', 'style']):
+                element.decompose()
+            
+            # Get the plain text content
+            text_content = soup.get_text()
+            
+            # Normalize the text content for matching
+            normalized_text_content = normalize_text(text_content)
+            
+            # Check if the product name exists in the normalized content
+            if normalized_product_name in normalized_text_content:
+                # Extract the entire page content (or a specific section if needed)
+                formatted_content = f"""
+                Page: {page_title}
+                Space: {page_space}
+                Content:
+                {text_content}
+                """
+                content.append(formatted_content)
+                total_chars += len(text_content)
         
         combined_content = "\n\n".join(content)
         logger.info(f"Total characters extracted from Confluence: {total_chars}")
         
         if not combined_content.strip():
-            return f"No content found in Confluence for query: {query}"
+            return f"No content found in Confluence for product: {product_name}"
         
         return combined_content
     except Exception as e:
