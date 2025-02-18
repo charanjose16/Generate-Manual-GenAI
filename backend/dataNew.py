@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 import dspy
 from dspy import InputField, OutputField, Signature, Predict
 from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak, Table, TableStyle
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak, Table, TableStyle,Frame,PageTemplate
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import inch
 from reportlab.lib import colors
@@ -545,6 +545,8 @@ def combine_all_content(scraped_data, pdf_content, confluence_content, azure_blo
 def generate_pdf(product_data, content):
     try:
         buffer = BytesIO()
+        
+        # Set up document with page numbers
         doc = SimpleDocTemplate(
             buffer,
             pagesize=letter,
@@ -553,6 +555,34 @@ def generate_pdf(product_data, content):
             topMargin=72,
             bottomMargin=72
         )
+        
+        # Create a page template that includes page numbers
+        def add_page_number(canvas, doc):
+            # Skip page number on first page (title page)
+            if doc.page > 1:
+                page_num = canvas.getPageNumber()
+                text = f"{page_num}"
+                canvas.drawRightString(
+                    doc.pagesize[0] - 72,
+                    72 / 2,
+                    text
+                )
+                
+        # Register the page template
+        frame = Frame(
+            doc.leftMargin,
+            doc.bottomMargin,
+            doc.width,
+            doc.height,
+            id='normal'
+        )
+        template = PageTemplate(
+            id='page_template',
+            frames=[frame],
+            onPage=add_page_number
+        )
+        doc.addPageTemplates([template])
+        
         styles = getSampleStyleSheet()
         
         # Create custom styles for better formatting
@@ -575,6 +605,7 @@ def generate_pdf(product_data, content):
         normal_style.fontName = 'Helvetica'
         normal_style.fontSize = 11
         normal_style.leading = 14  # Proper line spacing
+        normal_style.textColor = colors.black  # Ensure normal text is black
         
         language_texts = get_language_texts(product_data.get("language", "en"))
         elements = []
@@ -597,7 +628,7 @@ def generate_pdf(product_data, content):
         elements.append(Spacer(1, inch))
         elements.append(Paragraph(language_texts['toc'], heading1_style))
         
-        # Table of contents with improved styling
+        # Table of contents with improved styling - removing blue backgrounds
         toc_data = [[language_texts['toc'], language_texts['page']]]
         page_number = 2
         for section in content.keys():
@@ -607,18 +638,18 @@ def generate_pdf(product_data, content):
         
         toc_table = Table(toc_data, colWidths=[400, 100])
         toc_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1e40af')),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1e40af')),  # Keep only header row blue
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
             ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
             ('FONTSIZE', (0, 0), (-1, 0), 13),
             ('BOTTOMPADDING', (0, 0), (-1, 0), 15),
             ('TOPPADDING', (0, 0), (-1, 0), 15),
-            ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#e2e8f0')),
-            ('BOX', (0, 0), (-1, -1), 2, colors.HexColor('#cbd5e1')),
-            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.HexColor('#ffffff'), colors.HexColor('#f8fafc')]),
+            ('GRID', (0, 0), (-1, -1), 1, colors.lightgrey),  # Lighter grid lines
+            ('BOX', (0, 0), (-1, -1), 1, colors.lightgrey),   # Lighter box
             ('LEFTPADDING', (0, 0), (-1, -1), 15),
             ('RIGHTPADDING', (0, 0), (-1, -1), 15),
+            # Remove the ROWBACKGROUNDS setting that was creating alternating blue lines
         ]))
         elements.append(toc_table)
         elements.append(PageBreak())
@@ -626,6 +657,9 @@ def generate_pdf(product_data, content):
         # Content sections
         for section, section_content in content.items():
             clean_section = clean_content(section)
+            
+            # Add a page break before each section heading
+            elements.append(PageBreak())
             elements.append(Paragraph(clean_section, heading1_style))
             elements.append(Spacer(1, 0.1 * inch))
             
@@ -637,6 +671,20 @@ def generate_pdf(product_data, content):
                 specs_tables = format_specifications_tables(product_data)
                 if specs_tables:
                     for table in specs_tables:
+                        # Update table style to avoid blue lines
+                        if hasattr(table, 'setStyle'):
+                            table.setStyle(TableStyle([
+                                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1e40af')),  # Only header is blue
+                                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                                ('FONTSIZE', (0, 0), (-1, 0), 12),
+                                ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+                                ('GRID', (0, 0), (-1, -1), 1, colors.lightgrey),
+                                ('LEFTPADDING', (0, 0), (-1, -1), 10),
+                                ('RIGHTPADDING', (0, 0), (-1, -1), 10),
+                                # No ROWBACKGROUNDS to avoid alternating blue lines
+                            ]))
                         elements.append(table)
                         elements.append(Spacer(1, 0.2 * inch))
                     continue  # Skip adding the same content as paragraphs
@@ -649,12 +697,11 @@ def generate_pdf(product_data, content):
                         # This is likely a subheading
                         elements.append(Paragraph(paragraph.strip(), heading2_style))
                     else:
-                        # Regular paragraph
+                        # Regular paragraph - explicitly use black text
                         elements.append(Paragraph(paragraph.strip(), normal_style))
                     elements.append(Spacer(1, 0.05 * inch))
             
             elements.append(Spacer(1, 0.2 * inch))
-            elements.append(PageBreak())
         
         doc.build(elements)
         buffer.seek(0)

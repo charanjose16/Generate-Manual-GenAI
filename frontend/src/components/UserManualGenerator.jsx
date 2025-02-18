@@ -37,10 +37,6 @@ export default function UserManualGenerator() {
       file: null,
       fileName: "",
     },
-    link: {
-      enabled: false,
-      value: "",
-    },
     azureBlob: {
       enabled: false,
       value: "",
@@ -55,7 +51,7 @@ export default function UserManualGenerator() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const response = await axios.get(`${baseUrl}/products`);
+        const response = await axios.get(`${baseUrl}/api/products`);
         setProducts(response.data.products);
       } catch (err) {
         setError(`Failed to load products: ${err.message}`);
@@ -144,9 +140,6 @@ export default function UserManualGenerator() {
       if (dataSources.pdf.enabled && dataSources.pdf.file) {
         formData.append("rag_source", dataSources.pdf.file);
       }
-      if (dataSources.link.enabled) {
-        formData.append("link_source", dataSources.link.value);
-      }
       if (dataSources.azureBlob.enabled) {
         formData.append("azure_source", dataSources.azureBlob.value);
       }
@@ -184,7 +177,6 @@ export default function UserManualGenerator() {
       setLanguage("");
       setDataSources({
         pdf: { enabled: false, file: null, fileName: "" },
-        link: { enabled: false, value: "" },
         azureBlob: { enabled: false, value: "" },
         confluence: { enabled: false, value: "" }
       });
@@ -261,30 +253,6 @@ export default function UserManualGenerator() {
                     </Typography>
                   )}
                 </Box>
-              )}
-            </Grid>
-
-            {/* Link Upload Section */}
-            <Grid item xs={12}>
-              <Box sx={{ display: "flex", alignItems: "center" }}>
-                <input
-                  type="checkbox"
-                  checked={dataSources.link.enabled}
-                  onChange={() => handleDataSourceToggle("link")}
-                  style={{ marginRight: 8 }}
-                />
-                <Typography>Upload Link</Typography>
-              </Box>
-              {dataSources.link.enabled && (
-                <TextField
-                  fullWidth
-                  placeholder="Enter link"
-                  value={dataSources.link.value}
-                  onChange={(e) =>
-                    handleDataSourceValueChange("link", e.target.value)
-                  }
-                  sx={{ mt: 1 }}
-                />
               )}
             </Grid>
 
