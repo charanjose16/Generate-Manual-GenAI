@@ -28,6 +28,7 @@ export default function UserManualGenerator() {
   const [activePage, setActivePage] = useState("generateManual");
 
   const baseUrl = import.meta.env.VITE_BASE_URL;
+  axios.defaults.headers.common['Access-Control-Allow-Origin'] = '*';
 
   // Data source states
   const [dataSources, setDataSources] = useState({
@@ -54,7 +55,7 @@ export default function UserManualGenerator() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const response = await axios.get(`${baseUrl}/api/products`);
+        const response = await axios.get(`${baseUrl}/products`);
         setProducts(response.data.products);
       } catch (err) {
         setError(`Failed to load products: ${err.message}`);
@@ -125,7 +126,7 @@ export default function UserManualGenerator() {
   };
 
   const handleGenerateManual = async () => {
-    // Require that language and selected item (from Items dropdown) are provided.
+    // Validate required fields
     if (!language || !selectedItem) {
       setError("Please fill in all required fields.");
       return;
@@ -136,10 +137,10 @@ export default function UserManualGenerator() {
   
     try {
       const formData = new FormData();
-      // Use selectedItem (sub_subproduct_name) as product_category
       formData.append("product_category", selectedItem);
       formData.append("language", language);
   
+      // Add data sources to formData if enabled
       if (dataSources.pdf.enabled && dataSources.pdf.file) {
         formData.append("rag_source", dataSources.pdf.file);
       }
@@ -153,11 +154,20 @@ export default function UserManualGenerator() {
         formData.append("confluence_source", dataSources.confluence.value);
       }
   
-      const response = await axios.post(`${baseUrl}/generate-manual`, formData, {
-        responseType: "blob",
-      });
+      // Modified axios configuration for CORS
+      const response = await axios.post(
+        `${baseUrl}/generate-manual`,
+        formData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+          responseType: "blob",
+          withCredentials: false, // Set to false since we're using allow_origins=["*"]
+        }
+      );
   
-      // Create a URL for the blob and trigger a download
+      // Create a URL for the blob and trigger download
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const a = document.createElement("a");
       a.href = url;
@@ -167,18 +177,45 @@ export default function UserManualGenerator() {
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
   
-      // Reset form fields after successful generation
+      // Reset form after successful generation
       setSelectedProduct("");
       setSelectedSubProduct("");
       setSelectedItem("");
       setLanguage("");
+      setDataSources({
+        pdf: { enabled: false, file: null, fileName: "" },
+        link: { enabled: false, value: "" },
+        azureBlob: { enabled: false, value: "" },
+        confluence: { enabled: false, value: "" }
+      });
+  
     } catch (err) {
-      setError(err.response?.data?.detail || err.message);
+      console.error('Error details:', err);
+      
+      if (err.response) {
+        // Handle specific error status codes
+        switch (err.response.status) {
+          case 405:
+            setError('Method not allowed. Please check if the endpoint supports POST requests.');
+            break;
+          case 413:
+            setError('File size too large. Please upload a smaller file.');
+            break;
+          case 415:
+            setError('Unsupported file type. Please check the file format.');
+            break;
+          default:
+            setError(`Server error: ${err.response.status}. Please try again.`);
+        }
+      } else if (err.request) {
+        setError('No response received from server. Please check your connection.');
+      } else {
+        setError(`Error: ${err.message}`);
+      }
     } finally {
       setLoading(false);
     }
   };
-  
 
   const renderAddDataSourcePage = () => (
     <Box sx={{ p: 4, width: "100%", height: "100%" }}>
