@@ -180,7 +180,7 @@ def retrieve_content(vector_store, query):
 def search_confluence(query):
     try:
         url = f"{CONFLUENCE_BASE_URL}/rest/api/content/search"
-        cql_query = f'(title ~ "*{query}*" OR text ~ "*{query}*") AND type = page'
+        cql_query = f'(title ~ "{query}" OR text ~ "{query}") AND type = page'  # Remove asterisks for better matching
         params = {
             "cql": cql_query,
             "expand": "body.storage,space,version",
@@ -214,43 +214,34 @@ def extract_confluence_content(pages, query):
                 for element in soup.find_all(['script', 'style']):
                     element.decompose()
                 
-                # Find all headers
-                headers = soup.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6'])
+                # Find all headers and paragraphs
+                elements = soup.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p'])
                 
-                for i, header in enumerate(headers):
-                    # Check if this header contains our product query
-                    if query.lower() in header.get_text().lower():
-                        # Get content until next header or end of document
-                        content_section = []
-                        current = header.next_sibling
-                        
-                        while current and (not current.name or current.name not in ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']):
-                            if isinstance(current, str):
-                                text = current.strip()
-                            else:
-                                text = current.get_text(strip=True)
-                            if text:
-                                content_section.append(text)
-                                total_chars += len(text)
-                            current = current.next_sibling
-                        
-                        if content_section:
+                for element in elements:
+                    if query.lower() in element.get_text().lower():
+                        # Extract the text content
+                        text = element.get_text(strip=True)
+                        if text:
                             formatted_content = f"""
                             Page: {page_title}
                             Space: {page_space}
-                            Section: {header.get_text(strip=True)}
                             Content:
-                            {' '.join(content_section)}
+                            {text}
                             """
                             content.append(formatted_content)
+                            total_chars += len(text)
         
         combined_content = "\n\n".join(content)
         logger.info(f"Total characters extracted from Confluence: {total_chars}")
+        
+        if not combined_content.strip():
+            return f"No content found in Confluence for query: {query}"
+        
         return combined_content
     except Exception as e:
         logger.error(f"Error extracting Confluence content: {str(e)}")
-        return ""
-
+        return f"Error extracting Confluence content: {str(e)}"
+    
 def get_confluence_vector_store(content):
     try:
         if not content.strip():
@@ -1028,82 +1019,6 @@ async def generate_manual(
         
         return response
 
-    except Exception as e:
-        logger.error(f"Error in manual generation: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
-        
-@app.post("/generate-manual")
-async def generate_manual(
-    product_category: str = Form(...),
-    rag_source: UploadFile = File(None),
-    language: str = Form(...)
-):
-    try:
-        logger.info(f"Starting manual generation for {product_category} in {language}")
-        
-        product_link = get_product_link(product_category)
-        if not product_link:
-            raise HTTPException(status_code=400, detail="Product link not found")
-        
-        scraped_data = scrape_product_data(product_link)
-        cleaned_product_name = clean_product_query(scraped_data["product_name"])
-        
-        pdf_content = "No relevant content found."
-        if rag_source:
-            pdf_path = f"temp_{rag_source.filename}"
-            with open(pdf_path, "wb") as buffer:
-                buffer.write(await rag_source.read())
-            vector_store = load_and_index_pdf(pdf_path)
-            pdf_content = retrieve_content(vector_store, product_category)
-            os.remove(pdf_path)
-        
-        confluence_pages = search_confluence(cleaned_product_name)
-        confluence_content = extract_confluence_content(confluence_pages, cleaned_product_name)
-        
-        confluence_vector_store = None
-        if confluence_content:
-            confluence_vector_store = get_confluence_vector_store(confluence_content)
-        
-        # Retrieve Azure Blob Storage content for the product
-        azure_blob_content = retrieve_azure_blob_content(cleaned_product_name)
-        
-        # Combine content from all sources
-        combined_content = combine_all_content(
-            scraped_data,
-            pdf_content,
-            confluence_content,
-            azure_blob_content
-        )
-        
-        prompts = generate_content_prompts(cleaned_product_name, combined_content, language)
-        generated_content = {}
-        for section_title, prompt in prompts.items():
-            # Optionally, add Azure Blob context to each section
-            if azure_blob_content and azure_blob_content != "No relevant Azure Blob Storage content found.":
-                prompt += f"\n\nRelevant Azure Blob Storage content:\n{azure_blob_content}"
-            if confluence_vector_store:
-                confluence_results = retrieve_content(confluence_vector_store, f"{section_title} for {cleaned_product_name}")
-                if confluence_results != "No relevant content found.":
-                    prompt += f"\n\nRelevant Confluence content:\n{confluence_results}"
-            generate_content = Predict(GenerateContent)
-            result = generate_content(
-                section_title=section_title,
-                prompt=prompt,
-                language=language
-            )
-            generated_content[section_title] = result.output
-        
-        pdf_buffer = generate_pdf({
-            "product_category": product_category,
-            "product_name": scraped_data["product_name"],
-            "language": language
-        }, generated_content)
-        
-        filename = f"user_manual_{scraped_data['product_name']}_{language}.pdf"
-        response = StreamingResponse(pdf_buffer, media_type="application/pdf")
-        response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
-        return response
-    
     except Exception as e:
         logger.error(f"Error in manual generation: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
