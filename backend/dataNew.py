@@ -35,7 +35,7 @@ import shutil
 from werkzeug.utils import secure_filename
 from azure.storage.blob import BlobServiceClient
 import urllib.parse
-
+from datetime import datetime
 
 # Disable warnings and configure logging
 urllib3.disable_warnings()
@@ -539,6 +539,35 @@ class RAGSystem:
                 'error': str(e)
             }
 
+async def upload_to_azure_blob(file: UploadFile) -> str:
+    try:
+        # Create a unique filename to avoid collisions
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        secure_name = secure_filename(file.filename)
+        blob_name = f"{timestamp}_{secure_name}"
+        
+        # Get blob client
+        parsed_url = urllib.parse.urlparse(AZURE_STORAGE_SAS_URL)
+        account_name = parsed_url.netloc.split('.')[0]
+        container_name = parsed_url.path.strip('/').split('/')[0]
+        blob_service_client = BlobServiceClient(
+            account_url=f"https://{account_name}.blob.core.windows.net",
+            credential=AZURE_STORAGE_SAS_URL.split('?')[1],
+            connection_verify=False
+        )
+        container_client = blob_service_client.get_container_client(container_name)
+        blob_client = container_client.get_blob_client(blob_name)
+
+        # Upload the file
+        file_content = await file.read()
+        blob_client.upload_blob(file_content, overwrite=True)
+        
+        logger.info(f"Successfully uploaded file {blob_name} to Azure Blob Storage")
+        return blob_name
+    except Exception as e:
+        logger.error(f"Error uploading to Azure Blob Storage: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to upload file: {str(e)}")
+
 # Helper function to retrieve Azure Blob Storage content for a given query
 def retrieve_azure_blob_content(query: str) -> str:
     try:
@@ -579,9 +608,6 @@ def combine_all_content(scraped_data, pdf_content, confluence_content, azure_blo
             product_info.append("\nGeneral Specifications:")
             product_info.extend([f"- {key}: {value}" for key, value in gen_specs.items()])
         add_content("Product Information", "\n".join(product_info))
-
-    if pdf_content and pdf_content != "No relevant content found.":
-        add_content("Product Documentation", pdf_content)
 
     if confluence_content and confluence_content.strip():
         add_content("Additional Product Information (Confluence)", confluence_content)
@@ -984,15 +1010,15 @@ async def generate_manual(
         scraped_data = scrape_product_data(product_link)
         cleaned_product_name = clean_product_query(scraped_data["product_name"])
         
-        # Handle PDF upload if provided
-        pdf_content = "No relevant content found."
+        # Upload PDF to Azure Blob Storage if provided
         if rag_source:
-            pdf_path = f"temp_{rag_source.filename}"
-            with open(pdf_path, "wb") as buffer:
-                buffer.write(await rag_source.read())
-            vector_store = load_and_index_pdf(pdf_path)
-            pdf_content = retrieve_content(vector_store, product_category)
-            os.remove(pdf_path)
+            try:
+                await upload_to_azure_blob(rag_source)
+                logger.info("PDF uploaded to Azure Blob Storage successfully")
+            except Exception as e:
+                logger.error(f"Failed to upload PDF: {str(e)}")
+                # Continue with the process even if upload fails
+                pass
         
         # Search and extract Confluence content
         confluence_pages = search_confluence(cleaned_product_name)
@@ -1003,13 +1029,13 @@ async def generate_manual(
         if confluence_content:
             confluence_vector_store = get_confluence_vector_store(confluence_content)
         
-        # Get Azure Blob Storage content
+        # Get Azure Blob Storage content (now includes the newly uploaded PDF if any)
         azure_blob_content = retrieve_azure_blob_content(cleaned_product_name)
         
         # Combine all content sources
         combined_content = combine_all_content(
             scraped_data,
-            pdf_content,
+            "", # Remove PDF content as it's now part of azure_blob_content
             confluence_content,
             azure_blob_content
         )
