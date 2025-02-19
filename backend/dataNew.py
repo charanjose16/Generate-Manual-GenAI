@@ -1021,8 +1021,7 @@ async def generate_manual(
                 pass
         
         # Search and extract Confluence content
-        confluence_pages = search_confluence(cleaned_product_name)
-        confluence_content = extract_confluence_content(confluence_pages, cleaned_product_name)
+        confluence_content = search_confluence(cleaned_product_name)
         
         # Create vector store for Confluence content
         confluence_vector_store = None
