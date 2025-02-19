@@ -619,7 +619,7 @@ def combine_all_content(scraped_data, pdf_content, confluence_content, azure_blo
 # -------------------------------
 # PDF GENERATION & WEB SCRAPING
 # -------------------------------
-def generate_pdf(product_data, content):
+def generate_pdf(product_data, content, is_faq=False):
     try:
         buffer = BytesIO()
         
@@ -635,15 +635,17 @@ def generate_pdf(product_data, content):
         
         # Create a page template that includes page numbers
         def add_page_number(canvas, doc):
-            # Skip page number on first page (title page)
-            if doc.page > 1:
-                page_num = canvas.getPageNumber()
-                text = f"{page_num}"
-                canvas.drawRightString(
-                    doc.pagesize[0] - 72,
-                    72 / 2,
-                    text
-                )
+            canvas.saveState()
+            page_num = canvas.getPageNumber()
+            text = f"Page {page_num}"
+            canvas.setFont('Helvetica', 10)
+            # Position at bottom center of the page
+            canvas.drawCentredString(
+                doc.pagesize[0] / 2,
+                36,
+                text
+            )
+            canvas.restoreState()
                 
         # Register the page template
         frame = Frame(
@@ -662,119 +664,111 @@ def generate_pdf(product_data, content):
         
         styles = getSampleStyleSheet()
         
-        # Create custom styles for better formatting
+        # Create custom styles with conditional coloring for FAQs
         title_style = styles['Title']
         title_style.fontName = 'Helvetica-Bold'
         title_style.fontSize = 18
-        title_style.textColor = colors.HexColor('#1e40af')  # Professional blue color
+        title_style.textColor = colors.HexColor('#1e40af')  # Always blue
         
         heading1_style = styles['Heading1']
         heading1_style.fontName = 'Helvetica-Bold'
         heading1_style.fontSize = 16
-        heading1_style.textColor = colors.HexColor('#1e3a8a')  # Darker blue for headings
+        heading1_style.textColor = colors.HexColor('#1e3a8a')  # Always blue for h1
         
         heading2_style = styles['Heading2']
         heading2_style.fontName = 'Helvetica-Bold'
         heading2_style.fontSize = 14
-        heading2_style.textColor = colors.HexColor('#2563eb')  # Medium blue for subheadings
+        # Only apply blue color for manuals, not FAQs
+        if not is_faq:
+            heading2_style.textColor = colors.HexColor('#2563eb')
+        else:
+            heading2_style.textColor = colors.black
         
         normal_style = styles['Normal']
         normal_style.fontName = 'Helvetica'
         normal_style.fontSize = 11
-        normal_style.leading = 14  # Proper line spacing
-        normal_style.textColor = colors.black  # Ensure normal text is black
+        normal_style.leading = 14
+        normal_style.textColor = colors.black
         
-        language_texts = get_language_texts(product_data.get("language", "en"))
         elements = []
         
         # Title page
-        elements.append(Paragraph(
-            f"{language_texts['title']} {product_data['product_name']}",
-            title_style
-        ))
+        if is_faq:
+            title_text = f"FAQs for {product_data['product_name']}"
+        else:
+            title_text = f"User Manual for {product_data['product_name']}"
+            
+        elements.append(Paragraph(title_text, title_style))
         elements.append(Spacer(1, 0.25 * inch))
-        elements.append(Paragraph(
-            f"{product_data['product_category']}",
-            styles['Heading3']
-        ))
+        elements.append(Paragraph(product_data['product_category'], styles['Heading3']))
         elements.append(Spacer(1, 0.5 * inch))
         
-        # Add company logo placeholder if needed
-        # elements.append(Image("path_to_logo.png", width=2*inch, height=1*inch))
-        
+        # Create TOC with actual page numbers
         elements.append(Spacer(1, inch))
-        elements.append(Paragraph(language_texts['toc'], heading1_style))
+        elements.append(Paragraph("Table of Contents", heading1_style))
         
-        # Table of contents with improved styling - removing blue backgrounds
-        toc_data = [[language_texts['toc'], language_texts['page']]]
-        page_number = 2
+        # Store section start pages to properly build TOC
+        section_starts = {}
+        current_page = 2  # Title + TOC typically take first page
+        
+        # Estimate section page starts (accounting for content length)
+        for section, section_content in content.items():
+            section_starts[section] = current_page
+            # Rough estimate of content pages based on text length
+            paragraphs = clean_content(section_content).split('\n')
+            # Estimate 40 lines per page
+            estimated_lines = len(paragraphs) * 2  # Average 2 lines per paragraph
+            current_page += max(1, estimated_lines // 40)
+        
+        # Build TOC with page number references
+        toc_data = [["Section", "Page"]]
         for section in content.keys():
             clean_section = clean_content(section)
-            toc_data.append([clean_section, str(page_number)])
-            page_number += 1
+            page_num = section_starts.get(section, "")
+            toc_data.append([clean_section, str(page_num)])
         
         toc_table = Table(toc_data, colWidths=[400, 100])
         toc_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1e40af')),  # Keep only header row blue
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1e40af')),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('ALIGN', (0, 0), (0, -1), 'LEFT'),
+            ('ALIGN', (1, 0), (1, -1), 'CENTER'),  # Center align page numbers
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
             ('FONTSIZE', (0, 0), (-1, 0), 13),
             ('BOTTOMPADDING', (0, 0), (-1, 0), 15),
-            ('TOPPADDING', (0, 0), (-1, 0), 15),
-            ('GRID', (0, 0), (-1, -1), 1, colors.lightgrey),  # Lighter grid lines
-            ('BOX', (0, 0), (-1, -1), 1, colors.lightgrey),   # Lighter box
+            ('GRID', (0, 0), (-1, -1), 1, colors.lightgrey),
+            ('BOX', (0, 0), (-1, -1), 1, colors.lightgrey),
             ('LEFTPADDING', (0, 0), (-1, -1), 15),
             ('RIGHTPADDING', (0, 0), (-1, -1), 15),
-            # Remove the ROWBACKGROUNDS setting that was creating alternating blue lines
         ]))
         elements.append(toc_table)
-        elements.append(PageBreak())
         
         # Content sections
         for section, section_content in content.items():
-            clean_section = clean_content(section)
-            
-            # Add a page break before each section heading
+            # Add page break before each section
             elements.append(PageBreak())
+            
+            # Section heading
+            clean_section = clean_content(section)
             elements.append(Paragraph(clean_section, heading1_style))
             elements.append(Spacer(1, 0.1 * inch))
             
-            # Process content with improved formatting
-            cleaned_content = clean_content(section_content)
-            
-            # Look for technical specifications section to add tables
-            if "technical_specifications" in section.lower() or "specifications" in section.lower():
-                specs_tables = format_specifications_tables(product_data)
-                if specs_tables:
-                    for table in specs_tables:
-                        # Update table style to avoid blue lines
-                        if hasattr(table, 'setStyle'):
-                            table.setStyle(TableStyle([
-                                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1e40af')),  # Only header is blue
-                                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-                                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-                                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                                ('FONTSIZE', (0, 0), (-1, 0), 12),
-                                ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-                                ('GRID', (0, 0), (-1, -1), 1, colors.lightgrey),
-                                ('LEFTPADDING', (0, 0), (-1, -1), 10),
-                                ('RIGHTPADDING', (0, 0), (-1, -1), 10),
-                                # No ROWBACKGROUNDS to avoid alternating blue lines
-                            ]))
+            # Handle specifications tables without creating blank pages
+            if "specifications" in section.lower():
+                tables = format_specifications_tables(product_data, is_faq)
+                if tables:
+                    for table in tables:
                         elements.append(table)
                         elements.append(Spacer(1, 0.2 * inch))
-                    continue  # Skip adding the same content as paragraphs
+                    continue
             
-            # Format paragraphs with better spacing
-            paragraphs = cleaned_content.split('\n')
+            # Format paragraphs
+            paragraphs = clean_content(section_content).split('\n')
             for paragraph in paragraphs:
                 if paragraph.strip():
                     if paragraph.strip().endswith(':'):
-                        # This is likely a subheading
                         elements.append(Paragraph(paragraph.strip(), heading2_style))
                     else:
-                        # Regular paragraph - explicitly use black text
                         elements.append(Paragraph(paragraph.strip(), normal_style))
                     elements.append(Spacer(1, 0.05 * inch))
             
@@ -914,79 +908,146 @@ def generate_content_prompts(cleaned_product_name, combined_content, language):
         
     return prompts
 
-def format_specifications_tables(product_data):
+def format_specifications_tables(product_data, is_faq=False):
     try:
         tables = []
         styles = getSampleStyleSheet()
         
-        # Create a custom style for table headers
         header_style = styles['Heading4']
         header_style.fontName = 'Helvetica-Bold'
         header_style.fontSize = 12
-        header_style.textColor = colors.HexColor('#1e40af')
+        # Only use blue for headers in manuals, not FAQs
+        if not is_faq:
+            header_style.textColor = colors.HexColor('#1e40af')
+        else:
+            header_style.textColor = colors.black
         
-        # Get the scraped data
         scraped_data = product_data.get("scraped_data", {})
         
-        # Technical Specifications Table
+        # Technical Specifications Table - NO PAGE BREAK
         if tech_specs := scraped_data.get('technical_specifications', {}):
             tables.append(Paragraph("Technical Specifications", header_style))
             tables.append(Spacer(1, 0.1 * inch))
             
+            # Define header color based on doc type
+            header_bg_color = colors.HexColor('#e6efff') if not is_faq else colors.HexColor('#f5f5f5')
+            header_text_color = colors.HexColor('#1e40af') if not is_faq else colors.black
+            
+            # Guard against empty data for ALL languages
             data = [["Specification", "Value"]]
             for key, value in tech_specs.items():
-                data.append([key, value])
+                # Convert value to string to ensure it works in all languages
+                data.append([str(key), str(value) if value is not None else ""])
             
-            if len(data) > 1:  # Check if there's any data besides the header
+            if len(data) > 1:
                 table = Table(data, colWidths=[250, 250])
                 table.setStyle(TableStyle([
-                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#e6efff')),
-                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor('#1e40af')),
+                    ('BACKGROUND', (0, 0), (-1, 0), header_bg_color),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), header_text_color),
                     ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
                     ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
                     ('FONTSIZE', (0, 0), (-1, 0), 12),
                     ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
-                    ('TOPPADDING', (0, 0), (-1, 0), 10),
                     ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#e2e8f0')),
                     ('BOX', (0, 0), (-1, -1), 2, colors.HexColor('#cbd5e1')),
-                    ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.HexColor('#ffffff'), colors.HexColor('#f8fafc')]),
+                    ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8fafc')]),
                     ('LEFTPADDING', (0, 0), (-1, -1), 10),
                     ('RIGHTPADDING', (0, 0), (-1, -1), 10),
                 ]))
                 tables.append(table)
+            else:
+                # Fallback for empty data - still show a table
+                fallback_data = [["Specification", "Value"], ["Not available", "Not available"]]
+                fallback_table = Table(fallback_data, colWidths=[250, 250])
+                fallback_table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), header_bg_color),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), header_text_color),
+                    ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0, 0), (-1, 0), 12),
+                    ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
+                    ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#e2e8f0')),
+                    ('BOX', (0, 0), (-1, -1), 2, colors.HexColor('#cbd5e1')),
+                    ('LEFTPADDING', (0, 0), (-1, -1), 10),
+                    ('RIGHTPADDING', (0, 0), (-1, -1), 10),
+                ]))
+                tables.append(fallback_table)
         
-        # General Specifications Table
+        # General Specifications Table - NO PAGE BREAK
         if gen_specs := scraped_data.get('general_specifications', {}):
-            tables.append(Spacer(1, 0.2 * inch))
+            tables.append(Spacer(1, 0.5 * inch))  # Just add spacing instead of page break
             tables.append(Paragraph("General Specifications", header_style))
             tables.append(Spacer(1, 0.1 * inch))
             
+            # Define header color based on doc type
+            header_bg_color = colors.HexColor('#e6efff') if not is_faq else colors.HexColor('#f5f5f5') 
+            header_text_color = colors.HexColor('#1e40af') if not is_faq else colors.black
+            
+            # Guard against empty data for ALL languages
             data = [["Specification", "Value"]]
             for key, value in gen_specs.items():
-                data.append([key, value])
+                # Convert value to string to ensure it works in all languages
+                data.append([str(key), str(value) if value is not None else ""])
             
-            if len(data) > 1:  # Check if there's any data besides the header
+            if len(data) > 1:
                 table = Table(data, colWidths=[250, 250])
                 table.setStyle(TableStyle([
-                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#e6efff')),
-                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor('#1e40af')),
+                    ('BACKGROUND', (0, 0), (-1, 0), header_bg_color),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), header_text_color),
                     ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
                     ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
                     ('FONTSIZE', (0, 0), (-1, 0), 12),
                     ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
-                    ('TOPPADDING', (0, 0), (-1, 0), 10),
                     ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#e2e8f0')),
                     ('BOX', (0, 0), (-1, -1), 2, colors.HexColor('#cbd5e1')),
-                    ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.HexColor('#ffffff'), colors.HexColor('#f8fafc')]),
+                    ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8fafc')]),
                     ('LEFTPADDING', (0, 0), (-1, -1), 10),
                     ('RIGHTPADDING', (0, 0), (-1, -1), 10),
                 ]))
                 tables.append(table)
+            else:
+                # Fallback for empty data - still show a table
+                fallback_data = [["Specification", "Value"], ["Not available", "Not available"]]
+                fallback_table = Table(fallback_data, colWidths=[250, 250])
+                fallback_table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), header_bg_color),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), header_text_color),
+                    ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0, 0), (-1, 0), 12),
+                    ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
+                    ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#e2e8f0')),
+                    ('BOX', (0, 0), (-1, -1), 2, colors.HexColor('#cbd5e1')),
+                    ('LEFTPADDING', (0, 0), (-1, -1), 10),
+                    ('RIGHTPADDING', (0, 0), (-1, -1), 10),
+                ]))
+                tables.append(fallback_table)
         
         return tables
     except Exception as e:
         logger.error(f"Error formatting specification tables: {str(e)}")
-        return []
+        # Return a fallback empty table rather than empty list
+        styles = getSampleStyleSheet()
+        header_style = styles['Heading4']
+        header_style.fontName = 'Helvetica-Bold'
+        header_style.fontSize = 12
+        header_style.textColor = colors.black if is_faq else colors.HexColor('#1e40af')
+        
+        fallback = []
+        fallback.append(Paragraph("Technical Specifications", header_style))
+        fallback.append(Spacer(1, 0.1 * inch))
+        
+        fallback_data = [["Specification", "Value"], ["Error loading data", "Please try again"]]
+        table = Table(fallback_data, colWidths=[250, 250])
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#f5f5f5') if is_faq else colors.HexColor('#e6efff')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.black if is_faq else colors.HexColor('#1e40af')),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#e2e8f0')),
+        ]))
+        fallback.append(table)
+        return fallback
 # -------------------------------
 # ENDPOINTS
 # -------------------------------
@@ -1089,12 +1150,12 @@ async def generate_manual(
                 )
                 generated_content[section_title] = result.output
         
-        # Generate PDF with improved formatting and tables
+        # For manual generation
         pdf_buffer = generate_pdf({
             "product_category": product_category,
             "product_name": scraped_data["product_name"],
             "language": language,
-            "scraped_data": scraped_data  # Pass scraped data for tables
+            "scraped_data": scraped_data
         }, generated_content)
         
         # Prepare response
@@ -1106,6 +1167,85 @@ async def generate_manual(
 
     except Exception as e:
         logger.error(f"Error in manual generation: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+    
+
+@app.post("/generate-faq")
+async def generate_faq(
+    product_category: str = Form(...),
+    language: str = Form(...)
+):
+    try:
+        logger.info(f"Starting FAQ generation for {product_category} in {language}")
+        
+        # Get product link
+        product_link = get_product_link(product_category)
+        if not product_link:
+            raise HTTPException(status_code=400, detail="Product link not found")
+        
+        # Scrape product data
+        scraped_data = scrape_product_data(product_link)
+        cleaned_product_name = clean_product_query(scraped_data["product_name"])
+        
+        # Search and extract Confluence content
+        confluence_content = search_confluence(cleaned_product_name)
+        
+        # Create vector store for Confluence content
+        confluence_vector_store = None
+        if confluence_content:
+            confluence_vector_store = get_confluence_vector_store(confluence_content)
+        
+        # Get Azure Blob Storage content
+        azure_blob_content = retrieve_azure_blob_content(cleaned_product_name)
+        
+        # Combine all content sources
+        combined_content = combine_all_content(
+            scraped_data,
+            "", # Remove PDF content as it's now part of azure_blob_content
+            confluence_content,
+            azure_blob_content
+        )
+        
+        # Generate FAQ content
+        language_texts = get_language_texts(language)
+        faq_prompt = f"""
+        You are a professional technical writer creating FAQ content in {language}.
+        Instructions:
+        1. Generate ALL content in the target language.
+        2. Maintain technical accuracy and use a formal tone.
+        3. Preserve all technical terms and measurements.
+        4. Ensure all questions and answers are unique and relevant to the product.
+        
+        Relevant context:
+        {combined_content}
+        
+        Task: Generate a detailed FAQ section for {cleaned_product_name} in {language}.
+        """
+        
+        generate_content = Predict(GenerateContent)
+        result = generate_content(
+            section_title=language_texts["faq"],
+            prompt=faq_prompt,
+            language=language
+        )
+        
+        # For FAQ generation
+        pdf_buffer = generate_pdf({
+            "product_category": product_category,
+            "product_name": scraped_data["product_name"],
+            "language": language,
+            "scraped_data": scraped_data
+        }, {language_texts["faq"]: result.output}, is_faq=True)
+        
+        # Prepare response
+        filename = f"faq_{scraped_data['product_name']}_{language}.pdf"
+        response = StreamingResponse(pdf_buffer, media_type="application/pdf")
+        response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
+        
+        return response
+
+    except Exception as e:
+        logger.error(f"Error in FAQ generation: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 PRODUCTS_FILE_PATH = os.path.join(os.path.dirname(__file__), "product_names.json")
