@@ -11,7 +11,6 @@ import {
   ListItem,
   ListItemIcon,
   ListItemText,
-  TextField,
 } from "@mui/material";
 import { Add, Description } from "@mui/icons-material";
 import UstLogo from "../assets/ustlogo.svg";
@@ -24,28 +23,14 @@ export default function UserManualGenerator() {
   const [products, setProducts] = useState([]);
   const [selectedProduct, setSelectedProduct] = useState("");
   const [selectedSubProduct, setSelectedSubProduct] = useState("");
-  const [selectedItem, setSelectedItem] = useState(""); // New state for Items
+  const [selectedItem, setSelectedItem] = useState("");
   const [activePage, setActivePage] = useState("generateManual");
+
+  const [fileFormat, setFileFormat] = useState(""); // Changed to empty string initially
+  const [uploadedFile, setUploadedFile] = useState(null); // State for uploaded file
 
   const baseUrl = import.meta.env.VITE_BASE_URL;
   axios.defaults.headers.common['Access-Control-Allow-Origin'] = '*';
-
-  // Data source states
-  const [dataSources, setDataSources] = useState({
-    pdf: {
-      enabled: false,
-      file: null,
-      fileName: "",
-    },
-    azureBlob: {
-      enabled: false,
-      value: "",
-    },
-    confluence: {
-      enabled: false,
-      value: "",
-    },
-  });
 
   // Fetch products data from the FastAPI backend using axios
   useEffect(() => {
@@ -63,66 +48,80 @@ export default function UserManualGenerator() {
   const handleProductChange = (event) => {
     const productName = event.target.value;
     setSelectedProduct(productName);
-    // Reset lower-level selections when product changes
     setSelectedSubProduct("");
     setSelectedItem("");
     if (error) setError("");
   };
 
+  const handleFAQ = async () => {
+    if (!selectedItem) {
+      setError("Please select a product to generate FAQ.");
+      return;
+    }
+  
+    setLoading(true);
+    setError("");
+  
+    try {
+      const formData = new FormData();
+      formData.append("product_category", selectedItem);
+      formData.append("language", language);
+  
+      const response = await axios.post(
+        `${baseUrl}/generate-faq`,
+        formData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+          responseType: "blob",
+          withCredentials: false,
+        }
+      );
+  
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `faq_${selectedItem}_${language}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+  
+    } catch (err) {
+      console.error('Error details:', err);
+      setError('Failed to generate FAQ. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSubProductChange = (event) => {
     setSelectedSubProduct(event.target.value);
-    // Reset item selection when sub-product changes
     setSelectedItem("");
     if (error) setError("");
   };
 
-  const handleDataSourceToggle = (sourceType) => {
-    setDataSources((prev) => ({
-      ...prev,
-      [sourceType]: {
-        ...prev[sourceType],
-        enabled: !prev[sourceType].enabled,
-      },
-    }));
-  };
-
-  const handleDataSourceValueChange = (sourceType, value) => {
-    setDataSources((prev) => ({
-      ...prev,
-      [sourceType]: {
-        ...prev[sourceType],
-        value: value,
-      },
-    }));
-  };
-
   const handleFileUpload = (event) => {
     const file = event.target.files[0];
-    if (file && file.type === "application/pdf") {
-      setDataSources((prev) => ({
-        ...prev,
-        pdf: {
-          ...prev.pdf,
-          file: file,
-          fileName: file.name,
-        },
-      }));
-      setError("");
-    } else {
-      setError("Please upload a valid PDF file.");
-      setDataSources((prev) => ({
-        ...prev,
-        pdf: {
-          ...prev.pdf,
-          file: null,
-          fileName: "",
-        },
-      }));
+    if (file) {
+      const allowedTypes = {
+        pdf: "application/pdf",
+        document: "application/msword, application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        text: "text/plain",
+      };
+
+      if (file.type.match(allowedTypes[fileFormat])) {
+        setUploadedFile(file);
+        setError("");
+      } else {
+        setError(`Please upload a valid ${fileFormat.toUpperCase()} file.`);
+        setUploadedFile(null);
+      }
     }
   };
 
   const handleGenerateManual = async () => {
-    // Validate required fields
     if (!language || !selectedItem) {
       setError("Please fill in all required fields.");
       return;
@@ -136,18 +135,10 @@ export default function UserManualGenerator() {
       formData.append("product_category", selectedItem);
       formData.append("language", language);
   
-      // Add data sources to formData if enabled
-      if (dataSources.pdf.enabled && dataSources.pdf.file) {
-        formData.append("rag_source", dataSources.pdf.file);
-      }
-      if (dataSources.azureBlob.enabled) {
-        formData.append("azure_source", dataSources.azureBlob.value);
-      }
-      if (dataSources.confluence.enabled) {
-        formData.append("confluence_source", dataSources.confluence.value);
+      if (uploadedFile) {
+        formData.append("rag_source", uploadedFile);
       }
   
-      // Modified axios configuration for CORS
       const response = await axios.post(
         `${baseUrl}/generate-manual`,
         formData,
@@ -156,11 +147,10 @@ export default function UserManualGenerator() {
             'Content-Type': 'multipart/form-data',
           },
           responseType: "blob",
-          withCredentials: false, // Set to false since we're using allow_origins=["*"]
+          withCredentials: false,
         }
       );
   
-      // Create a URL for the blob and trigger download
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const a = document.createElement("a");
       a.href = url;
@@ -170,22 +160,16 @@ export default function UserManualGenerator() {
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
   
-      // Reset form after successful generation
       setSelectedProduct("");
       setSelectedSubProduct("");
       setSelectedItem("");
       setLanguage("");
-      setDataSources({
-        pdf: { enabled: false, file: null, fileName: "" },
-        azureBlob: { enabled: false, value: "" },
-        confluence: { enabled: false, value: "" }
-      });
+      setUploadedFile(null);
   
     } catch (err) {
       console.error('Error details:', err);
       
       if (err.response) {
-        // Handle specific error status codes
         switch (err.response.status) {
           case 405:
             setError('Method not allowed. Please check if the endpoint supports POST requests.');
@@ -217,94 +201,50 @@ export default function UserManualGenerator() {
       <Grid container spacing={3}>
         <Grid item xs={12}>
           <Typography variant="subtitle1" gutterBottom>
-            Select Data Sources
+            Select File Format
           </Typography>
-          <Grid container spacing={2}>
-            {/* PDF Upload Section */}
-            <Grid item xs={12}>
-              <Box sx={{ display: "flex", alignItems: "center" }}>
-                <input
-                  type="checkbox"
-                  checked={dataSources.pdf.enabled}
-                  onChange={() => handleDataSourceToggle("pdf")}
-                  style={{ marginRight: 8 }}
-                />
-                <Typography>Upload PDF</Typography>
-              </Box>
-              {dataSources.pdf.enabled && (
-                <Box sx={{ mt: 1 }}>
-                  <Button
-                    variant="outlined"
-                    component="label"
-                    disabled={loading}
-                    sx={{ textTransform: "none" }}
-                  >
-                    {dataSources.pdf.fileName || "Choose PDF"}
-                    <input
-                      type="file"
-                      accept="application/pdf"
-                      hidden
-                      onChange={handleFileUpload}
-                    />
-                  </Button>
-                  {dataSources.pdf.fileName && (
-                    <Typography variant="body2" sx={{ mt: 1 }}>
-                      {dataSources.pdf.fileName}
-                    </Typography>
-                  )}
-                </Box>
-              )}
-            </Grid>
-
-            {/* Azure Blob Section */}
-            <Grid item xs={12}>
-              <Box sx={{ display: "flex", alignItems: "center" }}>
-                <input
-                  type="checkbox"
-                  checked={dataSources.azureBlob.enabled}
-                  onChange={() => handleDataSourceToggle("azureBlob")}
-                  style={{ marginRight: 8 }}
-                />
-                <Typography>Azure Blob Storage</Typography>
-              </Box>
-              {dataSources.azureBlob.enabled && (
-                <TextField
-                  fullWidth
-                  placeholder="Enter Azure Blob Storage details"
-                  value={dataSources.azureBlob.value}
-                  onChange={(e) =>
-                    handleDataSourceValueChange("azureBlob", e.target.value)
-                  }
-                  sx={{ mt: 1 }}
-                />
-              )}
-            </Grid>
-
-            {/* Confluence Section */}
-            <Grid item xs={12}>
-              <Box sx={{ display: "flex", alignItems: "center" }}>
-                <input
-                  type="checkbox"
-                  checked={dataSources.confluence.enabled}
-                  onChange={() => handleDataSourceToggle("confluence")}
-                  style={{ marginRight: 8 }}
-                />
-                <Typography>Confluence</Typography>
-              </Box>
-              {dataSources.confluence.enabled && (
-                <TextField
-                  fullWidth
-                  placeholder="Enter Confluence details"
-                  value={dataSources.confluence.value}
-                  onChange={(e) =>
-                    handleDataSourceValueChange("confluence", e.target.value)
-                  }
-                  sx={{ mt: 1 }}
-                />
-              )}
-            </Grid>
-          </Grid>
+          <Select
+            value={fileFormat}
+            onChange={(e) => setFileFormat(e.target.value)}
+            displayEmpty
+            variant="outlined"
+            disabled={loading}
+            sx={{ width: "50%" }} // Reduced width for the dropdown
+          >
+            <MenuItem value="" disabled>
+              Select format
+            </MenuItem>
+            <MenuItem value="pdf">PDF</MenuItem>
+            <MenuItem value="document">Document</MenuItem>
+            <MenuItem value="text">Text</MenuItem>
+          </Select>
         </Grid>
+
+        {/* Only show the upload button if a file format is selected */}
+        {fileFormat && (
+          <Grid item xs={12}>
+            <Button
+              variant="outlined"
+              component="label"
+              disabled={loading}
+              sx={{ textTransform: "none" }}
+            >
+              {uploadedFile ? uploadedFile.name : "Choose File"}
+              <input
+                type="file"
+                hidden
+                onChange={handleFileUpload}
+                accept={
+                  fileFormat === "pdf"
+                    ? "application/pdf"
+                    : fileFormat === "document"
+                    ? "application/msword, application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    : "text/plain"
+                }
+              />
+            </Button>
+          </Grid>
+        )}
 
         {error && (
           <Grid item xs={12}>
@@ -324,7 +264,7 @@ export default function UserManualGenerator() {
               },
             }}
           >
-            Save Data Sources
+            Save File
           </Button>
         </Grid>
       </Grid>
@@ -337,7 +277,6 @@ export default function UserManualGenerator() {
         Generate User Manual
       </Typography>
       <Grid container spacing={3} sx={{ maxWidth: 800 }}>
-        {/* Product Dropdown */}
         <Grid item xs={12}>
           <Typography variant="subtitle1" gutterBottom>
             Product
@@ -361,7 +300,6 @@ export default function UserManualGenerator() {
           </Select>
         </Grid>
 
-        {/* Sub-Product Dropdown */}
         {selectedProduct && (
           <Grid item xs={12}>
             <Typography variant="subtitle1" gutterBottom>
@@ -389,7 +327,6 @@ export default function UserManualGenerator() {
           </Grid>
         )}
 
-        {/* Items Dropdown (using sub_subproduct_name) */}
         {selectedSubProduct && (
           <Grid item xs={12}>
             <Typography variant="subtitle1" gutterBottom>
@@ -407,7 +344,6 @@ export default function UserManualGenerator() {
                 Select an item
               </MenuItem>
               {(() => {
-                // Find the selected product and sub-product, then list its sub_subproducts
                 const product = products.find(
                   (p) => p.product_name === selectedProduct
                 );
@@ -416,10 +352,7 @@ export default function UserManualGenerator() {
                 );
                 if (subProduct && subProduct.sub_subproducts) {
                   return subProduct.sub_subproducts.map((item, index) => (
-                    <MenuItem
-                      key={index}
-                      value={item.sub_subproduct_name}
-                    >
+                    <MenuItem key={index} value={item.sub_subproduct_name}>
                       {item.sub_subproduct_name}
                     </MenuItem>
                   ));
@@ -430,7 +363,6 @@ export default function UserManualGenerator() {
           </Grid>
         )}
 
-        {/* Language Selection */}
         <Grid item xs={12}>
           <Typography variant="subtitle1" gutterBottom>
             Language
@@ -478,6 +410,8 @@ export default function UserManualGenerator() {
         </Button>
         <Button
           variant="outlined"
+          onClick={handleFAQ}
+          disabled={loading}
           sx={{
             color: "text.primary",
             borderColor: "text.primary",
