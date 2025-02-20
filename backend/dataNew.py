@@ -1,6 +1,7 @@
-import os
 import logging
 import requests
+import os
+import traceback
 from bs4 import BeautifulSoup
 from fastapi import FastAPI, HTTPException, File, UploadFile, Form
 from fastapi.responses import StreamingResponse, JSONResponse
@@ -25,7 +26,7 @@ import urllib3
 import tempfile
 import PyPDF2
 from sentence_transformers import SentenceTransformer
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 import numpy as np
 import warnings
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
@@ -38,6 +39,11 @@ import urllib.parse
 from datetime import datetime
 from docx2pdf import convert
 from fpdf import FPDF
+import asyncio
+import concurrent.futures
+from functools import partial, lru_cache
+import aiohttp
+from aiohttp import  BasicAuth,ClientTimeout
 
 # Disable warnings and configure logging
 urllib3.disable_warnings()
@@ -117,6 +123,7 @@ def load_translations():
 
 TRANSLATIONS = load_translations()
 
+@lru_cache(maxsize=100)
 def get_language_texts(language):
     return TRANSLATIONS.get(language, TRANSLATIONS["en"])
 
@@ -191,6 +198,7 @@ def normalize_text(text):
 
 def search_confluence(query, start_boundary=None, end_boundary=None):
     try:
+        logger.info(f"Starting Confluence search for query: '{query}'")
         url = f"{CONFLUENCE_BASE_URL}/rest/api/content/search"
         # Normalize the query for better matching
         normalized_query = normalize_text(query)
@@ -201,19 +209,24 @@ def search_confluence(query, start_boundary=None, end_boundary=None):
             "limit": 10
         }
         auth = HTTPBasicAuth(CONFLUENCE_USERNAME, CONFLUENCE_API_TOKEN)
-        logger.info(f"Searching Confluence for query: {query} with CQL: {cql_query}")
+        logger.info(f"Making Confluence API request with CQL query: {cql_query}")
+        logger.info(f"Using Confluence URL: {url}")
+        
         response = requests.get(url, params=params, auth=auth, verify=False)
+        logger.info(f"Confluence API response status code: {response.status_code}")
+        
         response.raise_for_status()
         results = response.json().get("results", [])
-        logger.info(f"Found {len(results)} Confluence pages matching the query")
+        logger.info(f"Retrieved {len(results)} pages from Confluence search")
 
         # Process each page to extract content within boundaries
         extracted_content = []
         for page in results:
             page_title = page.get("title", "")
             page_space = page.get("space", {}).get("name", "")
+            logger.info(f"Processing Confluence page: '{page_title}' from space '{page_space}'")
+            
             body = page.get("body", {}).get("storage", {}).get("value", "")
-
             if not body:
                 logger.warning(f"No body content found for page: {page_title}")
                 continue
@@ -222,16 +235,18 @@ def search_confluence(query, start_boundary=None, end_boundary=None):
             start_index = body.find(start_boundary) if start_boundary else 0
             end_index = body.find(end_boundary, start_index) if end_boundary else len(body)
 
-            if start_index == -1:
+            if start_boundary and start_index == -1:
                 logger.warning(f"Start boundary '{start_boundary}' not found in page: {page_title}")
                 continue
 
-            if end_index == -1:
+            if end_boundary and end_index == -1:
+                logger.info(f"End boundary '{end_boundary}' not found in page: {page_title}, using end of content")
                 end_index = len(body)
 
             # Extract the content within the boundaries
             extracted_section = body[start_index:end_index]
             if extracted_section:
+                logger.info(f"Successfully extracted content from page: {page_title} (length: {len(extracted_section)} chars)")
                 # Format the extracted content
                 formatted_content = f"""
                 Page: {page_title}
@@ -240,16 +255,20 @@ def search_confluence(query, start_boundary=None, end_boundary=None):
                 {extracted_section}
                 """
                 extracted_content.append(formatted_content)
+            else:
+                logger.warning(f"No content extracted from page: {page_title}")
 
         combined_content = "\n\n".join(extracted_content)
-        logger.info(f"Total characters extracted from Confluence: {len(combined_content)}")
+        logger.info(f"Total content extracted from Confluence: {len(combined_content)} characters from {len(extracted_content)} pages")
 
         if not combined_content.strip():
+            logger.warning(f"No content found in Confluence for product: {query}")
             return f"No content found in Confluence for product: {query}"
 
         return combined_content
     except Exception as e:
         logger.error(f"Error searching Confluence: {str(e)}")
+        logger.error(f"Full traceback: {traceback.format_exc()}")
         return ""
 
 def extract_confluence_content(pages, product_name):
@@ -670,32 +689,53 @@ def combine_all_content(scraped_data, pdf_content, confluence_content, azure_blo
     used_content = set()  # Track used content to avoid duplicates
 
     def add_content(section_title, content):
-        if content and content not in used_content:
+        if content and isinstance(content, str) and content.strip() and content not in used_content:
             combined_content.append(f"=== {section_title} ===")
             combined_content.append(content)
             used_content.add(content)
 
+    # Add scraped data
     if scraped_data:
         product_info = []
         product_info.append(f"Product Name: {scraped_data.get('product_name', 'N/A')}")
         if features := scraped_data.get('key_features', []):
             product_info.append("\nKey Features:")
             product_info.extend([f"- {feature}" for feature in features])
-        if tech_specs := scraped_data.get('technical_specifications', {}):
-            product_info.append("\nTechnical Specifications:")
-            product_info.extend([f"- {key}: {value}" for key, value in tech_specs.items()])
-        if gen_specs := scraped_data.get('general_specifications', {}):
-            product_info.append("\nGeneral Specifications:")
-            product_info.extend([f"- {key}: {value}" for key, value in gen_specs.items()])
         add_content("Product Information", "\n".join(product_info))
 
-    if confluence_content and confluence_content.strip():
-        add_content("Additional Product Information (Confluence)", confluence_content)
+        # Add specifications separately
+        if tech_specs := scraped_data.get('technical_specifications', {}):
+            specs_content = []
+            specs_content.append("Technical Specifications:")
+            for key, value in tech_specs.items():
+                specs_content.append(f"- {key}: {value}")
+            add_content("Technical Specifications", "\n".join(specs_content))
 
-    if azure_blob_content and azure_blob_content != "No relevant Azure Blob Storage content found.":
-        add_content("Additional Azure Blob Storage Information", azure_blob_content)
+        if gen_specs := scraped_data.get('general_specifications', {}):
+            specs_content = []
+            specs_content.append("General Specifications:")
+            for key, value in gen_specs.items():
+                specs_content.append(f"- {key}: {value}")
+            add_content("General Specifications", "\n".join(specs_content))
+
+    # Add PDF content if it exists and is a string
+    if pdf_content and isinstance(pdf_content, str):
+        add_content("Additional Documentation", pdf_content)
+
+    # Add Confluence content if it exists and is a string
+    if confluence_content and isinstance(confluence_content, str):
+        add_content("Confluence Documentation", confluence_content)
+
+    # Add Azure Blob content if it exists and is a string
+    if azure_blob_content and isinstance(azure_blob_content, str):
+        add_content("Azure Documentation", azure_blob_content)
+
+    # If no content was added, add a default message
+    if not combined_content:
+        combined_content.append("No content available for this product.")
 
     return "\n\n".join(combined_content)
+
 # -------------------------------
 # PDF GENERATION & WEB SCRAPING
 # -------------------------------
@@ -817,7 +857,7 @@ def generate_pdf(product_data, content, is_faq=False):
             ('FONTSIZE', (0, 0), (-1, 0), 13),
             ('BOTTOMPADDING', (0, 0), (-1, 0), 15),
             ('GRID', (0, 0), (-1, -1), 1, colors.lightgrey),
-            ('BOX', (0, 0), (-1, -1), 1, colors.lightgrey),
+            ('BOX', (0, 0), (-1, -1), 2, colors.HexColor('#cbd5e1')),
             ('LEFTPADDING', (0, 0), (-1, -1), 15),
             ('RIGHTPADDING', (0, 0), (-1, -1), 15),
         ]))
@@ -1128,11 +1168,65 @@ def format_specifications_tables(product_data, is_faq=False):
         ]))
         fallback.append(table)
         return fallback
-# -------------------------------
-# ENDPOINTS
-# -------------------------------
 
+# Add this function outside of any other function
+def run_generate_content(section_title: str, prompt: str, language: str) -> Tuple[str, str]:
+    """Generate content for a specific section."""
+    try:
+        generate_content = Predict(GenerateContent)
+        result = generate_content(
+            section_title=section_title,
+            prompt=prompt,
+            language=language
+        )
+        return section_title, result.output
+    except Exception as e:
+        logger.error(f"Error generating content for {section_title}: {str(e)}")
+        return section_title, ""
 
+async def parallel_content_generation(prompts: Dict[str, str], language: str) -> Dict[str, str]:
+    try:
+        # Create a ThreadPoolExecutor instead of ProcessPoolExecutor
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            loop = asyncio.get_event_loop()
+            
+            # Create tasks for each prompt
+            futures = []
+            for title, prompt in prompts.items():
+                future = loop.run_in_executor(
+                    executor,
+                    run_generate_content,
+                    title,
+                    prompt,
+                    language
+                )
+                futures.append(future)
+            
+            # Wait for all tasks to complete
+            completed_results = await asyncio.gather(*futures, return_exceptions=True)
+            
+            # Process results
+            result_dict = {}
+            for result in completed_results:
+                if isinstance(result, Exception):
+                    logger.error(f"Error in content generation: {str(result)}")
+                    continue
+                if isinstance(result, tuple) and len(result) == 2:
+                    section_title, content = result
+                    if content and content.strip():  # Only add non-empty content
+                        result_dict[section_title] = content
+            
+            if not result_dict:
+                logger.error("No content was generated successfully")
+                raise ValueError("Failed to generate any content")
+                
+            return result_dict
+
+    except Exception as e:
+        logger.error(f"Error in parallel content generation: {str(e)}")
+        raise ValueError(f"Content generation failed: {str(e)}")
+
+# Modified generate_manual endpoint
 @app.post("/generate-manual")
 async def generate_manual(
     product_category: str = Form(...),
@@ -1140,114 +1234,131 @@ async def generate_manual(
     language: str = Form(...)
 ):
     try:
-        logger.info(f"Starting manual generation for {product_category} in {language}")
+        # Enable tracemalloc for debugging
+        import tracemalloc
+        tracemalloc.start()
         
-        # Get product link
-        product_link = get_product_link(product_category)
-        if not product_link:
-            raise HTTPException(status_code=400, detail="Product link not found")
-        
-        # Scrape product data
-        scraped_data = scrape_product_data(product_link)
-        cleaned_product_name = clean_product_query(scraped_data["product_name"])
-        
-        # Upload PDF to Azure Blob Storage if provided
-        if rag_source:
-            try:
-                await upload_to_azure_blob(rag_source)
-                logger.info("PDF uploaded to Azure Blob Storage successfully")
-            except Exception as e:
-                logger.error(f"Failed to upload PDF: {str(e)}")
-                # Continue with the process even if upload fails
-                pass
-        
-        # Search and extract Confluence content
-        confluence_content = search_confluence(cleaned_product_name)
-        
-        # Create vector store for Confluence content
-        confluence_vector_store = None
-        if confluence_content:
-            confluence_vector_store = get_confluence_vector_store(confluence_content)
-        
-        # Get Azure Blob Storage content (now includes the newly uploaded PDF if any)
-        azure_blob_content = retrieve_azure_blob_content(cleaned_product_name)
-        
-        # Combine all content sources
-        combined_content = combine_all_content(
-            scraped_data,
-            "", # Remove PDF content as it's now part of azure_blob_content
-            confluence_content,
-            azure_blob_content
-        )
-        
-        # Generate content for each section while ensuring no duplication
-        prompts = generate_content_prompts(cleaned_product_name, combined_content, language)
-        generated_content = {}
-        seen_content = set()  # Track content to avoid duplication
-        
-        for section_title, prompt in prompts.items():
-            # Add Azure Blob context if available
-            if azure_blob_content and azure_blob_content != "No relevant Azure Blob Storage content found.":
-                prompt += f"\n\nRelevant Azure Blob Storage content:\n{azure_blob_content}"
-            
-            # Add Confluence context if available
-            if confluence_vector_store:
-                confluence_results = retrieve_content(
-                    confluence_vector_store, 
-                    f"{section_title} for {cleaned_product_name}"
-                )
-                if confluence_results != "No relevant content found.":
-                    prompt += f"\n\nRelevant Confluence content:\n{confluence_results}"
-            
-            # Check if this is a technical/troubleshooting section that might duplicate
-            if "troubleshooting" in section_title.lower() and "maintenance" in generated_content:
-                # Add specific instruction to avoid duplication with maintenance section
-                prompt += "\n\nIMPORTANT: Do not duplicate content from the Maintenance and Care section. Focus on unique troubleshooting procedures not already covered."
-            
-            if "maintenance" in section_title.lower() and "troubleshooting" in generated_content:
-                # Add specific instruction to avoid duplication with troubleshooting section
-                prompt += "\n\nIMPORTANT: Do not duplicate content from the Troubleshooting section. Focus on regular maintenance procedures."
-            
-            # Generate content for section
-            generate_content = Predict(GenerateContent)
-            result = generate_content(
-                section_title=section_title,
-                prompt=prompt,
-                language=language
-            )
-            
-            # Check for duplicate content
-            if result.output not in seen_content:
-                generated_content[section_title] = result.output
-                seen_content.add(result.output)
-            else:
-                # If duplicate, generate again with stricter uniqueness instruction
-                prompt += "\n\nVERY IMPORTANT: The previously generated content is too similar to existing sections. Create completely unique content that doesn't repeat information found elsewhere."
-                result = generate_content(
-                    section_title=section_title,
-                    prompt=prompt,
-                    language=language
-                )
-                generated_content[section_title] = result.output
-        
-        # For manual generation
-        pdf_buffer = generate_pdf({
-            "product_category": product_category,
-            "product_name": scraped_data["product_name"],
-            "language": language,
-            "scraped_data": scraped_data
-        }, generated_content)
-        
-        # Prepare response
-        filename = f"user_manual_{scraped_data['product_name']}_{language}.pdf"
-        response = StreamingResponse(pdf_buffer, media_type="application/pdf")
-        response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
-        
-        return response
+        async with aiohttp.ClientSession() as session:
+            # Parallel execution of initial data gathering
+            product_link = get_product_link(product_category)
+            if not product_link:
+                raise HTTPException(status_code=400, detail="Product link not found")
 
+            # Create tasks for parallel execution
+            tasks = [
+                async_scrape_product_data(product_link, session),
+                async_search_confluence(product_category, session)
+            ]
+
+            # Execute tasks concurrently
+            scraped_data, confluence_content = await asyncio.gather(*tasks)
+            cleaned_product_name = clean_product_query(scraped_data["product_name"])
+
+            # Handle RAG source upload if provided
+            if rag_source:
+                upload_task = asyncio.create_task(upload_to_azure_blob(rag_source))
+                try:
+                    await upload_task
+                except Exception as e:
+                    logger.error(f"Failed to upload PDF: {str(e)}")
+
+            # Parallel processing of vector stores and content retrieval
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future_tasks = []
+                
+                # Create vector store for Confluence content
+                if confluence_content:
+                    future_tasks.append(
+                        executor.submit(get_confluence_vector_store, confluence_content)
+                    )
+
+                # Get Azure Blob Storage content
+                future_tasks.append(
+                    executor.submit(retrieve_azure_blob_content, cleaned_product_name)
+                )
+
+                # Wait for all tasks to complete
+                results = await asyncio.get_event_loop().run_in_executor(
+                    None,
+                    concurrent.futures.wait,
+                    future_tasks
+                )
+                
+                # Extract results
+                confluence_vector_store = results.done.pop().result() if confluence_content else None
+                azure_blob_content = results.done.pop().result()
+
+            # Combine all content sources
+            combined_content = combine_all_content(
+                scraped_data,
+                "",
+                confluence_content,
+                azure_blob_content
+            )
+
+            # Generate content prompts
+            prompts = generate_content_prompts(cleaned_product_name, combined_content, language)
+
+            # Generate content with better error handling
+            try:
+                generated_content = await parallel_content_generation(prompts, language)
+                if not generated_content:
+                    raise HTTPException(
+                        status_code=500,
+                        detail="No content was generated successfully"
+                    )
+            except ValueError as ve:
+                raise HTTPException(
+                    status_code=500,
+                    detail=str(ve)
+                )
+            except Exception as e:
+                logger.error(f"Unexpected error in content generation: {str(e)}")
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Content generation failed: {str(e)}"
+                )
+
+            # Generate PDF with error handling
+            try:
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    pdf_buffer = await asyncio.get_event_loop().run_in_executor(
+                        executor,
+                        generate_pdf,
+                        {
+                            "product_category": product_category,
+                            "product_name": scraped_data["product_name"],
+                            "language": language,
+                            "scraped_data": scraped_data
+                        },
+                        generated_content
+                    )
+            except Exception as e:
+                logger.error(f"Error generating PDF: {str(e)}")
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Failed to generate PDF: {str(e)}"
+                )
+
+            # Prepare response
+            filename = f"user_manual_{scraped_data['product_name']}_{language}.pdf"
+            response = StreamingResponse(pdf_buffer, media_type="application/pdf")
+            response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
+            
+            # Stop tracemalloc
+            tracemalloc.stop()
+            
+            return response
+
+    except HTTPException as he:
+        raise he
     except Exception as e:
         logger.error(f"Error in manual generation: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Manual generation failed: {str(e)}"
+        )
     
 
 @app.post("/generate-faq")
@@ -1335,6 +1446,130 @@ with open(PRODUCTS_FILE_PATH, "r") as file:
 @app.get("/api/products")
 async def get_products():
     return JSONResponse(content={"products": products_data.get("products", [])})
+
+# Add these async functions
+async def async_scrape_product_data(url: str, session: aiohttp.ClientSession) -> Dict[str, Any]:
+    """Async version of scrape_product_data"""
+    try:
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Referer": "https://www.google.com/"
+        }
+        
+        # Set timeout for the request
+        timeout = ClientTimeout(total=30)
+        async with session.get(url, headers=headers, verify_ssl=False, timeout=timeout) as response:
+            response.raise_for_status()
+            content = await response.text()
+            
+        soup = BeautifulSoup(content, 'html.parser')
+        
+        # Extract product name
+        product_name = "Unknown Product"
+        h1_tag = soup.find('h1')
+        if h1_tag:
+            product_name = h1_tag.get_text(strip=True)
+        logger.info(f"Scraped product name: {product_name}")
+        
+        # Extract key features
+        key_features = []
+        key_features_container = soup.find('div', class_='product-info')
+        if key_features_container:
+            feature_list = key_features_container.find('ul')
+            if feature_list:
+                features = feature_list.find_all('li')
+                for feature in features:
+                    key_features.append(feature.get_text(strip=True))
+        logger.info(f"Scraped {len(key_features)} key features")
+        
+        # Extract technical specifications
+        technical_specs = {}
+        tech_specs_div = soup.find('div', id='tab-0')
+        if tech_specs_div:
+            tech_specs_table = tech_specs_div.find('table', class_='specifications-table')
+            if tech_specs_table:
+                for row in tech_specs_table.find_all('tr'):
+                    cols = row.find_all('td')
+                    if len(cols) == 4:
+                        key1 = cols[0].get_text(strip=True).rstrip(":")
+                        value1 = cols[1].get_text(strip=True)
+                        key2 = cols[2].get_text(strip=True).rstrip(":")
+                        value2 = cols[3].get_text(strip=True)
+                        technical_specs[key1] = value1
+                        technical_specs[key2] = value2
+                    elif len(cols) == 2:
+                        key = cols[0].get_text(strip=True).rstrip(":")
+                        value = cols[1].get_text(strip=True)
+                        technical_specs[key] = value
+        logger.info(f"Scraped {len(technical_specs)} technical specifications")
+        
+        # Extract general specifications
+        general_specs = {}
+        general_specs_div = soup.find('div', id='tab-1')
+        if general_specs_div:
+            general_specs_table = general_specs_div.find('table', class_='specifications-table')
+            if general_specs_table:
+                for row in general_specs_table.find_all('tr'):
+                    cols = row.find_all('td')
+                    if len(cols) == 2:
+                        key = cols[0].get_text(strip=True).rstrip(":")
+                        value = cols[1].get_text(strip=True)
+                        general_specs[key] = value
+                    elif len(cols) == 4:
+                        key1 = cols[0].get_text(strip=True).rstrip(":")
+                        value1 = cols[1].get_text(strip=True)
+                        key2 = cols[2].get_text(strip=True).rstrip(":")
+                        value2 = cols[3].get_text(strip=True)
+                        general_specs[key1] = value1
+                        general_specs[key2] = value2
+        logger.info(f"Scraped {len(general_specs)} general specifications")
+        
+        return {
+            "product_name": product_name,
+            "key_features": key_features,
+            "technical_specifications": technical_specs,
+            "general_specifications": general_specs
+        }
+    except Exception as e:
+        logger.error(f"Error in async scraping: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to scrape product data: {str(e)}")
+
+async def async_search_confluence(query: str, session: aiohttp.ClientSession) -> str:
+    """Async version of search_confluence"""
+    try:
+        logger.info(f"Starting async Confluence search for query: '{query}'")
+        url = f"{CONFLUENCE_BASE_URL}/rest/api/content/search"
+        normalized_query = normalize_text(query)
+        cql_query = f'(text ~ "{normalized_query}") AND type = page'
+        params = {
+            "cql": cql_query,
+            "expand": "body.storage,space,version",
+            "limit": 10
+        }
+        # Convert requests.auth.HTTPBasicAuth to aiohttp's BasicAuth
+        auth = aiohttp.BasicAuth(login=CONFLUENCE_USERNAME, password=CONFLUENCE_API_TOKEN)
+        
+        logger.info(f"Making async Confluence API request with CQL query: {cql_query}")
+        logger.info(f"Using Confluence URL: {url}")
+        logger.info(f"Using Confluence credentials - Username: {CONFLUENCE_USERNAME}, Token: {'*' * len(CONFLUENCE_API_TOKEN)}")
+        
+        async with session.get(url, params=params, auth=auth, verify_ssl=False) as response:
+            logger.info(f"Async Confluence API response status code: {response.status}")
+            response.raise_for_status()
+            results = await response.json()
+            
+        pages = results.get("results", [])
+        logger.info(f"Retrieved {len(pages)} pages from async Confluence search")
+        
+        content = extract_confluence_content(pages, query)
+        logger.info(f"Processed Confluence content length: {len(content)} characters")
+        return content
+        
+    except Exception as e:
+        logger.error(f"Error in async Confluence search: {str(e)}")
+        logger.error(f"Full traceback: {traceback.format_exc()}")
+        return ""
 
 if __name__ == "__main__":
     import uvicorn

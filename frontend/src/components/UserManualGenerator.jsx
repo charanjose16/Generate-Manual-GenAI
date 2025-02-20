@@ -11,6 +11,8 @@ import {
   ListItem,
   ListItemIcon,
   ListItemText,
+  CircularProgress,
+  LinearProgress,
 } from "@mui/material";
 import { Add, Description } from "@mui/icons-material";
 import UstLogo from "../assets/ustlogo.svg";
@@ -28,6 +30,25 @@ export default function UserManualGenerator() {
 
   const [fileFormat, setFileFormat] = useState(""); // Changed to empty string initially
   const [uploadedFile, setUploadedFile] = useState(null); // State for uploaded file
+
+  // Add new loading states
+  const [loadingStates, setLoadingStates] = useState({
+    searching: false,
+    searchingAzure: false,
+    searchingConfluence: false,
+    combiningData: false,
+    generatingManual: false,
+  });
+  const [currentLoadingStep, setCurrentLoadingStep] = useState('');
+
+  // Add loading messages for each state
+  const loadingMessages = {
+    searching: "Searching product information...",
+    searchingAzure: "Retrieving data from Azure Blob Storage...",
+    searchingConfluence: "Searching Confluence documents...",
+    combiningData: "Combining data from all sources...",
+    generatingManual: "Generating your manual...",
+  };
 
   const baseUrl = import.meta.env.VITE_BASE_URL;
   axios.defaults.headers.common['Access-Control-Allow-Origin'] = '*';
@@ -136,19 +157,51 @@ export default function UserManualGenerator() {
       setError("Please fill in all required fields.");
       return;
     }
-  
-    setLoading(true);
+
+    // Reset all loading states
+    setLoadingStates({
+      searching: true,
+      searchingAzure: false,
+      searchingConfluence: false,
+      combiningData: false,
+      generatingManual: false,
+    });
+    setCurrentLoadingStep('searching');
     setError("");
-  
+
     try {
       const formData = new FormData();
       formData.append("product_category", selectedItem);
       formData.append("language", language);
-  
+
       if (uploadedFile) {
         formData.append("rag_source", uploadedFile);
       }
-  
+
+      // Create a sequence of loading states
+      const loadingSteps = [
+        'searching',
+        'searchingAzure',
+        'searchingConfluence',
+        'combiningData',
+        'generatingManual'
+      ];
+
+      // Start the loading sequence
+      let currentStepIndex = 0;
+      const loadingInterval = setInterval(() => {
+        if (currentStepIndex < loadingSteps.length) {
+          setLoadingStates(prev => ({
+            ...prev,
+            [loadingSteps[currentStepIndex]]: true
+          }));
+          setCurrentLoadingStep(loadingSteps[currentStepIndex]);
+          currentStepIndex++;
+        } else {
+          clearInterval(loadingInterval);
+        }
+      }, 10000); // 20 seconds interval
+
       const response = await axios.post(
         `${baseUrl}/generate-manual`,
         formData,
@@ -160,7 +213,10 @@ export default function UserManualGenerator() {
           withCredentials: false,
         }
       );
-  
+
+      // Clear the interval when the response is received
+      clearInterval(loadingInterval);
+
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const a = document.createElement("a");
       a.href = url;
@@ -169,37 +225,26 @@ export default function UserManualGenerator() {
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
-  
+
       setSelectedProduct("");
       setSelectedSubProduct("");
       setSelectedItem("");
       setLanguage("");
       setUploadedFile(null);
-  
+
     } catch (err) {
       console.error('Error details:', err);
       
-      if (err.response) {
-        switch (err.response.status) {
-          case 405:
-            setError('Method not allowed. Please check if the endpoint supports POST requests.');
-            break;
-          case 413:
-            setError('File size too large. Please upload a smaller file.');
-            break;
-          case 415:
-            setError('Unsupported file type. Please check the file format.');
-            break;
-          default:
-            setError(`Server error: ${err.response.status}. Please try again.`);
-        }
-      } else if (err.request) {
-        setError('No response received from server. Please check your connection.');
-      } else {
-        setError(`Error: ${err.message}`);
-      }
     } finally {
-      setLoading(false);
+      // Reset all loading states
+      setLoadingStates({
+        searching: false,
+        searchingAzure: false,
+        searchingConfluence: false,
+        combiningData: false,
+        generatingManual: false,
+      });
+      setCurrentLoadingStep('');
     }
   };
 
@@ -436,6 +481,97 @@ export default function UserManualGenerator() {
     </Box>
   );
 
+  // Add LoadingOverlay component
+  const LoadingOverlay = () => {
+    const isLoading = Object.values(loadingStates).some(state => state);
+    
+    if (!isLoading) return null;
+
+    return (
+      <Box
+        sx={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.7)',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999,
+        }}
+      >
+        <Box
+          sx={{
+            bgcolor: 'background.paper',
+            borderRadius: 2,
+            p: 4,
+            maxWidth: 400,
+            width: '90%',
+            textAlign: 'center',
+          }}
+        >
+          <Box sx={{ position: 'relative', display: 'inline-flex' }}>
+            <CircularProgress
+              size={68}
+              sx={{
+                color: '#2669f2',
+                animationDuration: '550ms',
+              }}
+            />
+            <Box
+              sx={{
+                top: 0,
+                left: 0,
+                bottom: 0,
+                right: 0,
+                position: 'absolute',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Typography
+                variant="caption"
+                component="div"
+                color="text.secondary"
+              >
+                {Math.round(
+                  (Object.values(loadingStates).filter(Boolean).length /
+                    Object.values(loadingStates).length) *
+                    100
+                )}%
+              </Typography>
+            </Box>
+          </Box>
+          <Typography variant="h6" sx={{ mt: 2, mb: 1 }}>
+            {loadingMessages[currentLoadingStep]}
+          </Typography>
+          <Box sx={{ width: '100%', mt: 2 }}>
+            <LinearProgress
+              variant="determinate"
+              value={
+                (Object.values(loadingStates).filter(Boolean).length /
+                  Object.values(loadingStates).length) *
+                100
+              }
+              sx={{
+                height: 8,
+                borderRadius: 4,
+                backgroundColor: 'rgba(38, 105, 242, 0.2)',
+                '& .MuiLinearProgress-bar': {
+                  backgroundColor: '#2669f2',
+                },
+              }}
+            />
+          </Box>
+        </Box>
+      </Box>
+    );
+  };
+
   return (
     <Box
       sx={{
@@ -516,6 +652,7 @@ export default function UserManualGenerator() {
             : renderAddDataSourcePage()}
         </Box>
       </Box>
+      <LoadingOverlay />
     </Box>
   );
 }
