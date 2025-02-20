@@ -89,7 +89,7 @@ export default function UserManualGenerator() {
       formData.append("language", language);
   
       const response = await axios.post(
-        `${baseUrl}/generate-faq`,
+        `${baseUrl}/api/generate-faq`,
         formData,
         {
           headers: {
@@ -200,10 +200,10 @@ export default function UserManualGenerator() {
         } else {
           clearInterval(loadingInterval);
         }
-      }, 10000); // 20 seconds interval
+      }, 12000); // 20 seconds interval
 
       const response = await axios.post(
-        `${baseUrl}/generate-manual`,
+        `${baseUrl}/api/generate-manual`,
         formData,
         {
           headers: {

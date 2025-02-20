@@ -1227,7 +1227,7 @@ async def parallel_content_generation(prompts: Dict[str, str], language: str) ->
         raise ValueError(f"Content generation failed: {str(e)}")
 
 # Modified generate_manual endpoint
-@app.post("/generate-manual")
+@app.post("/api/generate-manual")
 async def generate_manual(
     product_category: str = Form(...),
     rag_source: Optional[UploadFile] = File(None),
@@ -1361,7 +1361,7 @@ async def generate_manual(
         )
     
 
-@app.post("/generate-faq")
+@app.post("/api/generate-faq")
 async def generate_faq(
     product_category: str = Form(...),
     language: str = Form(...)
