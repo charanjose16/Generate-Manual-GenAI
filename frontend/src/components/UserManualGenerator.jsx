@@ -105,19 +105,29 @@ export default function UserManualGenerator() {
   const handleFileUpload = (event) => {
     const file = event.target.files[0];
     if (file) {
-      const allowedTypes = {
-        pdf: "application/pdf",
-        document: "application/msword, application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        text: "text/plain",
-      };
+        const allowedTypes = {
+            pdf: "application/pdf",
+            document: [
+                'application/msword',                                              // .doc
+                'application/vnd.openxmlformats-officedocument.wordprocessingml.document'  // .docx
+            ],
+            text: "text/plain",
+        };
 
-      if (file.type.match(allowedTypes[fileFormat])) {
-        setUploadedFile(file);
-        setError("");
-      } else {
+        if (fileFormat === 'document') {
+            if (allowedTypes.document.includes(file.type)) {
+                setUploadedFile(file);
+                setError("");
+                return;
+            }
+        } else if (file.type === allowedTypes[fileFormat]) {
+            setUploadedFile(file);
+            setError("");
+            return;
+        }
+        
         setError(`Please upload a valid ${fileFormat.toUpperCase()} file.`);
         setUploadedFile(null);
-      }
     }
   };
 

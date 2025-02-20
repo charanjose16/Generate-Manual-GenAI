@@ -36,6 +36,8 @@ from werkzeug.utils import secure_filename
 from azure.storage.blob import BlobServiceClient
 import urllib.parse
 from datetime import datetime
+from docx2pdf import convert
+from fpdf import FPDF
 
 # Disable warnings and configure logging
 urllib3.disable_warnings()
@@ -394,21 +396,33 @@ class DocumentProcessor:
         )
 
     def process_pdf(self, pdf_content: bytes) -> str:
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
-            temp_file.write(pdf_content)
-            temp_file_path = temp_file.name
         try:
+            # Create a temporary file to handle the PDF content
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
+                temp_file.write(pdf_content)
+                temp_file_path = temp_file.name
+
+            # Process the PDF
             with open(temp_file_path, 'rb') as pdf_file:
                 reader = PyPDF2.PdfReader(pdf_file)
                 text = ""
                 for page in reader.pages:
                     text += page.extract_text() + "\n"
+            
+            # Clean up the temporary file
+            os.unlink(temp_file_path)
+            
             logger.info("Processed PDF content successfully.")
             return text
-        finally:
-            os.unlink(temp_file_path)
+        except Exception as e:
+            logger.error(f"Error processing PDF: {str(e)}")
+            return ""  # Return empty string instead of None
 
     def create_documents(self, content: str, metadata: Dict[str, Any]) -> List:
+        if not content:  # Handle empty content gracefully
+            logger.warning("Empty content provided for document creation")
+            return []
+            
         chunks = self.text_splitter.split_text(content)
         logger.info(f"Split content into {len(chunks)} document chunks.")
         return [Document(page_content=chunk, metadata=metadata) for chunk in chunks]
@@ -539,31 +553,97 @@ class RAGSystem:
                 'error': str(e)
             }
 
-async def upload_to_azure_blob(file: UploadFile) -> str:
-    try:
-        # Create a unique filename to avoid collisions
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        secure_name = secure_filename(file.filename)
-        blob_name = f"{timestamp}_{secure_name}"
-        
-        # Get blob client
-        parsed_url = urllib.parse.urlparse(AZURE_STORAGE_SAS_URL)
-        account_name = parsed_url.netloc.split('.')[0]
-        container_name = parsed_url.path.strip('/').split('/')[0]
-        blob_service_client = BlobServiceClient(
-            account_url=f"https://{account_name}.blob.core.windows.net",
-            credential=AZURE_STORAGE_SAS_URL.split('?')[1],
-            connection_verify=False
-        )
-        container_client = blob_service_client.get_container_client(container_name)
-        blob_client = container_client.get_blob_client(blob_name)
+def get_blob_client(blob_name: str):
+    """Helper function to get blob client"""
+    parsed_url = urllib.parse.urlparse(AZURE_STORAGE_SAS_URL)
+    account_name = parsed_url.netloc.split('.')[0]
+    container_name = parsed_url.path.strip('/').split('/')[0]
+    blob_service_client = BlobServiceClient(
+        account_url=f"https://{account_name}.blob.core.windows.net",
+        credential=AZURE_STORAGE_SAS_URL.split('?')[1],
+        connection_verify=False
+    )
+    container_client = blob_service_client.get_container_client(container_name)
+    return container_client.get_blob_client(blob_name)
 
-        # Upload the file
-        file_content = await file.read()
-        blob_client.upload_blob(file_content, overwrite=True)
+async def convert_to_pdf(file: UploadFile) -> bytes:
+    """Convert uploaded file to PDF format"""
+    try:
+        content = await file.read()
+        file_extension = os.path.splitext(file.filename)[1].lower()
         
-        logger.info(f"Successfully uploaded file {blob_name} to Azure Blob Storage")
+        if file_extension == '.pdf':
+            logger.info(f"File {file.filename} is already in PDF format")
+            return content
+            
+        elif file_extension in ['.docx', '.doc']:
+            logger.info(f"Starting conversion of {file_extension} file: {file.filename} to PDF")
+            with tempfile.NamedTemporaryFile(delete=False, suffix=file_extension) as temp_doc:
+                temp_doc.write(content)
+                temp_doc_path = temp_doc.name
+                
+            temp_pdf_path = temp_doc_path.replace(file_extension, '.pdf')
+            
+            try:
+                convert(temp_doc_path, temp_pdf_path)
+                logger.info(f"Successfully converted {file_extension} file: {file.filename} to PDF")
+                
+                with open(temp_pdf_path, 'rb') as pdf_file:
+                    pdf_content = pdf_file.read()
+                
+                return pdf_content
+                
+            finally:
+                os.unlink(temp_doc_path)
+                if os.path.exists(temp_pdf_path):
+                    os.unlink(temp_pdf_path)
+                    logger.info("Cleaned up temporary conversion files")
+                    
+        elif file_extension == '.txt':
+            logger.info(f"Starting conversion of TXT file: {file.filename} to PDF")
+            pdf = FPDF()
+            pdf.add_page()
+            pdf.set_font("Arial", size=12)
+            
+            text_content = content.decode('utf-8')
+            lines = text_content.split('\n')
+            
+            for line in lines:
+                pdf.multi_cell(0, 10, txt=line)
+            
+            pdf_content = pdf.output(dest='S').encode('latin-1')
+            logger.info(f"Successfully converted TXT file: {file.filename} to PDF")
+            return pdf_content
+            
+        else:
+            logger.error(f"Unsupported file type: {file_extension}")
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unsupported file type: {file_extension}"
+            )
+            
+    except Exception as e:
+        logger.error(f"Error converting file to PDF: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to convert file to PDF: {str(e)}"
+        )
+
+async def upload_to_azure_blob(file: UploadFile) -> str:
+    """Upload file to Azure Blob Storage"""
+    try:
+        pdf_content = await convert_to_pdf(file)
+        
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        original_name = os.path.splitext(secure_filename(file.filename))[0]
+        blob_name = f"{timestamp}_{original_name}.pdf"
+        
+        blob_client = get_blob_client(blob_name)
+        blob_client.upload_blob(pdf_content, overwrite=True)
+        
+        logger.info(f"Successfully uploaded converted PDF file {blob_name} to Azure Blob Storage")
         return blob_name
+        
     except Exception as e:
         logger.error(f"Error uploading to Azure Blob Storage: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to upload file: {str(e)}")
