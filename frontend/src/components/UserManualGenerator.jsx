@@ -20,7 +20,7 @@ import axios from "axios";
 
 export default function UserManualGenerator() {
   const [language, setLanguage] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [loading, ] = useState(false);
   const [error, setError] = useState("");
   const [products, setProducts] = useState([]);
   const [selectedProduct, setSelectedProduct] = useState("");
@@ -38,6 +38,12 @@ export default function UserManualGenerator() {
     searchingConfluence: false,
     combiningData: false,
     generatingManual: false,
+    // Add FAQ-specific states
+    searchingFAQ: false,
+    analyzingQuestions: false,
+    generatingAnswers: false,
+    formattingFAQ: false,
+    finalizingDocument: false,
   });
   const [currentLoadingStep, setCurrentLoadingStep] = useState('');
 
@@ -48,6 +54,12 @@ export default function UserManualGenerator() {
     searchingConfluence: "Searching Confluence documents...",
     combiningData: "Combining data from all sources...",
     generatingManual: "Generating your manual...",
+    // Add FAQ-specific messages
+    searchingFAQ: "Searching common questions...",
+    analyzingQuestions: "Analyzing frequently asked questions...",
+    generatingAnswers: "Generating comprehensive answers...",
+    formattingFAQ: "Formatting FAQ document...",
+    finalizingDocument: "Finalizing your FAQ document...",
   };
 
   const baseUrl = import.meta.env.VITE_BASE_URL;
@@ -80,13 +92,46 @@ export default function UserManualGenerator() {
       return;
     }
   
-    setLoading(true);
+    // Reset all loading states and start with searchingFAQ
+    setLoadingStates(prev => ({
+      ...prev,
+      searchingFAQ: true,
+      analyzingQuestions: false,
+      generatingAnswers: false,
+      formattingFAQ: false,
+      finalizingDocument: false,
+    }));
+    setCurrentLoadingStep('searchingFAQ');
     setError("");
   
     try {
       const formData = new FormData();
       formData.append("product_category", selectedItem);
       formData.append("language", language);
+  
+      // Create a sequence of FAQ loading steps
+      const loadingSteps = [
+        'searchingFAQ',
+        'analyzingQuestions',
+        'generatingAnswers',
+        'formattingFAQ',
+        'finalizingDocument'
+      ];
+  
+      // Start the loading sequence
+      let currentStepIndex = 0;
+      const loadingInterval = setInterval(() => {
+        if (currentStepIndex < loadingSteps.length) {
+          setLoadingStates(prev => ({
+            ...prev,
+            [loadingSteps[currentStepIndex]]: true
+          }));
+          setCurrentLoadingStep(loadingSteps[currentStepIndex]);
+          currentStepIndex++;
+        } else {
+          clearInterval(loadingInterval);
+        }
+      }, 10000); 
   
       const response = await axios.post(
         `${baseUrl}/api/generate-faq`,
@@ -99,6 +144,9 @@ export default function UserManualGenerator() {
           withCredentials: false,
         }
       );
+  
+      // Clear the interval when the response is received
+      clearInterval(loadingInterval);
   
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const a = document.createElement("a");
@@ -113,7 +161,16 @@ export default function UserManualGenerator() {
       console.error('Error details:', err);
       setError('Failed to generate FAQ. Please try again.');
     } finally {
-      setLoading(false);
+      // Reset all loading states
+      setLoadingStates(prev => ({
+        ...prev,
+        searchingFAQ: false,
+        analyzingQuestions: false,
+        generatingAnswers: false,
+        formattingFAQ: false,
+        finalizingDocument: false,
+      }));
+      setCurrentLoadingStep('');
     }
   };
 

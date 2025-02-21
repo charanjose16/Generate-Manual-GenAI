@@ -1364,79 +1364,124 @@ async def generate_manual(
 @app.post("/api/generate-faq")
 async def generate_faq(
     product_category: str = Form(...),
-    language: str = Form(...)
+    language: str = Form(...),
+    preview: bool = Form(True)  # New parameter
 ):
     try:
         logger.info(f"Starting FAQ generation for {product_category} in {language}")
         
-        # Get product link
-        product_link = get_product_link(product_category)
-        if not product_link:
-            raise HTTPException(status_code=400, detail="Product link not found")
-        
-        # Scrape product data
-        scraped_data = scrape_product_data(product_link)
-        cleaned_product_name = clean_product_query(scraped_data["product_name"])
-        
-        # Search and extract Confluence content
-        confluence_content = search_confluence(cleaned_product_name)
-        
-        # Create vector store for Confluence content
-        confluence_vector_store = None
-        if confluence_content:
-            confluence_vector_store = get_confluence_vector_store(confluence_content)
-        
-        # Get Azure Blob Storage content
-        azure_blob_content = retrieve_azure_blob_content(cleaned_product_name)
-        
-        # Combine all content sources
-        combined_content = combine_all_content(
-            scraped_data,
-            "", # Remove PDF content as it's now part of azure_blob_content
-            confluence_content,
-            azure_blob_content
-        )
-        
-        # Generate FAQ content
-        language_texts = get_language_texts(language)
-        faq_prompt = f"""
-        You are a professional technical writer creating FAQ content in {language}.
-        Instructions:
-        1. Generate ALL content in the target language.
-        2. Maintain technical accuracy and use a formal tone.
-        3. Preserve all technical terms and measurements.
-        4. Ensure all questions and answers are unique and relevant to the product.
-        
-        Relevant context:
-        {combined_content}
-        
-        Task: Generate a detailed FAQ section for {cleaned_product_name} in {language}.
-        """
-        
-        generate_content = Predict(GenerateContent)
-        result = generate_content(
-            section_title=language_texts["faq"],
-            prompt=faq_prompt,
-            language=language
-        )
-        
-        # For FAQ generation
-        pdf_buffer = generate_pdf({
-            "product_category": product_category,
-            "product_name": scraped_data["product_name"],
-            "language": language,
-            "scraped_data": scraped_data
-        }, {language_texts["faq"]: result.output}, is_faq=True)
-        
-        # Prepare response
-        filename = f"faq_{scraped_data['product_name']}_{language}.pdf"
-        response = StreamingResponse(pdf_buffer, media_type="application/pdf")
-        response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
-        
-        return response
-
+        async with aiohttp.ClientSession() as session:
+            # Get product link
+            product_link = get_product_link(product_category)
+            if not product_link:
+                raise HTTPException(status_code=400, detail="Product link not found")
+            
+            # Create tasks for parallel execution
+            tasks = [
+                async_scrape_product_data(product_link, session),
+                async_search_confluence(product_category, session)
+            ]
+            
+            # Execute tasks concurrently
+            scraped_data, confluence_content = await asyncio.gather(*tasks)
+            cleaned_product_name = clean_product_query(scraped_data["product_name"])
+            
+            # Get language texts
+            language_texts = get_language_texts(language)
+            
+            # Generate FAQ content asynchronously
+            try:
+                # Create predictor instance
+                predictor = Predict(GenerateContent)
+                
+                # Prepare input for GenerateContent
+                input_data = {
+                    "section_title": language_texts["faq"],
+                    "prompt": f"""Generate a comprehensive FAQ section for {cleaned_product_name}.
+                    Include questions and answers about:
+                    - Product features and specifications
+                    - Installation and setup
+                    - Common usage scenarios
+                    - Troubleshooting
+                    - Maintenance and care
+                    
+                    Product Information:
+                    {json.dumps(scraped_data, indent=2)}
+                    
+                    Additional Context:
+                    {confluence_content}
+                    """,
+                    "language": language
+                }
+                
+                # Generate content
+                result = await asyncio.to_thread(
+                    lambda: predictor(
+                        section_title=input_data["section_title"],
+                        prompt=input_data["prompt"],
+                        language=input_data["language"]
+                    )
+                )
+                
+                if not result or not hasattr(result, 'output'):
+                    raise HTTPException(
+                        status_code=500,
+                        detail="No FAQ content was generated"
+                    )
+                
+                logger.info("FAQ content generated successfully")
+                
+            except Exception as e:
+                logger.error(f"Error generating FAQ content: {str(e)}")
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"FAQ generation failed: {str(e)}"
+                )
+            
+            # Generate PDF with error handling
+            try:
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    pdf_buffer = await asyncio.get_event_loop().run_in_executor(
+                        executor,
+                        generate_pdf,
+                        {
+                            "product_category": product_category,
+                            "product_name": scraped_data["product_name"],
+                            "language": language,
+                            "scraped_data": scraped_data
+                        },
+                        {language_texts["faq"]: result.output},
+                        True  # is_faq=True
+                    )
+                    
+                logger.info("PDF generated successfully")
+                
+            except Exception as e:
+                logger.error(f"Error generating PDF: {str(e)}")
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Failed to generate PDF: {str(e)}"
+                )
+            
+            # Convert PDF to base64 if preview is requested
+            if preview:
+                import base64
+                pdf_bytes = pdf_buffer.getvalue()
+                pdf_base64 = base64.b64encode(pdf_bytes).decode('utf-8')
+                return JSONResponse({
+                    "pdf_base64": pdf_base64,
+                    "filename": f"faq_{scraped_data['product_name']}_{language}.pdf"
+                })
+            else:
+                # Direct download response
+                filename = f"faq_{scraped_data['product_name']}_{language}.pdf"
+                response = StreamingResponse(pdf_buffer, media_type="application/pdf")
+                response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
+                return response
+            
     except Exception as e:
         logger.error(f"Error in FAQ generation: {str(e)}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
 PRODUCTS_FILE_PATH = os.path.join(os.path.dirname(__file__), "product_names.json")
