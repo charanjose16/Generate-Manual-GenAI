@@ -1,70 +1,80 @@
-import { useState, useEffect } from "react";
-import {
-  Select,
-  MenuItem,
-  Button,
-  Grid,
-  Box,
-  Typography,
-  Drawer,
-  List,
-  ListItem,
-  ListItemIcon,
-  ListItemText,
-  CircularProgress,
-  LinearProgress,
-} from "@mui/material";
-import { Add, Description } from "@mui/icons-material";
-import UstLogo from "../assets/ustlogo.svg";
+import { useState, useEffect, Fragment } from "react";
+import { Listbox, Transition } from "@headlessui/react";
 import axios from "axios";
-import PropTypes from 'prop-types';
 
-// Add these flag SVG components at the top of the file
-const countryFlags = {
+// Inline SVG icons for country flags
+const countryIcons = {
   en: (
-    <svg className="w-5 h-5" viewBox="0 0 640 480" xmlns="http://www.w3.org/2000/svg">
-      <rect width="640" height="480" fill="#012169"/>
-      <path d="M75,0l244,181L562,0h78v62L400,241l240,178v61h-80L320,301L81,480H0v-60L239,241L0,62V0H75z" fill="#FFF"/>
-      <path d="M424,281l216,159v40L369,281h55z M240,301l6,4L54,480H0L240,301z M640,0v3L391,191l2-44L590,0H640z M0,0l239,176h-60L0,42V0z" fill="#C8102E"/>
-      <path d="M241,0v480h160V0H241zM0,160v160h640V160H0z" fill="#FFF"/>
-      <path d="M0,193v96h640v-96H0zM273,0v480h96V0H273z" fill="#C8102E"/>
+    <svg
+      className="w-5 h-5 inline-block mr-1"
+      viewBox="0 0 60 40"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <rect width="60" height="40" fill="#012169" />
+      <path d="M0,0 L60,40 M60,0 L0,40" stroke="#fff" strokeWidth="8" />
+      <path d="M0,0 L60,40 M60,0 L0,40" stroke="#cf142b" strokeWidth="4" />
     </svg>
   ),
   es: (
-    <svg className="w-5 h-5" viewBox="0 0 640 480" xmlns="http://www.w3.org/2000/svg">
-      <path fill="#AA151B" d="M0 0h640v480H0z"/>
-      <path fill="#F1BF00" d="M0 120h640v240H0z"/>
+    <svg
+      className="w-5 h-5 inline-block mr-1"
+      viewBox="0 0 640 480"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <rect width="640" height="480" fill="#aa151b" />
+      <rect y="160" width="640" height="160" fill="#f1bf00" />
     </svg>
   ),
   fr: (
-    <svg className="w-5 h-5" viewBox="0 0 640 480" xmlns="http://www.w3.org/2000/svg">
-      <path fill="#ED2939" d="M0 0h640v480H0z"/>
-      <path fill="#FFF" d="M0 0h426.7v480H0z"/>
-      <path fill="#002395" d="M0 0h213.3v480H0z"/>
+    <svg
+      className="w-5 h-5 inline-block mr-1"
+      viewBox="0 0 3 2"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <rect width="1" height="2" fill="#0055A4" />
+      <rect x="1" width="1" height="2" fill="#fff" />
+      <rect x="2" width="1" height="2" fill="#EF4135" />
     </svg>
   ),
   de: (
-    <svg className="w-5 h-5" viewBox="0 0 640 480" xmlns="http://www.w3.org/2000/svg">
-      <path fill="#FFCE00" d="M0 320h640v160H0z"/>
-      <path d="M0 0h640v160H0z"/>
-      <path fill="#D00" d="M0 160h640v160H0z"/>
+    <svg
+      className="w-5 h-5 inline-block mr-1"
+      viewBox="0 0 5 3"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <rect width="5" height="1" y="0" fill="#000" />
+      <rect width="5" height="1" y="1" fill="#D00" />
+      <rect width="5" height="1" y="2" fill="#FFCE00" />
     </svg>
   ),
   it: (
-    <svg className="w-5 h-5" viewBox="0 0 640 480" xmlns="http://www.w3.org/2000/svg">
-      <path fill="#009246" d="M0 0h213.3v480H0z"/>
-      <path fill="#FFF" d="M213.3 0h213.4v480H213.3z"/>
-      <path fill="#CE2B37" d="M426.7 0H640v480H426.7z"/>
+    <svg
+      className="w-5 h-5 inline-block mr-1"
+      viewBox="0 0 3 2"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <rect width="1" height="2" fill="#009246" />
+      <rect x="1" width="1" height="2" fill="#fff" />
+      <rect x="2" width="1" height="2" fill="#CE2B37" />
     </svg>
   ),
 };
 
-// Define PDFPreviewModal as a separate component before the main component
+// Language options with full names and corresponding codes
+const languages = [
+  { code: "en", name: "English" },
+  { code: "es", name: "Spanish" },
+  { code: "fr", name: "French" },
+  { code: "de", name: "German" },
+  { code: "it", name: "Italian" },
+];
+
+// PDF Preview Modal (for FAQ)
 function PDFPreviewModal({ pdfUrl, onClose, selectedItem, language }) {
   if (!pdfUrl) return null;
-  
+
   const handleDownload = () => {
-    const link = document.createElement('a');
+    const link = document.createElement("a");
     link.href = pdfUrl;
     link.download = `FAQ_${selectedItem}_${language}.pdf`;
     document.body.appendChild(link);
@@ -73,8 +83,8 @@ function PDFPreviewModal({ pdfUrl, onClose, selectedItem, language }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 pl-80">
-      <div className="bg-white rounded-lg p-4 w-11/12 h-5/6 max-w-6xl flex flex-col">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg p-4 w-11/12 max-w-6xl h-5/6 flex flex-col">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-semibold">FAQ Preview</h2>
           <div className="flex gap-2">
@@ -104,63 +114,92 @@ function PDFPreviewModal({ pdfUrl, onClose, selectedItem, language }) {
   );
 }
 
-// Update PropTypes to include the new props
 PDFPreviewModal.propTypes = {
-  pdfUrl: PropTypes.string,
-  onClose: PropTypes.func.isRequired,
-  selectedItem: PropTypes.string.isRequired,
-  language: PropTypes.string.isRequired
+  pdfUrl: (props, propName, componentName) => {
+    if (props[propName] && typeof props[propName] !== "string") {
+      return new Error(`${propName} in ${componentName} must be a string`);
+    }
+  },
+  onClose: () => {},
+  selectedItem: () => {},
+  language: () => {},
 };
+
+// Loading Overlay Component
+function LoadingOverlay({ isLoading, progressMessage }) {
+  if (!isLoading) return null;
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        width: "100%",
+        height: "100%",
+        backgroundColor: "rgba(0, 0, 0, 0.6)",
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        zIndex: 1000,
+      }}
+    >
+      <div
+        style={{
+          backgroundColor: "white",
+          padding: "24px",
+          borderRadius: "8px",
+          boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
+          textAlign: "center",
+          maxWidth: "400px",
+        }}
+      >
+        <div
+          style={{
+            display: "inline-block",
+            width: "40px",
+            height: "40px",
+            border: "4px solid rgba(0, 0, 0, 0.1)",
+            borderRadius: "50%",
+            borderTopColor: "#14b8a6",
+            animation: "spin 1s ease-in-out infinite",
+            marginBottom: "16px",
+          }}
+        />
+        <p style={{ fontSize: "16px", color: "#1f2937", margin: 0 }}>
+          {progressMessage}
+        </p>
+      </div>
+      <style>
+        {`
+          @keyframes spin {
+            to {
+              transform: rotate(360deg);
+            }
+          }
+        `}
+      </style>
+    </div>
+  );
+}
 
 export default function UserManualGenerator() {
   const [language, setLanguage] = useState("");
-  const [loading, ] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false); // Unified loading state
+  const [progressMessage, setProgressMessage] = useState(""); // Progress message
   const [error, setError] = useState("");
   const [products, setProducts] = useState([]);
   const [selectedProduct, setSelectedProduct] = useState("");
   const [selectedSubProduct, setSelectedSubProduct] = useState("");
   const [selectedItem, setSelectedItem] = useState("");
   const [activePage, setActivePage] = useState("generateManual");
-
   const [fileFormat, setFileFormat] = useState("");
   const [uploadedFile, setUploadedFile] = useState(null);
-
-  // Add FAQ-specific loading states and messages
-  const [loadingStates, setLoadingStates] = useState({
-    searching: false,
-    searchingAzure: false,
-    searchingConfluence: false,
-    combiningData: false,
-    generatingManual: false,
-    searchingFAQ: false,
-    analyzingQuestions: false,
-    generatingAnswers: false,
-    formattingFAQ: false,
-    finalizingDocument: false,
-  });
-
-  const [currentLoadingStep, setCurrentLoadingStep] = useState('');
-
-  // Separate loading messages for FAQ
-  const faqLoadingMessages = {
-    searchingFAQ: "Searching product information...",
-    analyzingQuestions: "Analyzing frequently asked questions...",
-    generatingAnswers: "Generating comprehensive answers...",
-    formattingFAQ: "Formatting FAQ document...",
-    finalizingDocument: "Finalizing your FAQ document..."
-  };
-
-  // Add manual generation loading messages
-  const manualLoadingMessages = {
-    searching: "Searching product information...",
-    searchingAzure: "Retrieving data from Azure Blob Storage...",
-    searchingConfluence: "Searching Confluence documents...",
-    combiningData: "Combining data from all sources...",
-    generatingManual: "Generating your manual..."
-  };
+  const [showPreview, setShowPreview] = useState(false);
+  const [pdfUrl, setPdfUrl] = useState(null);
 
   const baseUrl = import.meta.env.VITE_BASE_URL;
-  axios.defaults.headers.common['Access-Control-Allow-Origin'] = '*';
+  axios.defaults.headers.common["Access-Control-Allow-Origin"] = "*";
 
   useEffect(() => {
     const fetchData = async () => {
@@ -174,47 +213,51 @@ export default function UserManualGenerator() {
     fetchData();
   }, [baseUrl]);
 
-  const handleFileUpload = (event) => {
-    const file = event.target.files[0];
-    if (file) {
-        const allowedTypes = {
-            pdf: "application/pdf",
-            document: [
-                'application/msword',
-                'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-            ],
-            text: "text/plain",
-        };
-
-        if (fileFormat === 'document') {
-            if (allowedTypes.document.includes(file.type)) {
-                setUploadedFile(file);
-                setError("");
-                return;
-            }
-        } else if (file.type === allowedTypes[fileFormat]) {
-            setUploadedFile(file);
-            setError("");
-            return;
-        }
-        
-        setError(`Please upload a valid ${fileFormat.toUpperCase()} file.`);
-        setUploadedFile(null);
+  const handleProductChange = (value) => {
+    if (!isGenerating) {
+      setSelectedProduct(value);
+      setSelectedSubProduct("");
+      setSelectedItem("");
+      if (error) setError("");
     }
   };
 
-  const handleProductChange = (event) => {
-    const productName = event.target.value;
-    setSelectedProduct(productName);
-    setSelectedSubProduct("");
-    setSelectedItem("");
-    if (error) setError("");
+  const handleSubProductChange = (value) => {
+    if (!isGenerating) {
+      setSelectedSubProduct(value);
+      setSelectedItem("");
+      if (error) setError("");
+    }
   };
 
-  const handleSubProductChange = (event) => {
-    setSelectedSubProduct(event.target.value);
-    setSelectedItem("");
-    if (error) setError("");
+  const handleFileUpload = (event) => {
+    if (!isGenerating) {
+      const file = event.target.files[0];
+      if (file) {
+        const allowedTypes = {
+          pdf: "application/pdf",
+          document: [
+            "application/msword",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          ],
+          text: "text/plain",
+        };
+
+        if (fileFormat === "document") {
+          if (allowedTypes.document.includes(file.type)) {
+            setUploadedFile(file);
+            setError("");
+            return;
+          }
+        } else if (file.type === allowedTypes[fileFormat]) {
+          setUploadedFile(file);
+          setError("");
+          return;
+        }
+        setError(`Please upload a valid ${fileFormat.toUpperCase()} file.`);
+        setUploadedFile(null);
+      }
+    }
   };
 
   const handleGenerateManual = async () => {
@@ -222,157 +265,79 @@ export default function UserManualGenerator() {
       setError("Please fill in all required fields.");
       return;
     }
-
-    setLoadingStates({
-      searching: true,
-      searchingAzure: false,
-      searchingConfluence: false,
-      combiningData: false,
-      generatingManual: false,
-    });
-    setCurrentLoadingStep('searching');
+    setIsGenerating(true);
     setError("");
 
     try {
+      setProgressMessage("Fetching product data...");
       const formData = new FormData();
       formData.append("product_category", selectedItem);
       formData.append("language", language);
-
       if (uploadedFile) {
+        setProgressMessage("Processing uploaded file...");
         formData.append("rag_source", uploadedFile);
       }
 
-      const loadingSteps = [
-        'searching',
-        'searchingAzure',
-        'searchingConfluence',
-        'combiningData',
-        'generatingManual'
-      ];
+      setProgressMessage("Gathering information from sources...");
+      // Simulate backend stages (since we can't get real-time backend updates without WebSocket)
+      await new Promise((resolve) => setTimeout(resolve, 1000)); // Simulate delay
 
-      let currentStepIndex = 0;
-      const loadingInterval = setInterval(() => {
-        if (currentStepIndex < loadingSteps.length) {
-          setLoadingStates(prev => ({
-            ...prev,
-            [loadingSteps[currentStepIndex]]: true
-          }));
-          setCurrentLoadingStep(loadingSteps[currentStepIndex]);
-          currentStepIndex++;
-        } else {
-          clearInterval(loadingInterval);
-        }
-      }, 12000);
+      setProgressMessage("Generating manual content...");
+      await new Promise((resolve) => setTimeout(resolve, 1500)); // Simulate content generation
 
-      const response = await axios.post(
-        `${baseUrl}/api/generate-manual`,
-        formData,
-        {
-          headers: {
-            'Content-Type': 'multipart/form-data',
-          },
-          responseType: "blob",
-        }
+      setProgressMessage("Creating PDF document...");
+      const response = await axios.post(`${baseUrl}/api/generate-manual`, formData, {
+        responseType: "blob",
+      });
+
+      const url = window.URL.createObjectURL(
+        new Blob([response.data], { type: "application/pdf" })
       );
-
-      clearInterval(loadingInterval);
-
-      // Direct download for manual PDF
-      const blob = new Blob([response.data], { type: 'application/pdf' });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `Manual_${selectedItem}_${language}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `user_manual_${selectedItem}_${language}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
 
+      setSelectedProduct("");
+      setSelectedSubProduct("");
+      setSelectedItem("");
+      setLanguage("");
     } catch (err) {
-      console.error("Error generating manual:", err);
-      setError(err.response?.data?.detail || "Failed to generate manual");
+      setError(err.response?.data?.detail || err.message);
     } finally {
-      setLoadingStates({
-        searching: false,
-        searchingAzure: false,
-        searchingConfluence: false,
-        combiningData: false,
-        generatingManual: false,
-      });
-      setCurrentLoadingStep('');
+      setIsGenerating(false);
+      setProgressMessage("");
     }
   };
 
-  // Add these new state variables at the top
-  const [showPreview, setShowPreview] = useState(false);
-  const [pdfUrl, setPdfUrl] = useState(null);
-  const [, setPdfBlob] = useState(null);
-
-
-  // Add the cleanup function
-  const handleClosePreview = () => {
-    if (pdfUrl) {
-      URL.revokeObjectURL(pdfUrl);
-    }
-    setShowPreview(false);
-    setPdfUrl(null);
-    setPdfBlob(null);
-  };
-
-  // Update handleFAQ function to handle base64 PDF data
   const handleFAQ = async () => {
     if (!language || !selectedItem) {
       setError("Please fill in all required fields.");
       return;
     }
-
-    setLoadingStates({
-      ...loadingStates,
-      searchingFAQ: true,
-    });
-    setCurrentLoadingStep('searchingFAQ');
+    setIsGenerating(true);
     setError("");
 
     try {
+      setProgressMessage("Fetching product data...");
       const formData = new FormData();
       formData.append("product_category", selectedItem);
       formData.append("language", language);
 
-      const faqSteps = [
-        'searchingFAQ',
-        'analyzingQuestions',
-        'generatingAnswers',
-        'formattingFAQ',
-        'finalizingDocument'
-      ];
+      setProgressMessage("Gathering information from sources...");
+      await new Promise((resolve) => setTimeout(resolve, 1000)); // Simulate delay
 
-      let currentStepIndex = 0;
-      const loadingInterval = setInterval(() => {
-        if (currentStepIndex < faqSteps.length) {
-          setLoadingStates(prev => ({
-            ...prev,
-            [faqSteps[currentStepIndex]]: true
-          }));
-          setCurrentLoadingStep(faqSteps[currentStepIndex]);
-          currentStepIndex++;
-        } else {
-          clearInterval(loadingInterval);
-        }
-      }, 10000);
+      setProgressMessage("Generating FAQ content...");
+      await new Promise((resolve) => setTimeout(resolve, 1500)); // Simulate content generation
 
-      const response = await axios.post(
-        `${baseUrl}/api/generate-faq`,
-        formData,
-        {
-          headers: {
-            'Content-Type': 'multipart/form-data',
-          },
-        }
-      );
+      setProgressMessage("Creating PDF document...");
+      const response = await axios.post(`${baseUrl}/api/generate-faq`, formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
 
-      clearInterval(loadingInterval);
-
-      // Show preview for FAQ PDF
       if (response.data && response.data.pdf_base64) {
         const byteCharacters = atob(response.data.pdf_base64);
         const byteNumbers = new Array(byteCharacters.length);
@@ -380,454 +345,428 @@ export default function UserManualGenerator() {
           byteNumbers[i] = byteCharacters.charCodeAt(i);
         }
         const byteArray = new Uint8Array(byteNumbers);
-        const blob = new Blob([byteArray], { type: 'application/pdf' });
-        
+        const blob = new Blob([byteArray], { type: "application/pdf" });
         const url = URL.createObjectURL(blob);
         setPdfUrl(url);
         setShowPreview(true);
       } else {
-        throw new Error('Invalid PDF data received');
+        throw new Error("Invalid PDF data received");
       }
-
     } catch (err) {
-      console.error("Error generating FAQ:", err);
       setError(err.response?.data?.detail || "Failed to generate FAQ");
     } finally {
-      setLoadingStates({
-        ...loadingStates,
-        searchingFAQ: false,
-        analyzingQuestions: false,
-        generatingAnswers: false,
-        formattingFAQ: false,
-        finalizingDocument: false,
-      });
-      setCurrentLoadingStep('');
+      setIsGenerating(false);
+      setProgressMessage("");
     }
   };
 
-  const renderAddDataSourcePage = () => (
-    <Box sx={{ p: 4,pl:20, width: "100%", height: "100%" }}>
-      <Typography variant="h5" gutterBottom>
-        Add Data Source
-      </Typography>
-      <Grid container spacing={3}>
-        <Grid item xs={12}>
-          <Typography variant="subtitle1" gutterBottom>
-            Select File Format
-          </Typography>
-          <Select
-            value={fileFormat}
-            onChange={(e) => setFileFormat(e.target.value)}
-            displayEmpty
-            variant="outlined"
-            disabled={loading}
-            sx={{ width: "50%" }}
-          >
-            <MenuItem value="" disabled>
-              Select format
-            </MenuItem>
-            <MenuItem value="pdf">PDF</MenuItem>
-            <MenuItem value="document">Document</MenuItem>
-            <MenuItem value="text">Text</MenuItem>
-          </Select>
-        </Grid>
-
-        {fileFormat && (
-          <Grid item xs={12}>
-            <Button
-              variant="outlined"
-              component="label"
-              disabled={loading}
-              sx={{ textTransform: "none" }}
-            >
-              {uploadedFile ? uploadedFile.name : "Choose File"}
-              <input
-                type="file"
-                hidden
-                onChange={handleFileUpload}
-                accept={
-                  fileFormat === "pdf"
-                    ? "application/pdf"
-                    : fileFormat === "document"
-                    ? "application/msword, application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                    : "text/plain"
-                }
-              />
-            </Button>
-          </Grid>
-        )}
-
-        {error && (
-          <Grid item xs={12}>
-            <Typography color="error">{error}</Typography>
-          </Grid>
-        )}
-
-        <Grid item xs={12}>
-          <Button
-            variant="contained"
-            onClick={() => setActivePage("generateManual")}
-            sx={{
-              bgcolor: "#0d9488",
-              color: "background.paper",
-              "&:hover": {
-                bgcolor: "green",
-              },
-            }}
-          >
-            Save File
-          </Button>
-        </Grid>
-      </Grid>
-    </Box>
-  );
+  const handleClosePreview = () => {
+    if (pdfUrl) {
+      URL.revokeObjectURL(pdfUrl);
+    }
+    setShowPreview(false);
+    setPdfUrl(null);
+  };
 
   const renderGenerateManualPage = () => (
-    <Box sx={{ p: 4,pl:20, width: "100%", height: "100%" }}>
-      <Typography variant="h5" gutterBottom>
-        Generate User Manual
-      </Typography>
-      <Grid container spacing={3} sx={{ maxWidth: 800 }}>
-        <Grid item xs={12}>
-          <Typography variant="subtitle1" gutterBottom>
-            Product
-          </Typography>
-          <Select
-            fullWidth
-            value={selectedProduct}
-            onChange={handleProductChange}
-            displayEmpty
-            variant="outlined"
-            disabled={loading}
-          >
-            <MenuItem value="" disabled>
-              Select a product
-            </MenuItem>
-            {products.map((product, index) => (
-              <MenuItem key={index} value={product.product_name}>
-                {product.product_name}
-              </MenuItem>
-            ))}
-          </Select>
-        </Grid>
+    <div className="p-4 w-full">
+      <h2 className="text-xl font-semibold mb-4">Generate User Manual</h2>
+      <div className="grid grid-cols-1 gap-4 max-w-2xl relative">
+        <div className="relative">
+          <label className="block mb-1">Product</label>
+          <Listbox value={selectedProduct} onChange={handleProductChange}>
+            {({ open }) => (
+              <>
+                <Listbox.Button className="relative w-full py-2 pl-3 pr-10 text-left bg-white border border-gray-300 rounded-md shadow-sm cursor-default focus:outline-none">
+                  <span className="block truncate">
+                    {selectedProduct || "Select a product"}
+                  </span>
+                </Listbox.Button>
+                <Transition
+                  show={open}
+                  as={Fragment}
+                  leave="transition ease-in duration-100"
+                  leaveFrom="opacity-100"
+                  leaveTo="opacity-0"
+                >
+                  <Listbox.Options className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
+                    {products.map((product, index) => (
+                      <Listbox.Option key={index} value={product.product_name}>
+                        {({ active }) => (
+                          <span
+                            className={`block cursor-pointer select-none py-2 pl-3 pr-10 ${
+                              active ? "bg-teal-500 text-white" : "text-gray-900"
+                            }`}
+                          >
+                            {product.product_name}
+                          </span>
+                        )}
+                      </Listbox.Option>
+                    ))}
+                  </Listbox.Options>
+                </Transition>
+              </>
+            )}
+          </Listbox>
+        </div>
 
         {selectedProduct && (
-          <Grid item xs={12}>
-            <Typography variant="subtitle1" gutterBottom>
-              Sub-Product
-            </Typography>
-            <Select
-              fullWidth
-              value={selectedSubProduct}
-              onChange={handleSubProductChange}
-              displayEmpty
-              variant="outlined"
-              disabled={loading}
-            >
-              <MenuItem value="" disabled>
-                Select a sub-product
-              </MenuItem>
-              {products
-                .find((p) => p.product_name === selectedProduct)
-                ?.subproducts.map((subproduct, index) => (
-                  <MenuItem key={index} value={subproduct.subproduct_name}>
-                    {subproduct.subproduct_name}
-                  </MenuItem>
-                ))}
-            </Select>
-          </Grid>
+          <div className="relative">
+            <label className="block mb-1">Sub-Product</label>
+            <Listbox value={selectedSubProduct} onChange={handleSubProductChange}>
+              {({ open }) => (
+                <>
+                  <Listbox.Button className="relative w-full py-2 pl-3 pr-10 text-left bg-white border border-gray-300 rounded-md shadow-sm cursor-default focus:outline-none">
+                    <span className="block truncate">
+                      {selectedSubProduct || "Select a sub-product"}
+                    </span>
+                  </Listbox.Button>
+                  <Transition
+                    show={open}
+                    as={Fragment}
+                    leave="transition ease-in duration-100"
+                    leaveFrom="opacity-100"
+                    leaveTo="opacity-0"
+                  >
+                    <Listbox.Options className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
+                      {(() => {
+                        const product = products.find(
+                          (p) => p.product_name === selectedProduct
+                        );
+                        return product?.subproducts.map((subproduct, index) => (
+                          <Listbox.Option
+                            key={index}
+                            value={subproduct.subproduct_name}
+                          >
+                            {({ active }) => (
+                              <span
+                                className={`block cursor-pointer select-none py-2 pl-3 pr-10 ${
+                                  active ? "bg-teal-500 text-white" : "text-gray-900"
+                                }`}
+                              >
+                                {subproduct.subproduct_name}
+                              </span>
+                            )}
+                          </Listbox.Option>
+                        ));
+                      })()}
+                    </Listbox.Options>
+                  </Transition>
+                </>
+              )}
+            </Listbox>
+          </div>
         )}
 
         {selectedSubProduct && (
-          <Grid item xs={12}>
-            <Typography variant="subtitle1" gutterBottom>
-              Items
-            </Typography>
-            <Select
-              fullWidth
-              value={selectedItem}
-              onChange={(e) => setSelectedItem(e.target.value)}
-              displayEmpty
-              variant="outlined"
-              disabled={loading}
-            >
-              <MenuItem value="" disabled>
-                Select an item
-              </MenuItem>
-              {(() => {
-                const product = products.find(
-                  (p) => p.product_name === selectedProduct
-                );
-                const subProduct = product?.subproducts.find(
-                  (sp) => sp.subproduct_name === selectedSubProduct
-                );
-                if (subProduct && subProduct.sub_subproducts) {
-                  return subProduct.sub_subproducts.map((item, index) => (
-                    <MenuItem key={index} value={item.sub_subproduct_name}>
-                      {item.sub_subproduct_name}
-                    </MenuItem>
-                  ));
-                }
-                return null;
-              })()}
-            </Select>
-          </Grid>
+          <div className="relative">
+            <label className="block mb-1">Items</label>
+            <Listbox value={selectedItem} onChange={setSelectedItem}>
+              {({ open }) => (
+                <>
+                  <Listbox.Button className="relative w-full py-2 pl-3 pr-10 text-left bg-white border border-gray-300 rounded-md shadow-sm cursor-default focus:outline-none">
+                    <span className="block truncate">
+                      {selectedItem || "Select an item"}
+                    </span>
+                  </Listbox.Button>
+                  <Transition
+                    show={open}
+                    as={Fragment}
+                    leave="transition ease-in duration-100"
+                    leaveFrom="opacity-100"
+                    leaveTo="opacity-0"
+                  >
+                    <Listbox.Options className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
+                      {(() => {
+                        const product = products.find(
+                          (p) => p.product_name === selectedProduct
+                        );
+                        const subProduct = product?.subproducts.find(
+                          (sp) => sp.subproduct_name === selectedSubProduct
+                        );
+                        return subProduct?.sub_subproducts?.map((item, index) => (
+                          <Listbox.Option
+                            key={index}
+                            value={item.sub_subproduct_name}
+                          >
+                            {({ active }) => (
+                              <span
+                                className={`block cursor-pointer select-none py-2 pl-3 pr-10 ${
+                                  active ? "bg-teal-500 text-white" : "text-gray-900"
+                                }`}
+                              >
+                                {item.sub_subproduct_name}
+                              </span>
+                            )}
+                          </Listbox.Option>
+                        ));
+                      })()}
+                    </Listbox.Options>
+                  </Transition>
+                </>
+              )}
+            </Listbox>
+          </div>
         )}
 
-        <Grid item xs={12}>
-          <Typography variant="subtitle1" gutterBottom>
-            Language
-          </Typography>
-          <Select
-            fullWidth
-            value={language}
-            onChange={(e) => setLanguage(e.target.value)}
-            displayEmpty
-            variant="outlined"
-            disabled={loading}
+        <div className="relative">
+          <label className="block mb-1">Language</label>
+          <Listbox value={language} onChange={setLanguage}>
+            {({ open }) => (
+              <>
+                <Listbox.Button className="relative w-full py-2 pl-3 pr-10 text-left bg-white border border-gray-300 rounded-md shadow-sm cursor-default focus:outline-none">
+                  <span className="block truncate">
+                    {language
+                      ? (() => {
+                          const selected = languages.find(
+                            (l) => l.code === language
+                          );
+                          return (
+                            <>
+                              {countryIcons[language]} {selected.name}
+                            </>
+                          );
+                        })()
+                      : "Select a language"}
+                  </span>
+                </Listbox.Button>
+                <Transition
+                  show={open}
+                  as={Fragment}
+                  leave="transition ease-in duration-100"
+                  leaveFrom="opacity-100"
+                  leaveTo="opacity-0"
+                >
+                  <Listbox.Options className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
+                    {languages.map((lang) => (
+                      <Listbox.Option key={lang.code} value={lang.code}>
+                        {({ active }) => (
+                          <span
+                            className={`block cursor-pointer select-none py-2 pl-3 pr-10 ${
+                              active ? "bg-teal-500 text-white" : "text-gray-900"
+                            }`}
+                          >
+                            {countryIcons[lang.code]} {lang.name}
+                          </span>
+                        )}
+                      </Listbox.Option>
+                    ))}
+                  </Listbox.Options>
+                </Transition>
+              </>
+            )}
+          </Listbox>
+        </div>
+
+        {error && <p className="text-red-500">{error}</p>}
+
+        <div className="flex justify-center gap-4 mt-4">
+          <button
+            onClick={handleGenerateManual}
+            disabled={isGenerating}
+            style={{
+              backgroundColor: "white",
+              color: "black",
+              padding: "8px 16px",
+              borderRadius: "4px",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              cursor: isGenerating ? "not-allowed" : "pointer",
+              opacity: isGenerating ? 0.5 : 1,
+              border: "none",
+            }}
           >
-            <MenuItem value="" disabled>
-              Select a language
-            </MenuItem>
-            <MenuItem value="en" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              {countryFlags.en}
-              English
-            </MenuItem>
-            <MenuItem value="es" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              {countryFlags.es}
-              Spanish
-            </MenuItem>
-            <MenuItem value="fr" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              {countryFlags.fr}
-              French
-            </MenuItem>
-            <MenuItem value="de" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              {countryFlags.de}
-              German
-            </MenuItem>
-            <MenuItem value="it" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              {countryFlags.it}
-              Italian
-            </MenuItem>
-          </Select>
-        </Grid>
-      </Grid>
-
-      {error && (
-        <Typography color="error" align="center" sx={{ mt: 2 }}>
-          {error}
-        </Typography>
-      )}
-
-      <Box sx={{ display: "flex", justifyContent: "center", gap: 2, mt: 4 }}>
-        <Button
-          variant="contained"
-          onClick={handleGenerateManual}
-          disabled={loading}
-          sx={{
-            bgcolor: "#0d9488",
-            color: "background.paper",
-            "&:hover": {
-              bgcolor: "green",
-            },
-          }}
-        >
-          {loading ? "GENERATING..." : "GENERATE USER MANUAL"}
-        </Button>
-        <Button
-          variant="outlined"
-          onClick={handleFAQ}
-          disabled={loading}
-          sx={{
-            color: "text.primary",
-            borderColor: "text.primary",
-            "&:hover": {
-              borderColor: "text.secondary",
-            },
-          }}
-        >
-          FAQ
-        </Button>
-      </Box>
-    </Box>
+            <svg
+              className="w-5 h-5 text-teal-500"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M7 7h10M7 11h10M7 15h10M5 6a2 2 0 012-2h10a2 2 0 012 2v12a2 2 0 01-2 2H7a2 2 0 01-2-2V6z"
+              />
+            </svg>
+            GENERATE USER MANUAL
+          </button>
+          <button
+            onClick={handleFAQ}
+            disabled={isGenerating}
+            style={{
+              border: "1px solid #6b7280",
+              color: "black",
+              padding: "8px 16px",
+              borderRadius: "4px",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              cursor: isGenerating ? "not-allowed" : "pointer",
+              opacity: isGenerating ? 0.5 : 1,
+              backgroundColor: "white",
+            }}
+          >
+            <svg
+              className="w-5 h-5 text-teal-500"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M8.228 9.228a4 4 0 115.544 0M12 16h.01"
+              />
+            </svg>
+            FAQ
+          </button>
+        </div>
+      </div>
+    </div>
   );
 
-  // Update LoadingOverlay component
-  const LoadingOverlay = () => {
-    const isLoading = Object.values(loadingStates).some(state => state);
-    
-    if (!isLoading) return null;
-
-    // Determine which loading messages to use based on current step
-    const currentMessages = currentLoadingStep.includes('FAQ') ? faqLoadingMessages : manualLoadingMessages;
-
-    return (
-      <Box
-        sx={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.7)',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 9999,
-        }}
-      >
-        <Box
-          sx={{
-            bgcolor: 'background.paper',
-            borderRadius: 2,
-            p: 4,
-            maxWidth: 400,
-            width: '90%',
-            textAlign: 'center',
-          }}
-        >
-          <Box sx={{ position: 'relative', display: 'inline-flex' }}>
-            <CircularProgress
-              size={68}
-              sx={{
-                color: '#2669f2',
-                animationDuration: '550ms',
-              }}
-            />
-            <Box
-              sx={{
-                top: 0,
-                left: 0,
-                bottom: 0,
-                right: 0,
-                position: 'absolute',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <Typography
-                variant="caption"
-                component="div"
-                color="text.secondary"
-              >
-                {Math.round(
-                  (Object.values(loadingStates).filter(Boolean).length /
-                    Object.values(loadingStates).length) *
-                    100
-                )}%
-              </Typography>
-            </Box>
-          </Box>
-          <Typography variant="h6" sx={{ mt: 2, mb: 1 }}>
-            {currentMessages[currentLoadingStep]}
-          </Typography>
-          <Box sx={{ width: '100%', mt: 2 }}>
-            <LinearProgress
-              variant="determinate"
-              value={
-                (Object.values(loadingStates).filter(Boolean).length /
-                  Object.values(loadingStates).length) *
-                100
+  const renderAddDataSourcePage = () => (
+    <div className="p-4 w-full">
+      <h2 className="text-xl font-semibold mb-4">Add Data Source</h2>
+      <div className="grid grid-cols-1 gap-4 max-w-2xl">
+        <div>
+          <label className="block mb-1">Select File Format</label>
+          <select
+            value={fileFormat}
+            onChange={(e) => {
+              if (!isGenerating) {
+                setFileFormat(e.target.value);
+                setUploadedFile(null);
               }
-              sx={{
-                height: 8,
-                borderRadius: 4,
-                backgroundColor: 'rgba(38, 105, 242, 0.2)',
-                '& .MuiLinearProgress-bar': {
-                  backgroundColor: '#2669f2',
-                },
-              }}
+            }}
+            className="block w-1/2 border border-gray-300 rounded-md p-2"
+            disabled={isGenerating}
+          >
+            <option value="" disabled>
+              Select format
+            </option>
+            <option value="pdf">PDF</option>
+            <option value="document">Document</option>
+            <option value="text">Text</option>
+          </select>
+        </div>
+
+        {fileFormat && (
+          <div>
+            <button
+              type="button"
+              className="mt-2 inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-base text-black bg-white hover:bg-gray-200"
+              onClick={() => !isGenerating && document.getElementById('fileInput').click()}
+              disabled={isGenerating}
+            >
+              {uploadedFile ? uploadedFile.name : "Choose File"}
+            </button>
+            <input
+              id="fileInput"
+              type="file"
+              key={fileFormat}
+              hidden
+              onChange={handleFileUpload}
+              accept={
+                fileFormat === "pdf"
+                  ? "application/pdf"
+                  : fileFormat === "document"
+                  ? "application/msword, application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                  : "text/plain"
+              }
+              disabled={isGenerating}
             />
-          </Box>
-        </Box>
-      </Box>
-    );
-  };
+          </div>
+        )}
+
+        {error && <p className="text-red-500">{error}</p>}
+
+        <button
+          onClick={() => !isGenerating && setActivePage("generateManual")}
+          className="mt-4 bg-white text-black px-4 py-2 rounded hover:bg-gray-200 flex items-center gap-2"
+          disabled={isGenerating}
+        >
+          <svg
+            className="w-5 h-5 text-teal-500"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+              d="M5 3v18h14V7.5L15.5 3H5zM15 3v4h4"
+            />
+          </svg>
+          Save File
+        </button>
+      </div>
+    </div>
+  );
 
   return (
-    <Box
-      sx={{
-        display: "flex",
-        flexDirection: "column",
-        height: "100vh",
-        width: "100vw",
-        overflow: "hidden",
-      }}
-    >
-      <Box sx={{ display: "flex", flexGrow: 1, overflow: "hidden" }}>
-        <Drawer
-          variant="permanent"
-          sx={{
-            width: 240,
-            flexShrink: 0,
-            "& .MuiDrawer-paper": {
-              width: 340,
-              boxSizing: "border-box",
-              bgcolor: "#0d9488",
-              color: "#fff",
-            },
-          }}
-        >
-          <Box sx={{ p: 2, display: "flex", alignItems: "center", gap: 1 }}>
-            <img src={UstLogo} alt="UST Logo" style={{ width: 24, height: 24 }} />
-            <Typography variant="h6" marginLeft="15px">
-              Configuration
-            </Typography>
-          </Box>
-          <List>
-            <ListItem
-              button
-              onClick={() => setActivePage("generateManual")}
-              sx={{
-                bgcolor: activePage === "generateManual" ? "#065F46" : "transparent",
-                "&:hover": {
-                  cursor: "pointer",
-                  bgcolor: "#34D399",
-                },
-              }}
+    <div className="flex flex-col h-screen w-screen overflow-hidden">
+      <div className="flex flex-grow overflow-hidden">
+        <div className="w-60 bg-gray-800 text-white h-full">
+          <div className="p-4 border-b border-gray-700">
+            <h2 className="text-lg font-semibold">Configuration</h2>
+          </div>
+          <ul>
+            <li
+              onClick={() => !isGenerating && setActivePage("generateManual")}
+              className={`p-4 cursor-pointer hover:bg-gray-700 flex items-center gap-2 ${
+                activePage === "generateManual" ? "bg-gray-700" : ""
+              } ${isGenerating ? "opacity-50 cursor-not-allowed" : ""}`}
             >
-              <ListItemIcon>
-                <Description sx={{ color: "#fff" }} />
-              </ListItemIcon>
-              <ListItemText primary="Generate Manual" />
-            </ListItem>
-            <ListItem
-              button
-              onClick={() => setActivePage("addDataSource")}
-              sx={{
-                bgcolor: activePage === "addDataSource" ? "#065F46" : "transparent",
-                "&:hover": {
-                  cursor: "pointer",
-                  bgcolor: "#34D399",
-                  
-                },
-              }}
+              <svg
+                className="w-5 h-5 text-teal-500"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M7 7h10M7 11h10M7 15h10M5 6a2 2 0 012-2h10a2 2 0 012 2v12a2 2 0 01-2 2H7a2 2 0 01-2-2V6z"
+                />
+              </svg>
+              <span>Generate Manual</span>
+            </li>
+            <li
+              onClick={() => !isGenerating && setActivePage("addDataSource")}
+              className={`p-4 cursor-pointer hover:bg-gray-700 flex items-center gap-2 ${
+                activePage === "addDataSource" ? "bg-gray-700" : ""
+              } ${isGenerating ? "opacity-50 cursor-not-allowed" : ""}`}
             >
-              <ListItemIcon>
-                <Add sx={{ color: "#fff" }} />
-              </ListItemIcon>
-              <ListItemText primary="Add Data Source" />
-            </ListItem>
-          </List>
-        </Drawer>
+              <svg
+                className="w-5 h-5 text-teal-500"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M12 4v16m8-8H4"
+                />
+              </svg>
+              <span>Add Data Source</span>
+            </li>
+          </ul>
+        </div>
 
-        <Box
-          sx={{
-            flexGrow: 1,
-            bgcolor: "background.paper",
-            overflow: "auto",
-            p: 3,
-            height: "100%",
-          }}
-        >
+        <div className="flex-grow bg-white overflow-auto p-4">
           {activePage === "generateManual"
             ? renderGenerateManualPage()
             : renderAddDataSourcePage()}
-        </Box>
-      </Box>
-      <LoadingOverlay />
+        </div>
+      </div>
       {showPreview && (
         <PDFPreviewModal
           pdfUrl={pdfUrl}
@@ -836,6 +775,7 @@ export default function UserManualGenerator() {
           language={language}
         />
       )}
-    </Box>
+      <LoadingOverlay isLoading={isGenerating} progressMessage={progressMessage} />
+    </div>
   );
 }

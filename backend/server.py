@@ -295,11 +295,11 @@ def get_confluence_vector_store(content):
     except Exception as e:
         logger.error(f"Error creating Confluence vector store: {str(e)}")
         return None
+
 # -------------------------------
 # AZURE BLOB STORAGE INTEGRATION
 # -------------------------------
 # These classes/functions come from your Azure Blob Storage code with added logging.
-
 class FAISSIndex:
     def __init__(self, dimension: int = 384):
         self.dimension = dimension
@@ -1336,7 +1336,6 @@ async def generate_manual(
             status_code=500,
             detail=f"Manual generation failed: {str(e)}"
         )
-    
 
 @app.post("/api/generate-faq")
 async def generate_faq(
