@@ -143,24 +143,6 @@ def clean_product_query(product_name):
     return product_name.strip()
 
 # -------------------------------
-# PDF HANDLING (Uploaded PDFs)
-# -------------------------------
-def retrieve_content(vector_store, query):
-    try:
-        docs = vector_store.similarity_search(query, k=5)
-        if not docs:
-            logger.warning("No relevant content found for query: %s", query)
-            return "No relevant content found."
-        retrieved_content = "\n".join([doc.page_content for doc in docs if hasattr(doc, 'page_content')])
-        if not retrieved_content.strip():
-            logger.warning("Retrieved content is empty for query: %s", query)
-            return "No relevant content found."
-        return retrieved_content
-    except Exception as e:
-        logger.error(f"Error retrieving content: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to retrieve content: {str(e)}")
-
-# -------------------------------
 # CONFLUENCE HANDLING
 # -------------------------------
 def normalize_text(text):
