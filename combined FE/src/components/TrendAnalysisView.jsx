@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 import  { useState, useEffect } from "react";
 import { Tab, Transition } from "@headlessui/react";
 import {
@@ -7,12 +8,6 @@ import {
   Sun,
   Loader,
   Cpu,
-  AlertTriangle,
-  Activity,
-  AlertOctagon,
-  Wrench,
-  Calendar,
-  Check,
 } from "lucide-react";
 import PropTypes from "prop-types";
 import {
@@ -45,7 +40,6 @@ if (!Legend.id) Legend.id = "legend";
 
 ChartJS.register(ArcElement, ChartTooltip, Legend);
 
-const baseUrl = import.meta.env.VITE_BASE_URL;
 
 // LoadingSpinner component using Loader icon and teal color.
 const LoadingSpinner = () => (
@@ -267,8 +261,11 @@ const renderTrendInsights = (insightText) => {
         </div>
       );
     }
-  } catch (e) {
+  } catch (error) {
+    console.log(error);
     return (
+      
+      
       <div className="bg-white shadow-md rounded-lg p-8 border border-gray-200 transition-transform transform hover:scale-105 hover:shadow-xl text-left">
         <h4 className="text-2xl font-bold text-gray-900 mb-4">
           <Cpu className="w-6 h-6 text-teal-500 inline-block mr-2" />
@@ -541,7 +538,7 @@ const renderCustomXDot = (props) => {
 
 const TempVsVibration = ({ motor, months }) => {
   const [groupedData, setGroupedData] = useState({});
-  const [correlation, setCorrelation] = useState(null);
+  const [, setCorrelation] = useState(null);
   const [aiTrend, setAiTrend] = useState("");
   const [loading, setLoading] = useState(true);
 
