@@ -1362,6 +1362,13 @@ async def generate_faq(
             scraped_data, confluence_content = await asyncio.gather(*tasks)
             cleaned_product_name = clean_product_query(scraped_data["product_name"])
             
+            # Retrieve Azure Blob content
+            azure_blob_content = await asyncio.get_event_loop().run_in_executor(
+                None,
+                retrieve_azure_blob_content,
+                cleaned_product_name
+            )
+            
             # Get language texts
             language_texts = get_language_texts(language)
             
@@ -1386,6 +1393,9 @@ async def generate_faq(
                     
                     Additional Context:
                     {confluence_content}
+                    
+                    Azure Blob Storage Content:
+                    {azure_blob_content}
                     """,
                     "language": language
                 }

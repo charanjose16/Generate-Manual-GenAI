@@ -1,6 +1,7 @@
 import { useState, useEffect, Fragment } from "react";
 import { Listbox, Transition } from "@headlessui/react";
 import axios from "axios";
+import PropTypes from 'prop-types';
 
 // Inline SVG icons for country flags
 const countryIcons = {
@@ -182,6 +183,11 @@ function LoadingOverlay({ isLoading, progressMessage }) {
     </div>
   );
 }
+
+LoadingOverlay.propTypes = {
+  isLoading: PropTypes.bool.isRequired,
+  progressMessage: PropTypes.string.isRequired,
+};
 
 export default function UserManualGenerator() {
   const [language, setLanguage] = useState("");
