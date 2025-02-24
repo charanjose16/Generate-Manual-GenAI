@@ -755,31 +755,38 @@ def generate_pdf(product_data, content, is_faq=False):
         
         # Create a page template that includes page numbers
         def add_page_number(canvas, doc):
+            """
+            Add page numbers to the bottom of each page.
+            """
             canvas.saveState()
             page_num = canvas.getPageNumber()
             text = f"Page {page_num}"
             canvas.setFont('Helvetica', 10)
-            # Position at bottom center of the page
+            # Position at the bottom center of the page
             canvas.drawCentredString(
-                doc.pagesize[0] / 2,
-                36,
-                text
+            doc.pagesize[0] / 2,  # X position (center of the page)
+            36,  # Y position (36 points from the bottom)
+            text
             )
             canvas.restoreState()
                 
-        # Register the page template
+        # Create a frame for the page content
         frame = Frame(
-            doc.leftMargin,
-            doc.bottomMargin,
-            doc.width,
-            doc.height,
-            id='normal'
+        doc.leftMargin,
+        doc.bottomMargin,
+        doc.width,
+        doc.height,
+        id='normal'
         )
+
+        # Create a PageTemplate with the frame and the `add_page_number` function
         template = PageTemplate(
-            id='page_template',
-            frames=[frame],
-            onPage=add_page_number
+        id='page_template',
+        frames=[frame],
+        onPage=add_page_number  # Add the page number function here
         )
+
+# Add the PageTemplate to the document
         doc.addPageTemplates([template])
         
         styles = getSampleStyleSheet()
@@ -1004,7 +1011,6 @@ def generate_content_prompts(cleaned_product_name, combined_content, language):
         "operation_instructions": language_texts["operation_instructions"],
         "maintenance_and_care": language_texts["maintenance_and_care"],
         "troubleshooting": language_texts["troubleshooting"],
-        "faq": language_texts["faq"],
         "warranty_information": language_texts["warranty_information"]
     }
     
@@ -1027,6 +1033,19 @@ def generate_content_prompts(cleaned_product_name, combined_content, language):
         prompts[section_title] = prompt
         
     return prompts
+
+def format_faq_content(faq_content):
+    """
+    Format FAQ content to ensure questions are numbered.
+    """
+    formatted_content = []
+    questions = faq_content.split("\n\n")  # Split by double newlines
+    for i, question in enumerate(questions, start=1):
+        if "?" in question:  # Ensure it's a question
+            formatted_content.append(f"{i}. {question.strip()}")
+        else:
+            formatted_content.append(question.strip())
+    return "\n\n".join(formatted_content)
 
 def format_specifications_tables(product_data, is_faq=False):
     try:
