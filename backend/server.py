@@ -145,30 +145,6 @@ def clean_product_query(product_name):
 # -------------------------------
 # PDF HANDLING (Uploaded PDFs)
 # -------------------------------
-def load_and_index_pdf(pdf_path):
-    try:
-        loader = PyPDFLoader(pdf_path)
-        documents = loader.load()
-        logger.info(f"Loaded {len(documents)} documents from PDF.")
-        
-        if not documents:
-            logger.error("No documents found in the uploaded PDF.")
-            raise HTTPException(status_code=400, detail="Uploaded PDF contains no valid text.")
-        
-        text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
-        texts = text_splitter.split_documents(documents)
-        
-        if not texts:
-            logger.error("Failed to split documents into chunks.")
-            raise HTTPException(status_code=400, detail="Failed to process PDF content.")
-        
-        embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-        vector_store = FAISS.from_documents(texts, embeddings)
-        return vector_store
-    except Exception as e:
-        logger.error(f"Error loading and indexing PDF: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to process PDF: {str(e)}")
-
 def retrieve_content(vector_store, query):
     try:
         docs = vector_store.similarity_search(query, k=5)
