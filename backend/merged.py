@@ -391,7 +391,7 @@ def get_motor_analytics(
     - Period: {analytics['period']['start']} to {analytics['period']['end']}
     Provide three concise insights in this format:
         Observation: [AI analysis]  
-        Insight: [What’s happening]  
+        Insight: [What's happening]  
         Recommendation: [What action to take]
     """
  
@@ -2136,9 +2136,23 @@ async def async_scrape_product_data(url: str, session: aiohttp.ClientSession) ->
         raise HTTPException(status_code=500, detail=f"Failed to scrape product data: {str(e)}")
 
 async def async_search_confluence(query: str, session: aiohttp.ClientSession) -> str:
-    """Async version of search_confluence"""
+    """
+    Asynchronously search Confluence for content matching the query.
+    
+    Args:
+        query (str): Search query string
+        session (aiohttp.ClientSession): Active aiohttp session
+        
+    Returns:
+        str: Combined content from matching Confluence pages
+        
+    Raises:
+        HTTPException: If API request fails or content processing fails
+    """
     try:
         logger.info(f"Starting async Confluence search for query: '{query}'")
+        
+        # Build request parameters
         url = f"{CONFLUENCE_BASE_URL}/rest/api/content/search"
         normalized_query = normalize_text(query)
         cql_query = f'(text ~ "{normalized_query}") AND type = page'
@@ -2147,28 +2161,122 @@ async def async_search_confluence(query: str, session: aiohttp.ClientSession) ->
             "expand": "body.storage,space,version",
             "limit": 10
         }
-        # Convert requests.auth.HTTPBasicAuth to aiohttp's BasicAuth
         auth = aiohttp.BasicAuth(login=CONFLUENCE_USERNAME, password=CONFLUENCE_API_TOKEN)
         
-        logger.info(f"Making async Confluence API request with CQL query: {cql_query}")
-        logger.info(f"Using Confluence URL: {url}")
-        logger.info(f"Using Confluence credentials - Username: {CONFLUENCE_USERNAME}, Token: {'*' * len(CONFLUENCE_API_TOKEN)}")
+        # Add timeout and retry logic
+        timeout = aiohttp.ClientTimeout(total=30)
+        max_retries = 3
+        retry_delay = 1
         
-        async with session.get(url, params=params, auth=auth, verify_ssl=False) as response:
-            logger.info(f"Async Confluence API response status code: {response.status}")
-            response.raise_for_status()
-            results = await response.json()
-            
+        for attempt in range(max_retries):
+            try:
+                async with session.get(
+                    url, 
+                    params=params, 
+                    auth=auth, 
+                    verify_ssl=False,
+                    timeout=timeout
+                ) as response:
+                    if response.status == 429:  # Rate limit
+                        retry_after = int(response.headers.get('Retry-After', retry_delay))
+                        logger.warning(f"Rate limited, waiting {retry_after} seconds")
+                        await asyncio.sleep(retry_after)
+                        continue
+                        
+                    response.raise_for_status()
+                    results = await response.json()
+                    break  # Success, exit retry loop
+                    
+            except asyncio.TimeoutError:
+                if attempt == max_retries - 1:
+                    raise HTTPException(
+                        status_code=504,
+                        detail="Confluence API request timed out"
+                    )
+                logger.warning(f"Request timeout, attempt {attempt + 1}/{max_retries}")
+                await asyncio.sleep(retry_delay)
+                continue
+                
+            except aiohttp.ClientError as e:
+                if attempt == max_retries - 1:
+                    raise HTTPException(
+                        status_code=502,
+                        detail=f"Confluence API request failed: {str(e)}"
+                    )
+                logger.warning(f"Request failed, attempt {attempt + 1}/{max_retries}: {str(e)}")
+                await asyncio.sleep(retry_delay)
+                continue
+        
+        # Process results
         pages = results.get("results", [])
-        logger.info(f"Retrieved {len(pages)} pages from async Confluence search")
+        if not pages:
+            logger.info(f"No Confluence pages found for query: {query}")
+            return ""
+            
+        logger.info(f"Retrieved {len(pages)} pages from Confluence search")
         
-        content = extract_confluence_content(pages, query)
-        logger.info(f"Processed Confluence content length: {len(content)} characters")
-        return content
+        # Process pages in parallel
+        tasks = []
+        for page in pages:
+            tasks.append(process_confluence_page(page))
+        
+        processed_contents = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # Filter out errors and combine content
+        valid_contents = []
+        for content in processed_contents:
+            if isinstance(content, Exception):
+                logger.error(f"Error processing page: {str(content)}")
+                continue
+            if content:
+                valid_contents.append(content)
+                
+        combined_content = "\n\n".join(valid_contents)
+        logger.info(f"Processed {len(valid_contents)} pages successfully")
+        
+        return combined_content
         
     except Exception as e:
-        logger.error(f"Error in async Confluence search: {str(e)}")
-        logger.error(f"Full traceback: {traceback.format_exc()}")
+        logger.error(f"Error in Confluence search: {str(e)}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Confluence search failed: {str(e)}"
+        )
+
+async def process_confluence_page(page: dict) -> str:
+    """Process a single Confluence page and extract relevant content."""
+    try:
+        page_title = page.get("title", "")
+        page_space = page.get("space", {}).get("name", "")
+        body = page.get("body", {}).get("storage", {}).get("value", "")
+        
+        if not body:
+            logger.warning(f"No content found in page: {page_title}")
+            return ""
+            
+        # Parse HTML content
+        soup = BeautifulSoup(body, 'html.parser')
+        
+        # Remove unwanted elements
+        for element in soup.find_all(['script', 'style', 'head']):
+            element.decompose()
+            
+        # Extract text content
+        text_content = soup.get_text(separator='\n', strip=True)
+        
+        # Format the content
+        formatted_content = f"""
+        Page: {page_title}
+        Space: {page_space}
+        Content:
+        {text_content}
+        """
+        
+        return formatted_content.strip()
+        
+    except Exception as e:
+        logger.error(f"Error processing page {page.get('title', 'Unknown')}: {str(e)}")
         return ""
 
 if __name__ == "__main__":
