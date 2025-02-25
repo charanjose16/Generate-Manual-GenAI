@@ -286,10 +286,10 @@ export default function UserManualGenerator() {
 
       setProgressMessage("Gathering information from sources...");
       // Simulate backend stages (since we can't get real-time backend updates without WebSocket)
-      await new Promise((resolve) => setTimeout(resolve, 1000)); // Simulate delay
+      await new Promise((resolve) => setTimeout(resolve, 10000)); // Simulate delay
 
       setProgressMessage("Generating manual content...");
-      await new Promise((resolve) => setTimeout(resolve, 1500)); // Simulate content generation
+      await new Promise((resolve) => setTimeout(resolve, 15000)); // Simulate content generation
 
       setProgressMessage("Creating PDF document...");
       const response = await axios.post(`${baseUrl}/api/generate-manual`, formData, {
@@ -334,10 +334,10 @@ export default function UserManualGenerator() {
       formData.append("language", language);
 
       setProgressMessage("Gathering information from sources...");
-      await new Promise((resolve) => setTimeout(resolve, 1000)); // Simulate delay
+      await new Promise((resolve) => setTimeout(resolve, 10000)); // Simulate delay
 
       setProgressMessage("Generating FAQ content...");
-      await new Promise((resolve) => setTimeout(resolve, 1500)); // Simulate content generation
+      await new Promise((resolve) => setTimeout(resolve, 15000)); // Simulate content generation
 
       setProgressMessage("Creating PDF document...");
       const response = await axios.post(`${baseUrl}/api/generate-faq`, formData, {

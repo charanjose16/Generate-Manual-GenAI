@@ -45,6 +45,7 @@ from functools import partial, lru_cache
 import aiohttp
 from aiohttp import  BasicAuth,ClientTimeout
 
+
 # Disable warnings and configure logging
 urllib3.disable_warnings()
 warnings.simplefilter('ignore', InsecureRequestWarning)

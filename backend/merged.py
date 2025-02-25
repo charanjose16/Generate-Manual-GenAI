@@ -21,6 +21,7 @@ from functools import partial, lru_cache
 from concurrent.futures import ThreadPoolExecutor
 from requests.auth import HTTPBasicAuth
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
+import concurrent.futures
 
 # FastAPI
 from fastapi import FastAPI, Query, HTTPException, File, UploadFile, Form
