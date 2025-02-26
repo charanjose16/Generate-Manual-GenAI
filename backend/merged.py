@@ -15,6 +15,7 @@ import base64
 import urllib.parse
 import urllib3
 import uuid
+import io
 from io import BytesIO
 from datetime import datetime
 from functools import partial, lru_cache
