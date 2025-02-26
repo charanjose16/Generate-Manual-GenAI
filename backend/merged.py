@@ -1,4 +1,6 @@
+# ---------------------------
 # Standard Library Imports
+# ---------------------------
 import os
 import re
 import json
@@ -10,56 +12,106 @@ import tempfile
 import warnings
 import traceback
 import base64
+import urllib.parse
+import urllib3
 import uuid
 from io import BytesIO
 from datetime import datetime
-from functools import lru_cache
+from functools import partial, lru_cache
 from concurrent.futures import ThreadPoolExecutor
+import concurrent.futures
 
+# ---------------------------
 # Third-Party Libraries
+# ---------------------------
+from dateutil.relativedelta import relativedelta
+from typing import Any, Dict, List, Optional, Tuple
+
+# Requests & HTTP
 import requests
 from requests.auth import HTTPBasicAuth
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
 
+# ---------------------------
 # FastAPI Imports
-from fastapi import FastAPI, Query, HTTPException, File, UploadFile, Form, BackgroundTasks, WebSocket
-from fastapi.responses import JSONResponse, FileResponse
+# ---------------------------
+from fastapi import (
+    FastAPI,
+    Query,
+    HTTPException,
+    File,
+    UploadFile,
+    Form,
+    BackgroundTasks,
+    WebSocket,
+    WebSocketDisconnect
+)
+from fastapi.responses import StreamingResponse, JSONResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 
+# ---------------------------
 # Data Processing
+# ---------------------------
 import pandas as pd
 import numpy as np
 from bs4 import BeautifulSoup
 
+# ---------------------------
 # NLP & Machine Learning
+# ---------------------------
 import dspy
+from dspy import InputField, OutputField, Signature, Predict
 from sentence_transformers import SentenceTransformer
 from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
 from langchain_community.document_loaders import PyPDFLoader
 import faiss
 
+# ---------------------------
 # PDF & Document Processing
-from PyPDF2 import PdfReader  
-from docx import Document
+# ---------------------------
+import PyPDF2
+from PyPDF2 import PdfReader  # For PDF text extraction
+from docx2pdf import convert
+from docx import Document 
 from fpdf import FPDF
 from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table
-from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.platypus import (
+    SimpleDocTemplate,
+    Paragraph,
+    Spacer,
+    PageBreak,
+    Table,
+    TableStyle,
+    Frame,
+    PageTemplate
+)
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import inch
 from reportlab.lib import colors
+from reportlab.lib.utils import ImageReader
 
+# ---------------------------
 # Cloud & Storage
+# ---------------------------
 from azure.storage.blob import BlobServiceClient
 
+# ---------------------------
 # Async Networking
+# ---------------------------
 import aiohttp
-from aiohttp import ClientTimeout
+from aiohttp import BasicAuth, ClientTimeout
 
+# ---------------------------
 # Environment & Utility Imports
+# ---------------------------
 from dotenv import load_dotenv
 from werkzeug.utils import secure_filename
 
-# Pydantic
+# ---------------------------
+# Pydantic Import (Added)
+# ---------------------------
 from pydantic import BaseModel
 
 # UseCase 1
