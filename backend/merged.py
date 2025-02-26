@@ -115,14 +115,12 @@ from werkzeug.utils import secure_filename
 # ---------------------------
 from pydantic import BaseModel
 
-# UseCase 1
-
-# Configure logging
+# Configure logging and load environment variables
 logging.basicConfig(level=logging.INFO)
 load_dotenv()
- 
+
 app = FastAPI()
- 
+
 # Enable CORS for local development
 app.add_middleware(
     CORSMiddleware,
@@ -132,8 +130,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
  
+
+###########################################
+# Global in-memory stores for progress messages and generated PDFs.
+###########################################
+progress_store: dict[str, list[str]] = {}
+pdf_store: dict[str, BytesIO] = {}
+
+class SpecInput(BaseModel):
+    product_name: str
+    specs: dict
+
+
+
 # Path to the CSV file
-file_path = r"C:\Final Regal Rex Nord\Backend\dataset.csv"
+file_path = r"C:\Users\286194\Downloads\Final Regal Rex Nord - combined\Final Regal Rex Nord - combined\Backend\dataset.csv"
  
 #############################################
 # DSPy Setup for Extended Maintenance Insight Module
@@ -672,7 +683,6 @@ def get_temp_vs_vibration(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
 # UseCase 2
 
 # Disable warnings and configure logging
@@ -681,9 +691,6 @@ warnings.simplefilter('ignore', InsecureRequestWarning)
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
-
-# Load environment variables
-load_dotenv()
 
 # Set SSL certificate paths if needed
 CERTIFICATE_PATH = os.path.join(os.path.dirname(__file__), "huggingface.co.crt")
@@ -1044,7 +1051,7 @@ class RAGSystem:
         )
         self.container_client = self.blob_service_client.get_container_client(container_name)
         logger.info(f"Connected to Azure Blob Storage container: {container_name}")
-        self.embeddings = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
+        self.embeddings = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
         self.index = FAISSIndex()
         self.document_processor = DocumentProcessor()
         from openai import AzureOpenAI
@@ -1348,22 +1355,23 @@ def generate_pdf(product_data, content, is_faq=False):
             36,  # Y position (36 points from the bottom)
             text
             )
+            logger.info(f"Drawing page number {page_num} at y=18")
             canvas.restoreState()
-                
+
         # Create a frame for the page content
         frame = Frame(
-        doc.leftMargin,
-        doc.bottomMargin,
-        doc.width,
-        doc.height,
-        id='normal'
+            doc.leftMargin,
+            doc.bottomMargin+40,
+            doc.width,
+            doc.height-40,
+            id='normal'
         )
 
         # Create a PageTemplate with the frame and the `add_page_number` function
         template = PageTemplate(
-        id='page_template',
-        frames=[frame],
-        onPage=add_page_number  # Add the page number function here
+            id='page_template',
+            frames=[frame],
+            onPage=add_page_number  # Add the page number function here
         )
 
         # Add the PageTemplate to the document
@@ -1460,7 +1468,8 @@ def generate_pdf(product_data, content, is_faq=False):
             clean_section = clean_content(section)
             elements.append(Paragraph(clean_section, heading1_style))
             elements.append(Spacer(1, 0.1 * inch))
-            
+
+
             # Handle specifications tables without creating blank pages
             if "specifications" in section.lower():
                 tables = format_specifications_tables(product_data, is_faq)
@@ -1632,31 +1641,26 @@ def format_specifications_tables(product_data, is_faq=False):
     try:
         tables = []
         styles = getSampleStyleSheet()
+        language = product_data.get("language", "en")  # Default to English if not provided
+        language_texts = get_language_texts(language)
         
         header_style = styles['Heading4']
         header_style.fontName = 'Helvetica-Bold'
         header_style.fontSize = 12
-        # Only use blue for headers in manuals, not FAQs
-        if not is_faq:
-            header_style.textColor = colors.HexColor('#1e40af')
-        else:
-            header_style.textColor = colors.black
+        header_style.textColor = colors.HexColor('#1e40af') if not is_faq else colors.black
         
         scraped_data = product_data.get("scraped_data", {})
         
-        # Technical Specifications Table - NO PAGE BREAK
+        # Technical Specifications
         if tech_specs := scraped_data.get('technical_specifications', {}):
-            tables.append(Paragraph("Technical Specifications", header_style))
+            tables.append(Paragraph(language_texts["technical_specifications"], header_style))
             tables.append(Spacer(1, 0.1 * inch))
             
-            # Define header color based on doc type
             header_bg_color = colors.HexColor('#e6efff') if not is_faq else colors.HexColor('#f5f5f5')
             header_text_color = colors.HexColor('#1e40af') if not is_faq else colors.black
             
-            # Guard against empty data for ALL languages
-            data = [["Specification", "Value"]]
+            data = [[language_texts["specification"], language_texts["value"]]]  # Translated headers
             for key, value in tech_specs.items():
-                # Convert value to string to ensure it works in all languages
                 data.append([str(key), str(value) if value is not None else ""])
             
             if len(data) > 1:
@@ -1675,101 +1679,27 @@ def format_specifications_tables(product_data, is_faq=False):
                     ('RIGHTPADDING', (0, 0), (-1, -1), 10),
                 ]))
                 tables.append(table)
-            else:
-                # Fallback for empty data - still show a table
-                fallback_data = [["Specification", "Value"], ["Not available", "Not available"]]
-                fallback_table = Table(fallback_data, colWidths=[250, 250])
-                fallback_table.setStyle(TableStyle([
-                    ('BACKGROUND', (0, 0), (-1, 0), header_bg_color),
-                    ('TEXTCOLOR', (0, 0), (-1, 0), header_text_color),
-                    ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                    ('FONTSIZE', (0, 0), (-1, 0), 12),
-                    ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
-                    ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#e2e8f0')),
-                    ('BOX', (0, 0), (-1, -1), 2, colors.HexColor('#cbd5e1')),
-                    ('LEFTPADDING', (0, 0), (-1, -1), 10),
-                    ('RIGHTPADDING', (0, 0), (-1, -1), 10),
-                ]))
-                tables.append(fallback_table)
         
-        # General Specifications Table - NO PAGE BREAK
+        # General Specifications (similar updates)
         if gen_specs := scraped_data.get('general_specifications', {}):
-            tables.append(Spacer(1, 0.5 * inch))  # Just add spacing instead of page break
-            tables.append(Paragraph("General Specifications", header_style))
+            tables.append(Spacer(1, 0.5 * inch))
+            tables.append(Paragraph(language_texts["general_specifications"], header_style))
             tables.append(Spacer(1, 0.1 * inch))
             
-            # Define header color based on doc type
-            header_bg_color = colors.HexColor('#e6efff') if not is_faq else colors.HexColor('#f5f5f5') 
-            header_text_color = colors.HexColor('#1e40af') if not is_faq else colors.black
-            
-            # Guard against empty data for ALL languages
-            data = [["Specification", "Value"]]
+            data = [[language_texts["specification"], language_texts["value"]]]
             for key, value in gen_specs.items():
-                # Convert value to string to ensure it works in all languages
                 data.append([str(key), str(value) if value is not None else ""])
             
             if len(data) > 1:
                 table = Table(data, colWidths=[250, 250])
-                table.setStyle(TableStyle([
-                    ('BACKGROUND', (0, 0), (-1, 0), header_bg_color),
-                    ('TEXTCOLOR', (0, 0), (-1, 0), header_text_color),
-                    ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                    ('FONTSIZE', (0, 0), (-1, 0), 12),
-                    ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
-                    ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#e2e8f0')),
-                    ('BOX', (0, 0), (-1, -1), 2, colors.HexColor('#cbd5e1')),
-                    ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8fafc')]),
-                    ('LEFTPADDING', (0, 0), (-1, -1), 10),
-                    ('RIGHTPADDING', (0, 0), (-1, -1), 10),
-                ]))
+                table.setStyle(TableStyle([...]))  # Same styling as above
                 tables.append(table)
-            else:
-                # Fallback for empty data - still show a table
-                fallback_data = [["Specification", "Value"], ["Not available", "Not available"]]
-                fallback_table = Table(fallback_data, colWidths=[250, 250])
-                fallback_table.setStyle(TableStyle([
-                    ('BACKGROUND', (0, 0), (-1, 0), header_bg_color),
-                    ('TEXTCOLOR', (0, 0), (-1, 0), header_text_color),
-                    ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                    ('FONTSIZE', (0, 0), (-1, 0), 12),
-                    ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
-                    ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#e2e8f0')),
-                    ('BOX', (0, 0), (-1, -1), 2, colors.HexColor('#cbd5e1')),
-                    ('LEFTPADDING', (0, 0), (-1, -1), 10),
-                    ('RIGHTPADDING', (0, 0), (-1, -1), 10),
-                ]))
-                tables.append(fallback_table)
         
-        return tables
+        return tables if tables else None
     except Exception as e:
         logger.error(f"Error formatting specification tables: {str(e)}")
-        # Return a fallback empty table rather than empty list
-        styles = getSampleStyleSheet()
-        header_style = styles['Heading4']
-        header_style.fontName = 'Helvetica-Bold'
-        header_style.fontSize = 12
-        header_style.textColor = colors.black if is_faq else colors.HexColor('#1e40af')
-        
-        fallback = []
-        fallback.append(Paragraph("Technical Specifications", header_style))
-        fallback.append(Spacer(1, 0.1 * inch))
-        
-        fallback_data = [["Specification", "Value"], ["Error loading data", "Please try again"]]
-        table = Table(fallback_data, colWidths=[250, 250])
-        table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#f5f5f5') if is_faq else colors.HexColor('#e6efff')),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.black if is_faq else colors.HexColor('#1e40af')),
-            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#e2e8f0')),
-        ]))
-        fallback.append(table)
-        return fallback
-
-# Add this function outside of any other function
+        return None
+    
 def run_generate_content(section_title: str, prompt: str, language: str) -> Tuple[str, str]:
     """Generate content for a specific section."""
     try:
@@ -2333,7 +2263,7 @@ async def process_confluence_page(page: dict) -> str:
         logger.error(f"Error processing page {page.get('title', 'Unknown')}: {str(e)}")
         return ""
 
-# UseCase 3
+#usecase3
 
 # Get default ReportLab styles and update "Bullet" style if needed.
 STYLES = getSampleStyleSheet()
@@ -2421,7 +2351,7 @@ def add_decorations(canvas, doc):
         canvas.rect(border_margin, border_margin, page_width - 2 * border_margin, page_height - 2 * border_margin)
         
         # Load and position logo (scaled to 1/3 inch width).
-        logo_path = r"C:\UseCase 3\usecase-3\backend\ust-logo.png"
+        logo_path = r"C:\Users\286194\Downloads\Final Regal Rex Nord - combined\Final Regal Rex Nord - combined\Backend\ust-logo.png"
         logo = ImageReader(logo_path)
         orig_width, orig_height = logo.getSize()
         logo_width = (1.0 / 3.0) * inch
@@ -2479,7 +2409,7 @@ def convert_markdown_to_html(text: str) -> str:
 
 ###########################################
 # Helper: Parse and Clean Section Content
-###########################################
+##########################################
 def parse_section_content(section_content: str) -> tuple[str, list[str]]:
     """
     Splits a section's content into detailed text and a bullet list.
@@ -2539,40 +2469,33 @@ def format_detailed_text(detailed_text: str) -> list:
 ###########################################
 def get_product_spec_prompts(product_category: str, product_details: str, custom_template: str = None) -> dict:
     """
-    Build a dictionary of prompts that always includes the default sections first,
-    followed by any custom sections if provided. Each prompt instructs the model
-    to include a bullet summary under a 'Key Points:' marker.
+    Generate prompts for each section heading provided in custom_template.
+    
+    Args:
+        product_category (str): The category of the product (e.g., "Smart Thermostat").
+        product_details (str): Details about the product (e.g., "Wi-Fi-enabled thermostat...").
+        custom_template (str, optional): Sections from frontend, separated by newlines.
+    
+    Returns:
+        dict: Mapping of numbered section headings to their full prompts.
     """
-    context = f"Product Category: {product_category}\nProduct Details: {product_details}\n\n"
-    
-    # Default sections - these will always be included first
-    prompts = {
-        "1. Customer & Market Needs": f"{context}Task: Provide a detailed analysis of customer and market needs for {product_category}. Please include a bullet summary under 'Key Points:' at the end.",
-        "2. Product Performance & Specifications": f"{context}Task: Describe performance metrics and technical specifications for the product. Please include a bullet summary under 'Key Points:' at the end.",
-        "3. Technological Innovations": f"{context}Task: Outline technological innovations (e.g., smart sensors, variable speed control) for the product. Please include a bullet summary under 'Key Points:' at the end.",
-        "4. Manufacturing & Feasibility": f"{context}Task: Detail the manufacturing process, feasibility, and quality control measures. Please include a bullet summary under 'Key Points:' at the end.",
-        "5. Compliance & Safety Standards": f"{context}Task: List and explain the compliance and safety standards (e.g., ISO, CE, RoHS) for the product. Please include a bullet summary under 'Key Points:' at the end."
-    }
-    
-    # Add custom sections if provided, starting from section 6
+    prompts = {}
     if custom_template and custom_template.strip():
-        section_number = 6
-        for line in custom_template.splitlines():
+        sections = custom_template.splitlines()
+        for i, line in enumerate(sections, start=1):
             line = line.strip()
             if not line:
                 continue
-            
             if ':' in line:
                 heading, prompt_text = map(str.strip, line.split(':', 1))
             else:
                 heading = line
                 prompt_text = f"Provide detailed information on {heading}."
-            
-            # Add numbered custom section
-            numbered_heading = f"{section_number}. {heading}"
-            prompts[numbered_heading] = f"{context}Task: {prompt_text} Please include a bullet summary under 'Key Points:' at the end."
-            section_number += 1
-    
+            # Remove any leading numbers from the heading
+            heading = re.sub(r'^\d+\.\s*', '', heading)
+            numbered_heading = f"{i}. {heading}"
+            context = f"Product Category: {product_category}\nProduct Details: {product_details}\n\n"
+            prompts[numbered_heading] = f"{context}Task: {prompt_text} Include a bullet summary under 'Key Points:' at the end."
     return prompts
 
 ###########################################

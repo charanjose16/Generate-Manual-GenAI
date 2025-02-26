@@ -47,7 +47,7 @@ const Sidebar = ({ activeView, setActiveView }) => {
   );
 };
 
-// AddTemplate Component
+// Updated AddTemplate Component with toggle for Upload and Customize modes
 const AddTemplate = ({ setSavedTemplate, setActiveView }) => {
   const predefinedTemplate = `1. Customer & Market Needs
 2. Product Performance & Specifications
@@ -55,9 +55,22 @@ const AddTemplate = ({ setSavedTemplate, setActiveView }) => {
 4. Manufacturing & Feasibility
 5. Compliance & Safety Standards`;
 
+  // New state for toggle mode: "upload" or "customize"
+  const [templateMode, setTemplateMode] = useState("upload");
   const [customTemplate, setCustomTemplate] = useState("");
   const [fileName, setFileName] = useState("");
   const [isEditing, setIsEditing] = useState(false);
+
+  // States for customize mode:
+  const predefinedSections = [
+    "Customer & Market Needs",
+    "Product Performance & Specifications",
+    "Technological Innovations",
+    "Manufacturing & Feasibility",
+    "Compliance & Safety Standards",
+  ];
+  const [selectedSections, setSelectedSections] = useState([]);
+  const [extraCustom, setExtraCustom] = useState("");
 
   // Load saved template from localStorage
   useEffect(() => {
@@ -68,11 +81,16 @@ const AddTemplate = ({ setSavedTemplate, setActiveView }) => {
     }
   }, [setSavedTemplate]);
 
+  // Toggle handler for switching modes
+  const handleToggle = (mode) => {
+    setTemplateMode(mode);
+    setIsEditing(false);
+  };
+
+  // File upload handler (upload mode)
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
-
-    // Allow TXT, DOC, DOCX, and PDF files
     const allowedTypes = [
       "text/plain",
       "application/msword",
@@ -84,9 +102,7 @@ const AddTemplate = ({ setSavedTemplate, setActiveView }) => {
       return;
     }
     setFileName(file.name);
-
     if (file.type === "application/pdf") {
-      // For PDFs, use the backend extraction endpoint
       const formData = new FormData();
       formData.append("template_file", file);
       fetch(`${BASE_URL}/api/extract-pdf-text`, {
@@ -105,7 +121,6 @@ const AddTemplate = ({ setSavedTemplate, setActiveView }) => {
           alert("Failed to extract text from PDF.");
         });
     } else {
-      // For TXT, DOC, or DOCX files, use FileReader
       const reader = new FileReader();
       reader.onload = (event) => {
         const content = event.target.result;
@@ -116,6 +131,33 @@ const AddTemplate = ({ setSavedTemplate, setActiveView }) => {
       };
       reader.readAsText(file);
     }
+  };
+
+  // Customize mode: add a section if not already added
+  const handleAddSection = (section) => {
+    if (!selectedSections.includes(section)) {
+      setSelectedSections([...selectedSections, section]);
+    }
+  };
+
+  // Remove section from customize mode
+  const handleRemoveSection = (section) => {
+    setSelectedSections(selectedSections.filter((s) => s !== section));
+  };
+
+  // Save customize mode: combine selected sections and extra custom content
+  const handleCustomizeSave = (e) => {
+    e.preventDefault();
+    const combinedTemplate = [
+      ...selectedSections,
+      extraCustom.trim() ? extraCustom.trim() : null,
+    ]
+      .filter(Boolean)
+      .join("\n");
+    setCustomTemplate(combinedTemplate);
+    localStorage.setItem("savedTemplate", combinedTemplate);
+    setSavedTemplate(combinedTemplate);
+    setIsEditing(false);
   };
 
   const handleEditClick = () => {
@@ -147,7 +189,6 @@ const AddTemplate = ({ setSavedTemplate, setActiveView }) => {
             </button>
           )}
         </div>
-        {/* Template Card */}
         <div className="bg-white shadow rounded-lg overflow-hidden min-h-[70vh]">
           <div className="border-b border-gray-200 px-6 py-4">
             <h2 className="text-lg font-medium text-gray-800">
@@ -155,101 +196,183 @@ const AddTemplate = ({ setSavedTemplate, setActiveView }) => {
             </h2>
           </div>
           <div className="px-6 py-5 min-h-[calc(100vh-200px)] overflow-auto">
-            {/* Predefined Template */}
-            <div className="mb-6">
-              <h3 className="text-md font-medium text-gray-700 mb-3 flex items-center">
-                <span className="bg-gray-200 text-gray-600 rounded-full w-6 h-6 inline-flex items-center justify-center mr-2 text-sm">
-                  1
-                </span>
-                Predefined Template
-              </h3>
-              <div className="p-4 border rounded bg-gray-50 text-gray-800 whitespace-pre-wrap">
-                {predefinedTemplate}
-              </div>
+            {/* Toggle Buttons */}
+            <div className="flex space-x-4 mb-6">
+              <button
+                onClick={() => handleToggle("upload")}
+                className={`px-4 py-2 rounded ${
+                  templateMode === "upload"
+                    ? "bg-teal-300 text-black"
+                    : "bg-gray-200 text-gray-700"
+                }`}
+              >
+                Upload Template
+              </button>
+              <button
+                onClick={() => handleToggle("customize")}
+                className={`px-4 py-2 rounded ${
+                  templateMode === "customize"
+                    ? "bg-teal-300 text-black"
+                    : "bg-gray-200 text-gray-700"
+                }`}
+              >
+                Customize Template
+              </button>
             </div>
-            {/* Custom Template */}
-            <div>
-              <h3 className="text-md font-medium text-gray-700 mb-3 flex items-center">
-                <span className="bg-gray-200 text-gray-600 rounded-full w-6 h-6 inline-flex items-center justify-center mr-2 text-sm">
-                  2
-                </span>
-                Custom Template
-              </h3>
-              {customTemplate && !isEditing ? (
-                <div className="mb-4">
-                  <div className="p-4 border rounded bg-gray-50 text-gray-800 whitespace-pre-wrap mb-3">
-                    {customTemplate}
+
+            {templateMode === "upload" ? (
+              // Upload mode UI
+              <div className="mb-4">
+                {!isEditing && (
+                  <div className="bg-gray-50 p-4 border rounded">
+                    <div className="mb-3">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Upload Template File
+                      </label>
+                      <div className="mt-1 flex items-center">
+                        <label className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer transition-colors">
+                          <FaUpload className="mr-2 text-teal-500" /> Browse Files
+                          <input
+                            type="file"
+                            accept=".txt, .doc, .docx, .pdf"
+                            onChange={handleFileUpload}
+                            className="sr-only"
+                          />
+                        </label>
+                        <span className="ml-3 text-sm text-gray-500">
+                          {fileName || "No file selected"}
+                        </span>
+                      </div>
+                      <p className="mt-2 text-xs text-gray-500">
+                        Accepted formats: TXT, DOC, DOCX, PDF
+                      </p>
+                    </div>
                   </div>
+                )}
+              </div>
+            ) : (
+              // Customize mode UI
+              <div className="space-y-4">
+                <div className="mb-6">
+                  <h3 className="text-md font-medium text-gray-700 mb-3">
+                    Predefined Template Sections
+                  </h3>
+                  <div className="space-y-2">
+                    {predefinedSections.map((section, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between border p-2 rounded bg-gray-50"
+                      >
+                        <span>{section}</span>
+                        <button
+                          onClick={() => handleAddSection(section)}
+                          className="px-2 py-1 bg-teal-300 text-black rounded hover:bg-teal-400"
+                        >
+                          <FaPlus />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <h3 className="text-md font-medium text-gray-700 mb-3">
+                    Selected Sections
+                  </h3>
+                  {selectedSections.length > 0 ? (
+                    <ul className="list-disc pl-5 mb-4">
+                      {selectedSections.map((section, index) => (
+                        <li key={index} className="flex items-center">
+                          {section}
+                          <button
+                            onClick={() => handleRemoveSection(section)}
+                            className="ml-2 text-red-500"
+                          >
+                            <FaTimes />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-gray-500 mb-4">
+                      No sections selected yet.
+                    </p>
+                  )}
+                </div>
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Additional Custom Content
+                  </label>
+                  <textarea
+                    className="w-full p-3 border rounded-md shadow-sm focus:ring-2 focus:ring-teal-300 focus:border-teal-300 resize-none transition-colors"
+                    rows="4"
+                    value={extraCustom}
+                    onChange={(e) => setExtraCustom(e.target.value)}
+                    placeholder="Enter any additional custom content here..."
+                  ></textarea>
+                </div>
+                <div className="flex justify-end">
                   <button
-                    type="button"
-                    onClick={handleEditClick}
-                    className="inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-black bg-teal-300 hover:bg-teal-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 transition-colors"
+                    onClick={handleCustomizeSave}
+                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-black bg-teal-300 hover:bg-teal-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 transition-colors"
                   >
-                    <FaEdit className="mr-2 text-teal-500" /> Edit Custom Template
+                    <FaSave className="mr-2 text-teal-500" /> Save Template
                   </button>
                 </div>
-              ) : (
-                <div className="space-y-4">
-                  {!isEditing && (
-                    <div className="bg-gray-50 p-4 border rounded">
-                      <div className="mb-3">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Upload Template File
-                        </label>
-                        <div className="mt-1 flex items-center">
-                          <label className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer transition-colors">
-                            <FaUpload className="mr-2 text-teal-500" /> Browse Files
-                            <input
-                              type="file"
-                              accept=".txt, .doc, .docx, .pdf"
-                              onChange={handleFileUpload}
-                              className="sr-only"
-                            />
-                          </label>
-                          <span className="ml-3 text-sm text-gray-500">
-                            {fileName || "No file selected"}
-                          </span>
-                        </div>
-                        <p className="mt-2 text-xs text-gray-500">
-                          Accepted formats: TXT, DOC, DOCX, PDF
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                  {isEditing && (
-                    <form onSubmit={handleSave}>
-                      <div className="mb-3">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Edit Template Content
-                        </label>
-                        <textarea
-                          className="w-full p-3 border rounded-md shadow-sm focus:ring-2 focus:ring-teal-300 focus:border-teal-300 resize-none transition-colors"
-                          rows="8"
-                          value={customTemplate}
-                          onChange={(e) => setCustomTemplate(e.target.value)}
-                          placeholder="Enter custom template content here..."
-                        ></textarea>
-                      </div>
-                      <div className="flex justify-end">
-                        <button
-                          type="button"
-                          onClick={() => setIsEditing(false)}
-                          className="mr-3 inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 transition-colors"
-                        >
-                          <FaTimes className="mr-2 text-teal-500" /> Cancel
-                        </button>
-                        <button
-                          type="submit"
-                          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-black bg-teal-300 hover:bg-teal-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 transition-colors"
-                        >
-                          <FaSave className="mr-2 text-teal-500" /> Save Template
-                        </button>
-                      </div>
-                    </form>
-                  )}
+              </div>
+            )}
+
+            {/* Display Saved Template */}
+            {customTemplate && !isEditing && (
+              <div className="mt-6">
+                <h3 className="text-md font-medium text-gray-700 mb-3">
+                  Current Template
+                </h3>
+                <div className="p-4 border rounded bg-gray-50 text-gray-800 whitespace-pre-wrap mb-3">
+                  {customTemplate}
                 </div>
-              )}
-            </div>
+                <button
+                  type="button"
+                  onClick={handleEditClick}
+                  className="inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-black bg-teal-300 hover:bg-teal-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 transition-colors"
+                >
+                  <FaEdit className="mr-2 text-teal-500" /> Edit Template
+                </button>
+              </div>
+            )}
+
+            {isEditing && (
+              <div className="space-y-4">
+                <form onSubmit={handleSave}>
+                  <div className="mb-3">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Edit Template Content
+                    </label>
+                    <textarea
+                      className="w-full p-3 border rounded-md shadow-sm focus:ring-2 focus:ring-teal-300 focus:border-teal-300 resize-none transition-colors"
+                      rows="8"
+                      value={customTemplate}
+                      onChange={(e) => setCustomTemplate(e.target.value)}
+                      placeholder="Enter template content here..."
+                    ></textarea>
+                  </div>
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setIsEditing(false)}
+                      className="mr-3 inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 transition-colors"
+                    >
+                      <FaTimes className="mr-2 text-teal-500" /> Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-black bg-teal-300 hover:bg-teal-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 transition-colors"
+                    >
+                      <FaSave className="mr-2 text-teal-500" /> Save Template
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -270,10 +393,8 @@ const Form = ({
   const [product, setProduct] = useState(() => {
     const savedProduct = localStorage.getItem("product");
     try {
-      // If it's a valid JSON object, parse it
       return savedProduct ? JSON.parse(savedProduct) : "";
     } catch (e) {
-      // If it's not a valid JSON, just return the string
       return savedProduct || "";
     }
   });
@@ -301,10 +422,12 @@ const Form = ({
   }, []);
 
   useEffect(() => {
-    // Fixed: Stringify the product object before storing
-    localStorage.setItem("product", typeof product === "object" && product !== null 
-      ? JSON.stringify(product) 
-      : product);
+    localStorage.setItem(
+      "product",
+      typeof product === "object" && product !== null
+        ? JSON.stringify(product)
+        : product
+    );
     localStorage.setItem("details", details);
     localStorage.setItem("savedTemplate", savedTemplate);
   }, [product, details, savedTemplate]);
@@ -315,7 +438,6 @@ const Form = ({
     setProgress("Initializing PDF generation...");
 
     const formData = new FormData();
-    // If product is an object, use its product_name; otherwise, send the string.
     formData.append(
       "product_category",
       typeof product === "object" && product !== null
@@ -341,7 +463,6 @@ const Form = ({
       const { job_id } = await response.json();
       setProgress("Job started...");
 
-      // Update WebSocket URL by replacing http with ws from BASE_URL
       const wsUrl = BASE_URL.replace("http", "ws");
       const ws = new WebSocket(`${wsUrl}/ws/progress/${job_id}`);
       ws.onmessage = (event) => {
