@@ -1366,7 +1366,7 @@ def generate_pdf(product_data, content, is_faq=False):
         onPage=add_page_number  # Add the page number function here
         )
 
-# Add the PageTemplate to the document
+        # Add the PageTemplate to the document
         doc.addPageTemplates([template])
         
         styles = getSampleStyleSheet()
@@ -1400,10 +1400,11 @@ def generate_pdf(product_data, content, is_faq=False):
         elements = []
         
         # Title page
+        language_texts = get_language_texts(product_data.get("language", "en"))
         if is_faq:
-            title_text = f"FAQs for {product_data['product_name']}"
+            title_text = f"{language_texts['faq_title']}"
         else:
-            title_text = f"User Manual for {product_data['product_name']}"
+            title_text = f"{language_texts['manual_title']}"
             
         elements.append(Paragraph(title_text, title_style))
         elements.append(Spacer(1, 0.25 * inch))
@@ -1412,7 +1413,7 @@ def generate_pdf(product_data, content, is_faq=False):
         
         # Create TOC with actual page numbers
         elements.append(Spacer(1, inch))
-        elements.append(Paragraph("Table of Contents", heading1_style))
+        elements.append(Paragraph(language_texts['table_of_contents'], heading1_style))
         
         # Store section start pages to properly build TOC
         section_starts = {}
@@ -1428,7 +1429,7 @@ def generate_pdf(product_data, content, is_faq=False):
             current_page += max(1, estimated_lines // 40)
         
         # Build TOC with page number references
-        toc_data = [["Section", "Page"]]
+        toc_data = [[language_texts['section'], language_texts['page']]]
         for section in content.keys():
             clean_section = clean_content(section)
             page_num = section_starts.get(section, "")
