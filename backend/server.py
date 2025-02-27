@@ -701,7 +701,6 @@ def generate_pdf(product_data, content, is_faq=False):
     try:
         buffer = BytesIO()
         
-        # Set up document with page numbers
         doc = SimpleDocTemplate(
             buffer,
             pagesize=letter,
@@ -711,25 +710,15 @@ def generate_pdf(product_data, content, is_faq=False):
             bottomMargin=72
         )
         
-        # Create a page template that includes page numbers
         def add_page_number(canvas, doc):
-            """
-            Add page numbers to the bottom of each page.
-            """
             canvas.saveState()
             page_num = canvas.getPageNumber()
             text = f"Page {page_num}"
             canvas.setFont('Helvetica', 10)
-            # Position at the bottom center of the page
-            canvas.drawCentredString(
-                doc.pagesize[0] / 2,  # X position (center of the page)
-                36,  # Y position (36 points from the bottom)
-                text
-            )
-            logger.info(f"Drawing page number {page_num} at y=36")  # Updated log message to match y-position
+            canvas.drawCentredString(doc.pagesize[0] / 2, 36, text)
+            logger.info(f"Drawing page number {page_num} at y=36")
             canvas.restoreState()
 
-        # Create a frame for the page content
         frame = Frame(
             doc.leftMargin,
             doc.bottomMargin + 40,
@@ -738,37 +727,25 @@ def generate_pdf(product_data, content, is_faq=False):
             id='normal'
         )
 
-        # Create a PageTemplate with the frame and the `add_page_number` function
-        template = PageTemplate(
-            id='page_template',
-            frames=[frame],
-            onPage=add_page_number  # Add the page number function here
-        )
-
-        # Add the PageTemplate to the document
+        template = PageTemplate(id='page_template', frames=[frame], onPage=add_page_number)
         doc.addPageTemplates([template])
         
         styles = getSampleStyleSheet()
         
-        # Create custom styles with conditional coloring for FAQs
         title_style = styles['Title']
         title_style.fontName = 'Helvetica-Bold'
         title_style.fontSize = 18
-        title_style.textColor = colors.HexColor('#1e40af')  # Always blue
+        title_style.textColor = colors.HexColor('#1e40af')
         
         heading1_style = styles['Heading1']
         heading1_style.fontName = 'Helvetica-Bold'
         heading1_style.fontSize = 16
-        heading1_style.textColor = colors.HexColor('#1e3a8a')  # Always blue for h1
+        heading1_style.textColor = colors.HexColor('#1e3a8a')
         
         heading2_style = styles['Heading2']
         heading2_style.fontName = 'Helvetica-Bold'
         heading2_style.fontSize = 14
-        # Only apply blue color for manuals, not FAQs
-        if not is_faq:
-            heading2_style.textColor = colors.HexColor('#2563eb')
-        else:
-            heading2_style.textColor = colors.black
+        heading2_style.textColor = colors.HexColor('#2563eb') if not is_faq else colors.black
         
         normal_style = styles['Normal']
         normal_style.fontName = 'Helvetica'
@@ -778,7 +755,6 @@ def generate_pdf(product_data, content, is_faq=False):
         
         elements = []
         
-        # Title page
         language_texts = get_language_texts(product_data.get("language", "en"))
         if is_faq:
             title_text = f"{language_texts['faq_title']}"
@@ -790,24 +766,18 @@ def generate_pdf(product_data, content, is_faq=False):
         elements.append(Paragraph(product_data['product_category'], styles['Heading3']))
         elements.append(Spacer(1, 0.5 * inch))
         
-        # Create TOC with actual page numbers
         elements.append(Spacer(1, inch))
         elements.append(Paragraph(language_texts['table_of_contents'], heading1_style))
         
-        # Store section start pages to properly build TOC
         section_starts = {}
-        current_page = 2  # Title + TOC typically take first page
+        current_page = 2
         
-        # Estimate section page starts (accounting for content length)
         for section, section_content in content.items():
             section_starts[section] = current_page
-            # Rough estimate of content pages based on text length
             paragraphs = clean_content(section_content).split('\n')
-            # Estimate 40 lines per page
-            estimated_lines = len(paragraphs) * 2  # Average 2 lines per paragraph
+            estimated_lines = len(paragraphs) * 2
             current_page += max(1, estimated_lines // 40)
         
-        # Build TOC with page number references
         toc_data = [[language_texts['section'], language_texts['page']]]
         for section in content.keys():
             clean_section = clean_content(section)
@@ -819,7 +789,7 @@ def generate_pdf(product_data, content, is_faq=False):
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1e40af')),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
             ('ALIGN', (0, 0), (0, -1), 'LEFT'),
-            ('ALIGN', (1, 0), (1, -1), 'CENTER'),  # Center align page numbers
+            ('ALIGN', (1, 0), (1, -1), 'CENTER'),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
             ('FONTSIZE', (0, 0), (-1, 0), 13),
             ('BOTTOMPADDING', (0, 0), (-1, 0), 15),
@@ -830,18 +800,14 @@ def generate_pdf(product_data, content, is_faq=False):
         ]))
         elements.append(toc_table)
         
-        # Content sections
         for section, section_content in content.items():
-            # Add page break before each section
             elements.append(PageBreak())
             
-            # Section heading
             clean_section = clean_content(section)
             elements.append(Paragraph(clean_section, heading1_style))
             elements.append(Spacer(1, 0.1 * inch))
 
-            # Handle specifications tables using translated section title
-            if section == language_texts["technical_specifications"]:  # Updated condition here
+            if section == language_texts["technical_specifications"]:
                 tables = format_specifications_tables(product_data, is_faq)
                 if tables:
                     for table in tables:
@@ -849,7 +815,6 @@ def generate_pdf(product_data, content, is_faq=False):
                         elements.append(Spacer(1, 0.2 * inch))
                     continue
             
-            # Format paragraphs
             paragraphs = clean_content(section_content).split('\n')
             for paragraph in paragraphs:
                 if paragraph.strip():
@@ -1058,58 +1023,31 @@ async def translate_specifications(specs: Dict[str, str], language: str) -> Dict
         return specs  # Fallback to original on error
 
 def format_specifications_tables(product_data, is_faq=False):
-    """
-    Format technical and general specifications into tables for a PDF document with translated content.
-
-    Args:
-        product_data (dict): Dictionary containing product information, including scraped data.
-        is_faq (bool): Flag indicating if the output is for an FAQ (affects styling).
-
-    Returns:
-        list: List of ReportLab flowables (Paragraphs, Spacers, Tables) or None if no tables are created.
-    """
     try:
         tables = []
         styles = getSampleStyleSheet()
         language = product_data.get("language", "en")
         language_texts = get_language_texts(language)
         
-        # Define header styles
-        main_header_style = styles['Heading3']  # For "Product Specifications"
-        main_header_style.fontName = 'Helvetica-Bold'
-        main_header_style.fontSize = 14
-        main_header_style.textColor = colors.HexColor('#1e40af') if not is_faq else colors.black
-        
-        sub_header_style = styles['Heading4']  # For Technical and General subheadings
+        sub_header_style = styles['Heading4']
         sub_header_style.fontName = 'Helvetica-Bold'
         sub_header_style.fontSize = 12
         sub_header_style.textColor = colors.HexColor('#1e40af') if not is_faq else colors.black
         
-        # Define table header colors based on is_faq
         header_bg_color = colors.HexColor('#e6efff') if not is_faq else colors.HexColor('#f5f5f5')
         header_text_color = colors.HexColor('#1e40af') if not is_faq else colors.black
         
         scraped_data = product_data.get("scraped_data", {})
         
-        # Add main "Product Specifications" heading only if there’s data to show
-        if scraped_data.get('technical_specifications') or scraped_data.get('general_specifications'):
-            tables.append(Paragraph(language_texts.get("product_specifications", "Product Specifications"), main_header_style))
-            tables.append(Spacer(1, 0.2 * inch))
-        
-        # Translate specifications if language is not English
         tech_specs = scraped_data.get('technical_specifications', {})
-        gen_specs = scraped_data.get('general_specifications', {})
         if language != "en":
-            # Since this is called in a ThreadPoolExecutor, run the async function synchronously
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             try:
                 tech_specs = loop.run_until_complete(translate_specifications(tech_specs, language))
-                gen_specs = loop.run_until_complete(translate_specifications(gen_specs, language))
             finally:
                 loop.close()
         
-        # Technical Specifications
         if tech_specs:
             logger.info(f"Formatting {len(tech_specs)} technical specifications")
             tables.append(Paragraph(language_texts["technical_specifications"], sub_header_style))
@@ -1138,7 +1076,15 @@ def format_specifications_tables(product_data, is_faq=False):
             else:
                 logger.warning("No valid technical specifications data to format")
         
-        # General Specifications
+        gen_specs = scraped_data.get('general_specifications', {})
+        if language != "en":
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                gen_specs = loop.run_until_complete(translate_specifications(gen_specs, language))
+            finally:
+                loop.close()
+        
         if gen_specs:
             logger.info(f"Formatting {len(gen_specs)} general specifications")
             tables.append(Spacer(1, 0.5 * inch))
@@ -1168,7 +1114,6 @@ def format_specifications_tables(product_data, is_faq=False):
             else:
                 logger.warning("No valid general specifications data to format")
         
-        # Return tables if any were created, otherwise None
         if tables:
             logger.info(f"Formatted {len(tables)} tables for specifications")
             return tables
