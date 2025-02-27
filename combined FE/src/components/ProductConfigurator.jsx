@@ -47,21 +47,21 @@ const Sidebar = ({ activeView, setActiveView }) => {
   );
 };
 
-// Updated AddTemplate Component with toggle for Upload and Customize modes
-const AddTemplate = ({ setSavedTemplate, setActiveView }) => {
+// Updated AddTemplate Component
+const AddTemplate = ({ products, setActiveView }) => {
   const predefinedTemplate = `1. Customer & Market Needs
 2. Product Performance & Specifications
 3. Technological Innovations
 4. Manufacturing & Feasibility
 5. Compliance & Safety Standards`;
 
-  // New state for toggle mode: "upload" or "customize"
   const [templateMode, setTemplateMode] = useState("upload");
   const [customTemplate, setCustomTemplate] = useState("");
   const [fileName, setFileName] = useState("");
   const [isEditing, setIsEditing] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState(null);
 
-  // States for customize mode:
+  // States for customize mode
   const predefinedSections = [
     "Customer & Market Needs",
     "Product Performance & Specifications",
@@ -72,25 +72,28 @@ const AddTemplate = ({ setSavedTemplate, setActiveView }) => {
   const [selectedSections, setSelectedSections] = useState([]);
   const [extraCustom, setExtraCustom] = useState("");
 
-  // Load saved template from localStorage
+  // Load template when product changes
   useEffect(() => {
-    const saved = localStorage.getItem("savedTemplate");
-    if (saved) {
-      setCustomTemplate(saved);
-      setSavedTemplate(saved);
+    if (selectedProduct) {
+      const productTemplates = JSON.parse(localStorage.getItem("productTemplates") || "{}");
+      const template = productTemplates[selectedProduct.product_name] || "";
+      setCustomTemplate(template);
+    } else {
+      setCustomTemplate("");
     }
-  }, [setSavedTemplate]);
+  }, [selectedProduct]);
 
-  // Toggle handler for switching modes
   const handleToggle = (mode) => {
     setTemplateMode(mode);
     setIsEditing(false);
   };
 
-  // File upload handler (upload mode)
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
-    if (!file) return;
+    if (!file || !selectedProduct) {
+      if (!selectedProduct) alert("Please select a product first.");
+      return;
+    }
     const allowedTypes = [
       "text/plain",
       "application/msword",
@@ -112,8 +115,9 @@ const AddTemplate = ({ setSavedTemplate, setActiveView }) => {
         .then((response) => response.json())
         .then((data) => {
           setCustomTemplate(data.extractedText);
-          localStorage.setItem("savedTemplate", data.extractedText);
-          setSavedTemplate(data.extractedText);
+          const productTemplates = JSON.parse(localStorage.getItem("productTemplates") || "{}");
+          productTemplates[selectedProduct.product_name] = data.extractedText;
+          localStorage.setItem("productTemplates", JSON.stringify(productTemplates));
           setIsEditing(false);
         })
         .catch((error) => {
@@ -125,29 +129,31 @@ const AddTemplate = ({ setSavedTemplate, setActiveView }) => {
       reader.onload = (event) => {
         const content = event.target.result;
         setCustomTemplate(content);
-        localStorage.setItem("savedTemplate", content);
-        setSavedTemplate(content);
+        const productTemplates = JSON.parse(localStorage.getItem("productTemplates") || "{}");
+        productTemplates[selectedProduct.product_name] = content;
+        localStorage.setItem("productTemplates", JSON.stringify(productTemplates));
         setIsEditing(false);
       };
       reader.readAsText(file);
     }
   };
 
-  // Customize mode: add a section if not already added
   const handleAddSection = (section) => {
     if (!selectedSections.includes(section)) {
       setSelectedSections([...selectedSections, section]);
     }
   };
 
-  // Remove section from customize mode
   const handleRemoveSection = (section) => {
     setSelectedSections(selectedSections.filter((s) => s !== section));
   };
 
-  // Save customize mode: combine selected sections and extra custom content
   const handleCustomizeSave = (e) => {
     e.preventDefault();
+    if (!selectedProduct) {
+      alert("Please select a product first.");
+      return;
+    }
     const combinedTemplate = [
       ...selectedSections,
       extraCustom.trim() ? extraCustom.trim() : null,
@@ -155,8 +161,9 @@ const AddTemplate = ({ setSavedTemplate, setActiveView }) => {
       .filter(Boolean)
       .join("\n");
     setCustomTemplate(combinedTemplate);
-    localStorage.setItem("savedTemplate", combinedTemplate);
-    setSavedTemplate(combinedTemplate);
+    const productTemplates = JSON.parse(localStorage.getItem("productTemplates") || "{}");
+    productTemplates[selectedProduct.product_name] = combinedTemplate;
+    localStorage.setItem("productTemplates", JSON.stringify(productTemplates));
     setIsEditing(false);
   };
 
@@ -166,28 +173,30 @@ const AddTemplate = ({ setSavedTemplate, setActiveView }) => {
 
   const handleSave = (e) => {
     e.preventDefault();
-    localStorage.setItem("savedTemplate", customTemplate);
-    setSavedTemplate(customTemplate);
+    if (!selectedProduct) {
+      alert("Please select a product first.");
+      return;
+    }
+    const productTemplates = JSON.parse(localStorage.getItem("productTemplates") || "{}");
+    productTemplates[selectedProduct.product_name] = customTemplate;
+    localStorage.setItem("productTemplates", JSON.stringify(productTemplates));
     setIsEditing(false);
   };
 
   const handleBackToForm = () => {
-    setActiveView && setActiveView("productConfiguration");
+    setActiveView("productConfiguration");
   };
 
   return (
     <div className="min-h-screen w-full bg-gray-100 overflow-auto">
       <div className="w-full px-4 py-6 sm:px-6 lg:px-8">
-        {/* Header with Back Button */}
         <div className="mb-6 flex items-center justify-between">
-          {setActiveView && (
-            <button
-              onClick={handleBackToForm}
-              className="flex items-center text-gray-600 hover:text-gray-900 transition-colors"
-            >
-              <FaArrowLeft className="mr-1 text-teal-500" /> Back
-            </button>
-          )}
+          <button
+            onClick={handleBackToForm}
+            className="flex items-center text-gray-600 hover:text-gray-900 transition-colors"
+          >
+            <FaArrowLeft className="mr-1 text-teal-500" /> Back
+          </button>
         </div>
         <div className="bg-white shadow rounded-lg overflow-hidden min-h-[70vh]">
           <div className="border-b border-gray-200 px-6 py-4">
@@ -196,182 +205,251 @@ const AddTemplate = ({ setSavedTemplate, setActiveView }) => {
             </h2>
           </div>
           <div className="px-6 py-5 min-h-[calc(100vh-200px)] overflow-auto">
-            {/* Toggle Buttons */}
-            <div className="flex space-x-4 mb-6">
-              <button
-                onClick={() => handleToggle("upload")}
-                className={`px-4 py-2 rounded ${
-                  templateMode === "upload"
-                    ? "bg-teal-300 text-black"
-                    : "bg-gray-200 text-gray-700"
-                }`}
-              >
-                Upload Template
-              </button>
-              <button
-                onClick={() => handleToggle("customize")}
-                className={`px-4 py-2 rounded ${
-                  templateMode === "customize"
-                    ? "bg-teal-300 text-black"
-                    : "bg-gray-200 text-gray-700"
-                }`}
-              >
-                Customize Template
-              </button>
+            {/* Product Selection Dropdown */}
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Select Product
+              </label>
+              <Listbox value={selectedProduct} onChange={setSelectedProduct}>
+                {({ open }) => (
+                  <div className="relative w-full">
+                    <Listbox.Button className="w-full bg-gray-200 text-black p-2 rounded-md border border-gray-300 focus:ring-2 focus:ring-teal-500 text-left">
+                      <span>
+                        {selectedProduct ? selectedProduct.product_name : "Select Product"}
+                      </span>
+                      <FaChevronDown
+                        className={`absolute right-3 top-2.5 text-black transition-transform duration-200 ${
+                          open ? "rotate-180" : ""
+                        }`}
+                      />
+                    </Listbox.Button>
+                    <Transition
+                      as={Fragment}
+                      leave="transition ease-in duration-100"
+                      leaveFrom="opacity-100"
+                      leaveTo="opacity-0"
+                    >
+                      <Listbox.Options className="absolute z-10 mt-1 w-full bg-gray-200 shadow-lg max-h-60 rounded-md py-1 text-base ring-1 ring-gray-300 overflow-auto focus:outline-none">
+                        {products.length > 0 ? (
+                          products.map((prod, index) => (
+                            <Listbox.Option
+                              key={index}
+                              value={prod}
+                              className={({ active }) =>
+                                `cursor-pointer select-none relative py-2 pl-10 pr-4 ${
+                                  active ? "bg-teal-300 text-black" : "text-black"
+                                }`
+                              }
+                            >
+                              {({ selected }) => (
+                                <>
+                                  <span
+                                    className={`block truncate ${
+                                      selected ? "font-medium" : "font-normal"
+                                    }`}
+                                  >
+                                    {prod.product_name}
+                                  </span>
+                                  {selected && (
+                                    <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-black">
+                                      <FaCheck className="w-5 h-5" />
+                                    </span>
+                                  )}
+                                </>
+                              )}
+                            </Listbox.Option>
+                          ))
+                        ) : (
+                          <div className="py-2 px-3 text-gray-500">Loading products...</div>
+                        )}
+                      </Listbox.Options>
+                    </Transition>
+                  </div>
+                )}
+              </Listbox>
             </div>
 
-            {templateMode === "upload" ? (
-              // Upload mode UI
-              <div className="mb-4">
-                {!isEditing && (
-                  <div className="bg-gray-50 p-4 border rounded">
-                    <div className="mb-3">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Upload Template File
-                      </label>
-                      <div className="mt-1 flex items-center">
-                        <label className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer transition-colors">
-                          <FaUpload className="mr-2 text-teal-500" /> Browse Files
-                          <input
-                            type="file"
-                            accept=".txt, .doc, .docx, .pdf"
-                            onChange={handleFileUpload}
-                            className="sr-only"
-                          />
-                        </label>
-                        <span className="ml-3 text-sm text-gray-500">
-                          {fileName || "No file selected"}
-                        </span>
+            {/* Template Configuration (Only if Product is Selected) */}
+            {selectedProduct ? (
+              <>
+                <div className="flex space-x-4 mb-6">
+                  <button
+                    onClick={() => handleToggle("upload")}
+                    className={`px-4 py-2 rounded ${
+                      templateMode === "upload"
+                        ? "bg-teal-300 text-black"
+                        : "bg-gray-200 text-gray-700"
+                    }`}
+                  >
+                    Upload Template
+                  </button>
+                  <button
+                    onClick={() => handleToggle("customize")}
+                    className={`px-4 py-2 rounded ${
+                      templateMode === "customize"
+                        ? "bg-teal-300 text-black"
+                        : "bg-gray-200 text-gray-700"
+                    }`}
+                  >
+                    Customize Template
+                  </button>
+                </div>
+
+                {templateMode === "upload" ? (
+                  <div className="mb-4">
+                    {!isEditing && (
+                      <div className="bg-gray-50 p-4 border rounded">
+                        <div className="mb-3">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Upload Template File
+                          </label>
+                          <div className="mt-1 flex items-center">
+                            <label className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer transition-colors">
+                              <FaUpload className="mr-2 text-teal-500" /> Browse Files
+                              <input
+                                type="file"
+                                accept=".txt, .doc, .docx, .pdf"
+                                onChange={handleFileUpload}
+                                className="sr-only"
+                              />
+                            </label>
+                            <span className="ml-3 text-sm text-gray-500">
+                              {fileName || "No file selected"}
+                            </span>
+                          </div>
+                          <p className="mt-2 text-xs text-gray-500">
+                            Accepted formats: TXT, DOC, DOCX, PDF
+                          </p>
+                        </div>
                       </div>
-                      <p className="mt-2 text-xs text-gray-500">
-                        Accepted formats: TXT, DOC, DOCX, PDF
-                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="mb-6">
+                      <h3 className="text-md font-medium text-gray-700 mb-3">
+                        Predefined Template Sections
+                      </h3>
+                      <div className="space-y-2">
+                        {predefinedSections.map((section, index) => (
+                          <div
+                            key={index}
+                            className="flex items-center justify-between border p-2 rounded bg-gray-50"
+                          >
+                            <span>{section}</span>
+                            <button
+                              onClick={() => handleAddSection(section)}
+                              className="px-2 py-1 bg-teal-300 text-black rounded hover:bg-teal-400"
+                            >
+                              <FaPlus />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <h3 className="text-md font-medium text-gray-700 mb-3">
+                        Selected Sections
+                      </h3>
+                      {selectedSections.length > 0 ? (
+                        <ul className="list-disc pl-5 mb-4">
+                          {selectedSections.map((section, index) => (
+                            <li key={index} className="flex items-center">
+                              {section}
+                              <button
+                                onClick={() => handleRemoveSection(section)}
+                                className="ml-2 text-red-500"
+                              >
+                                <FaTimes />
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="text-gray-500 mb-4">
+                          No sections selected yet.
+                        </p>
+                      )}
+                    </div>
+                    <div className="mb-6">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Additional Custom Content
+                      </label>
+                      <textarea
+                        className="w-full p-3 border rounded-md shadow-sm focus:ring-2 focus:ring-teal-300 focus:border-teal-300 resize-none transition-colors"
+                        rows="4"
+                        value={extraCustom}
+                        onChange={(e) => setExtraCustom(e.target.value)}
+                        placeholder="Enter any additional custom content here..."
+                      ></textarea>
+                    </div>
+                    <div className="flex justify-end">
+                      <button
+                        onClick={handleCustomizeSave}
+                        className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-black bg-teal-300 hover:bg-teal-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 transition-colors"
+                      >
+                        <FaSave className="mr-2 text-teal-500" /> Save Template
+                      </button>
                     </div>
                   </div>
                 )}
-              </div>
-            ) : (
-              // Customize mode UI
-              <div className="space-y-4">
-                <div className="mb-6">
-                  <h3 className="text-md font-medium text-gray-700 mb-3">
-                    Predefined Template Sections
-                  </h3>
-                  <div className="space-y-2">
-                    {predefinedSections.map((section, index) => (
-                      <div
-                        key={index}
-                        className="flex items-center justify-between border p-2 rounded bg-gray-50"
-                      >
-                        <span>{section}</span>
-                        <button
-                          onClick={() => handleAddSection(section)}
-                          className="px-2 py-1 bg-teal-300 text-black rounded hover:bg-teal-400"
-                        >
-                          <FaPlus />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <h3 className="text-md font-medium text-gray-700 mb-3">
-                    Selected Sections
-                  </h3>
-                  {selectedSections.length > 0 ? (
-                    <ul className="list-disc pl-5 mb-4">
-                      {selectedSections.map((section, index) => (
-                        <li key={index} className="flex items-center">
-                          {section}
-                          <button
-                            onClick={() => handleRemoveSection(section)}
-                            className="ml-2 text-red-500"
-                          >
-                            <FaTimes />
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-gray-500 mb-4">
-                      No sections selected yet.
-                    </p>
-                  )}
-                </div>
-                <div className="mb-6">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Additional Custom Content
-                  </label>
-                  <textarea
-                    className="w-full p-3 border rounded-md shadow-sm focus:ring-2 focus:ring-teal-300 focus:border-teal-300 resize-none transition-colors"
-                    rows="4"
-                    value={extraCustom}
-                    onChange={(e) => setExtraCustom(e.target.value)}
-                    placeholder="Enter any additional custom content here..."
-                  ></textarea>
-                </div>
-                <div className="flex justify-end">
-                  <button
-                    onClick={handleCustomizeSave}
-                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-black bg-teal-300 hover:bg-teal-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 transition-colors"
-                  >
-                    <FaSave className="mr-2 text-teal-500" /> Save Template
-                  </button>
-                </div>
-              </div>
-            )}
 
-            {/* Display Saved Template */}
-            {customTemplate && !isEditing && (
-              <div className="mt-6">
-                <h3 className="text-md font-medium text-gray-700 mb-3">
-                  Current Template
-                </h3>
-                <div className="p-4 border rounded bg-gray-50 text-gray-800 whitespace-pre-wrap mb-3">
-                  {customTemplate}
-                </div>
-                <button
-                  type="button"
-                  onClick={handleEditClick}
-                  className="inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-black bg-teal-300 hover:bg-teal-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 transition-colors"
-                >
-                  <FaEdit className="mr-2 text-teal-500" /> Edit Template
-                </button>
-              </div>
-            )}
-
-            {isEditing && (
-              <div className="space-y-4">
-                <form onSubmit={handleSave}>
-                  <div className="mb-3">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Edit Template Content
-                    </label>
-                    <textarea
-                      className="w-full p-3 border rounded-md shadow-sm focus:ring-2 focus:ring-teal-300 focus:border-teal-300 resize-none transition-colors"
-                      rows="8"
-                      value={customTemplate}
-                      onChange={(e) => setCustomTemplate(e.target.value)}
-                      placeholder="Enter template content here..."
-                    ></textarea>
-                  </div>
-                  <div className="flex justify-end">
+                {customTemplate && !isEditing && (
+                  <div className="mt-6">
+                    <h3 className="text-md font-medium text-gray-700 mb-3">
+                      Current Template for {selectedProduct.product_name}
+                    </h3>
+                    <div className="p-4 border rounded bg-gray-50 text-gray-800 whitespace-pre-wrap mb-3">
+                      {customTemplate}
+                    </div>
                     <button
                       type="button"
-                      onClick={() => setIsEditing(false)}
-                      className="mr-3 inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 transition-colors"
+                      onClick={handleEditClick}
+                      className="inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-black bg-teal-300 hover:bg-teal-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 transition-colors"
                     >
-                      <FaTimes className="mr-2 text-teal-500" /> Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-black bg-teal-300 hover:bg-teal-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 transition-colors"
-                    >
-                      <FaSave className="mr-2 text-teal-500" /> Save Template
+                      <FaEdit className="mr-2 text-teal-500" /> Edit Template
                     </button>
                   </div>
-                </form>
-              </div>
+                )}
+
+                {isEditing && (
+                  <div className="space-y-4">
+                    <form onSubmit={handleSave}>
+                      <div className="mb-3">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Edit Template Content for {selectedProduct.product_name}
+                        </label>
+                        <textarea
+                          className="w-full p-3 border rounded-md shadow-sm focus:ring-2 focus:ring-teal-300 focus:border-teal-300 resize-none transition-colors"
+                          rows="8"
+                          value={customTemplate}
+                          onChange={(e) => setCustomTemplate(e.target.value)}
+                          placeholder="Enter template content here..."
+                        ></textarea>
+                      </div>
+                      <div className="flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => setIsEditing(false)}
+                          className="mr-3 inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 transition-colors"
+                        >
+                          <FaTimes className="mr-2 text-teal-500" /> Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-black bg-teal-300 hover:bg-teal-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 transition-colors"
+                        >
+                          <FaSave className="mr-2 text-teal-500" /> Save Template
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                )}
+              </>
+            ) : (
+              <p className="text-gray-500">
+                Please select a product to configure the template.
+              </p>
             )}
           </div>
         </div>
@@ -380,16 +458,8 @@ const AddTemplate = ({ setSavedTemplate, setActiveView }) => {
   );
 };
 
-// Updated Form Component with Product Dropdown and Persona Selection
-const Form = ({
-  setLoading,
-  setProgress,
-  savedTemplate,
-  setSavedTemplate,
-  loading,
-  progress,
-}) => {
-  // Fixed: Parse the stored product value from localStorage
+// Updated Form Component
+const Form = ({ setLoading, setProgress, products, loading, progress }) => {
   const [product, setProduct] = useState(() => {
     const savedProduct = localStorage.getItem("product");
     try {
@@ -400,26 +470,11 @@ const Form = ({
   });
   const [details, setDetails] = useState(localStorage.getItem("details") || "");
   const [persona, setPersona] = useState("product_manager");
-  const [products, setProducts] = useState([]);
 
   const personaOptions = [
     { id: 1, value: "product_manager", label: "Product Manager" },
     { id: 2, value: "product_engineer", label: "Product Engineer" },
   ];
-
-  useEffect(() => {
-    const fetchProducts = async () => {
-      try {
-        const response = await fetch(`${BASE_URL}/api/products`);
-        if (!response.ok) throw new Error("Failed to fetch products");
-        const data = await response.json();
-        setProducts(data.products);
-      } catch (error) {
-        console.error("Error fetching products:", error);
-      }
-    };
-    fetchProducts();
-  }, []);
 
   useEffect(() => {
     localStorage.setItem(
@@ -429,8 +484,7 @@ const Form = ({
         : product
     );
     localStorage.setItem("details", details);
-    localStorage.setItem("savedTemplate", savedTemplate);
-  }, [product, details, savedTemplate]);
+  }, [product, details]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -445,7 +499,9 @@ const Form = ({
         : product
     );
     formData.append("product_details", details);
-    formData.append("custom_template", savedTemplate || "");
+    const productTemplates = JSON.parse(localStorage.getItem("productTemplates") || "{}");
+    const templateForProduct = productTemplates[product.product_name] || "";
+    formData.append("custom_template", templateForProduct);
     formData.append("persona", persona);
 
     try {
@@ -472,10 +528,8 @@ const Form = ({
           setLoading(false);
           localStorage.removeItem("product");
           localStorage.removeItem("details");
-          localStorage.removeItem("savedTemplate");
           setProduct("");
           setDetails("");
-          setSavedTemplate("");
           window.location.href = `${BASE_URL}/download/${job_id}`;
         }
       };
@@ -663,11 +717,23 @@ const Form = ({
 // Main ProductConfigurator Component
 const ProductConfigurator = () => {
   const [activeView, setActiveView] = useState("productConfiguration");
-  const [savedTemplate, setSavedTemplate] = useState(
-    localStorage.getItem("savedTemplate") || ""
-  );
+  const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState("");
+
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        const response = await fetch(`${BASE_URL}/api/products`);
+        if (!response.ok) throw new Error("Failed to fetch products");
+        const data = await response.json();
+        setProducts(data.products);
+      } catch (error) {
+        console.error("Error fetching products:", error);
+      }
+    };
+    fetchProducts();
+  }, []);
 
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden">
@@ -678,15 +744,14 @@ const ProductConfigurator = () => {
             <Form
               setLoading={setLoading}
               setProgress={setProgress}
-              savedTemplate={savedTemplate}
-              setSavedTemplate={setSavedTemplate}
+              products={products}
               loading={loading}
               progress={progress}
             />
           )}
           {activeView === "addTemplate" && (
             <AddTemplate
-              setSavedTemplate={setSavedTemplate}
+              products={products}
               setActiveView={setActiveView}
             />
           )}

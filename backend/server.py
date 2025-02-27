@@ -422,7 +422,7 @@ class RAGSystem:
         )
         self.container_client = self.blob_service_client.get_container_client(container_name)
         logger.info(f"Connected to Azure Blob Storage container: {container_name}")
-        self.embeddings = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
+        self.embeddings = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
         self.index = FAISSIndex()
         self.document_processor = DocumentProcessor()
         from openai import AzureOpenAI
