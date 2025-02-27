@@ -722,19 +722,19 @@ def generate_pdf(product_data, content, is_faq=False):
             canvas.setFont('Helvetica', 10)
             # Position at the bottom center of the page
             canvas.drawCentredString(
-            doc.pagesize[0] / 2,  # X position (center of the page)
-            36,  # Y position (36 points from the bottom)
-            text
+                doc.pagesize[0] / 2,  # X position (center of the page)
+                36,  # Y position (36 points from the bottom)
+                text
             )
-            logger.info(f"Drawing page number {page_num} at y=18")
+            logger.info(f"Drawing page number {page_num} at y=36")  # Updated log message to match y-position
             canvas.restoreState()
 
         # Create a frame for the page content
         frame = Frame(
             doc.leftMargin,
-            doc.bottomMargin+40,
+            doc.bottomMargin + 40,
             doc.width,
-            doc.height-40,
+            doc.height - 40,
             id='normal'
         )
 
@@ -840,9 +840,8 @@ def generate_pdf(product_data, content, is_faq=False):
             elements.append(Paragraph(clean_section, heading1_style))
             elements.append(Spacer(1, 0.1 * inch))
 
-
-            # Handle specifications tables without creating blank pages
-            if "specifications" in section.lower():
+            # Handle specifications tables using translated section title
+            if section == language_texts["technical_specifications"]:  # Updated condition here
                 tables = format_specifications_tables(product_data, is_faq)
                 if tables:
                     for table in tables:
@@ -1008,31 +1007,117 @@ def format_faq_content(faq_content):
             formatted_content.append(question.strip())
     return "\n\n".join(formatted_content)
 
+async def translate_specifications(specs: Dict[str, str], language: str) -> Dict[str, str]:
+    """Translate specification keys and values into the target language using DSPy."""
+    try:
+        if not specs:
+            return {}
+        
+        # Prepare the prompt for translation
+        specs_text = "\n".join([f"{key}: {value}" for key, value in specs.items()])
+        language_texts = get_language_texts(language)
+        prompt = f"""
+        You are a professional translator converting technical specifications into {language}.
+        Instructions:
+        1. Translate the following specification keys and values into {language}.
+        2. Preserve technical accuracy and maintain a formal tone.
+        3. Do not translate units (e.g., 'V', 'rpm', 'Hz', 'LB', 'IN') or proper nouns (e.g., brand names, country names like 'Mexico').
+        4. Return the translated content in the same key-value format.
+        
+        Specifications to translate:
+        {specs_text}
+        """
+        
+        # Use DSPy to translate
+        predictor = Predict(GenerateContent)
+        result = await asyncio.to_thread(
+            lambda: predictor(
+                section_title=f"Translated Specifications in {language}",
+                prompt=prompt,
+                language=language
+            )
+        )
+        
+        if not result or not hasattr(result, 'output'):
+            logger.warning(f"Failed to translate specifications into {language}")
+            return specs  # Fallback to original if translation fails
+        
+        # Parse the translated output back into a dictionary
+        translated_specs = {}
+        lines = result.output.strip().split('\n')
+        for line in lines:
+            if ':' in line:
+                key, value = line.split(':', 1)
+                translated_specs[key.strip()] = value.strip()
+        
+        logger.info(f"Translated {len(translated_specs)} specification items into {language}")
+        return translated_specs
+    
+    except Exception as e:
+        logger.error(f"Error translating specifications into {language}: {str(e)}")
+        return specs  # Fallback to original on error
+
 def format_specifications_tables(product_data, is_faq=False):
+    """
+    Format technical and general specifications into tables for a PDF document with translated content.
+
+    Args:
+        product_data (dict): Dictionary containing product information, including scraped data.
+        is_faq (bool): Flag indicating if the output is for an FAQ (affects styling).
+
+    Returns:
+        list: List of ReportLab flowables (Paragraphs, Spacers, Tables) or None if no tables are created.
+    """
     try:
         tables = []
         styles = getSampleStyleSheet()
-        language = product_data.get("language", "en")  # Default to English if not provided
+        language = product_data.get("language", "en")
         language_texts = get_language_texts(language)
         
-        header_style = styles['Heading4']
-        header_style.fontName = 'Helvetica-Bold'
-        header_style.fontSize = 12
-        header_style.textColor = colors.HexColor('#1e40af') if not is_faq else colors.black
+        # Define header styles
+        main_header_style = styles['Heading3']  # For "Product Specifications"
+        main_header_style.fontName = 'Helvetica-Bold'
+        main_header_style.fontSize = 14
+        main_header_style.textColor = colors.HexColor('#1e40af') if not is_faq else colors.black
+        
+        sub_header_style = styles['Heading4']  # For Technical and General subheadings
+        sub_header_style.fontName = 'Helvetica-Bold'
+        sub_header_style.fontSize = 12
+        sub_header_style.textColor = colors.HexColor('#1e40af') if not is_faq else colors.black
+        
+        # Define table header colors based on is_faq
+        header_bg_color = colors.HexColor('#e6efff') if not is_faq else colors.HexColor('#f5f5f5')
+        header_text_color = colors.HexColor('#1e40af') if not is_faq else colors.black
         
         scraped_data = product_data.get("scraped_data", {})
         
+        # Add main "Product Specifications" heading only if there’s data to show
+        if scraped_data.get('technical_specifications') or scraped_data.get('general_specifications'):
+            tables.append(Paragraph(language_texts.get("product_specifications", "Product Specifications"), main_header_style))
+            tables.append(Spacer(1, 0.2 * inch))
+        
+        # Translate specifications if language is not English
+        tech_specs = scraped_data.get('technical_specifications', {})
+        gen_specs = scraped_data.get('general_specifications', {})
+        if language != "en":
+            # Since this is called in a ThreadPoolExecutor, run the async function synchronously
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                tech_specs = loop.run_until_complete(translate_specifications(tech_specs, language))
+                gen_specs = loop.run_until_complete(translate_specifications(gen_specs, language))
+            finally:
+                loop.close()
+        
         # Technical Specifications
-        if tech_specs := scraped_data.get('technical_specifications', {}):
-            tables.append(Paragraph(language_texts["technical_specifications"], header_style))
+        if tech_specs:
+            logger.info(f"Formatting {len(tech_specs)} technical specifications")
+            tables.append(Paragraph(language_texts["technical_specifications"], sub_header_style))
             tables.append(Spacer(1, 0.1 * inch))
             
-            header_bg_color = colors.HexColor('#e6efff') if not is_faq else colors.HexColor('#f5f5f5')
-            header_text_color = colors.HexColor('#1e40af') if not is_faq else colors.black
-            
-            data = [[language_texts["specification"], language_texts["value"]]]  # Translated headers
+            data = [[language_texts["specification"], language_texts["value"]]]
             for key, value in tech_specs.items():
-                data.append([str(key), str(value) if value is not None else ""])
+                data.append([str(key), str(value) if value is not None else "N/A"])
             
             if len(data) > 1:
                 table = Table(data, colWidths=[250, 250])
@@ -1050,23 +1135,46 @@ def format_specifications_tables(product_data, is_faq=False):
                     ('RIGHTPADDING', (0, 0), (-1, -1), 10),
                 ]))
                 tables.append(table)
+            else:
+                logger.warning("No valid technical specifications data to format")
         
-        # General Specifications (similar updates)
-        if gen_specs := scraped_data.get('general_specifications', {}):
+        # General Specifications
+        if gen_specs:
+            logger.info(f"Formatting {len(gen_specs)} general specifications")
             tables.append(Spacer(1, 0.5 * inch))
-            tables.append(Paragraph(language_texts["general_specifications"], header_style))
+            tables.append(Paragraph(language_texts["general_specifications"], sub_header_style))
             tables.append(Spacer(1, 0.1 * inch))
             
             data = [[language_texts["specification"], language_texts["value"]]]
             for key, value in gen_specs.items():
-                data.append([str(key), str(value) if value is not None else ""])
+                data.append([str(key), str(value) if value is not None else "N/A"])
             
             if len(data) > 1:
                 table = Table(data, colWidths=[250, 250])
-                table.setStyle(TableStyle([...]))  # Same styling as above
+                table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), header_bg_color),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), header_text_color),
+                    ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0, 0), (-1, 0), 12),
+                    ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
+                    ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#e2e8f0')),
+                    ('BOX', (0, 0), (-1, -1), 2, colors.HexColor('#cbd5e1')),
+                    ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8fafc')]),
+                    ('LEFTPADDING', (0, 0), (-1, -1), 10),
+                    ('RIGHTPADDING', (0, 0), (-1, -1), 10),
+                ]))
                 tables.append(table)
+            else:
+                logger.warning("No valid general specifications data to format")
         
-        return tables if tables else None
+        # Return tables if any were created, otherwise None
+        if tables:
+            logger.info(f"Formatted {len(tables)} tables for specifications")
+            return tables
+        else:
+            logger.info("No specification tables created")
+            return None
     except Exception as e:
         logger.error(f"Error formatting specification tables: {str(e)}")
         return None
@@ -1404,7 +1512,7 @@ async def get_products():
 
 # Add these async functions
 async def async_scrape_product_data(url: str, session: aiohttp.ClientSession) -> Dict[str, Any]:
-    """Async version of scrape_product_data"""
+    """Async version of scrape_product_data with explicit tab label mapping and robust tab detection"""
     try:
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
@@ -1412,7 +1520,6 @@ async def async_scrape_product_data(url: str, session: aiohttp.ClientSession) ->
             "Referer": "https://www.google.com/"
         }
         
-        # Set timeout for the request
         timeout = ClientTimeout(total=30)
         async with session.get(url, headers=headers, verify_ssl=False, timeout=timeout) as response:
             response.raise_for_status()
@@ -1438,47 +1545,100 @@ async def async_scrape_product_data(url: str, session: aiohttp.ClientSession) ->
                     key_features.append(feature.get_text(strip=True))
         logger.info(f"Scraped {len(key_features)} key features")
         
-        # Extract technical specifications
+        # Initialize dictionaries for specifications
         technical_specs = {}
-        tech_specs_div = soup.find('div', id='tab-0')
-        if tech_specs_div:
-            tech_specs_table = tech_specs_div.find('table', class_='specifications-table')
-            if tech_specs_table:
-                for row in tech_specs_table.find_all('tr'):
-                    cols = row.find_all('td')
-                    if len(cols) == 4:
-                        key1 = cols[0].get_text(strip=True).rstrip(":")
-                        value1 = cols[1].get_text(strip=True)
-                        key2 = cols[2].get_text(strip=True).rstrip(":")
-                        value2 = cols[3].get_text(strip=True)
-                        technical_specs[key1] = value1
-                        technical_specs[key2] = value2
-                    elif len(cols) == 2:
-                        key = cols[0].get_text(strip=True).rstrip(":")
-                        value = cols[1].get_text(strip=True)
-                        technical_specs[key] = value
-        logger.info(f"Scraped {len(technical_specs)} technical specifications")
-        
-        # Extract general specifications
         general_specs = {}
-        general_specs_div = soup.find('div', id='tab-1')
-        if general_specs_div:
-            general_specs_table = general_specs_div.find('table', class_='specifications-table')
-            if general_specs_table:
-                for row in general_specs_table.find_all('tr'):
-                    cols = row.find_all('td')
-                    if len(cols) == 2:
-                        key = cols[0].get_text(strip=True).rstrip(":")
-                        value = cols[1].get_text(strip=True)
-                        general_specs[key] = value
-                    elif len(cols) == 4:
-                        key1 = cols[0].get_text(strip=True).rstrip(":")
-                        value1 = cols[1].get_text(strip=True)
-                        key2 = cols[2].get_text(strip=True).rstrip(":")
-                        value2 = cols[3].get_text(strip=True)
-                        general_specs[key1] = value1
-                        general_specs[key2] = value2
+        
+        # Find the specification navigation links
+        spec_nav = soup.find('ul', class_='pdp-spec-nav')
+        if not spec_nav:
+            logger.warning("No pdp-spec-nav found; unable to categorize specifications")
+            return {
+                "product_name": product_name,
+                "key_features": key_features,
+                "technical_specifications": technical_specs,
+                "general_specifications": general_specs
+            }
+        
+        # Map tab labels to their IDs
+        tab_mapping = {}
+        for nav_item in spec_nav.find_all('a', class_='pdp-spec-nav__item'):
+            tab_label = nav_item.get_text(strip=True).lower()
+            tab_id = nav_item.get('href', '').lstrip('#')  # e.g., "tab-0"
+            if tab_id:
+                tab_mapping[tab_id] = tab_label
+                logger.info(f"Found tab mapping: {tab_id} -> {tab_label}")
+        
+        # Find the tab content container
+        tab_content = soup.find('div', class_='tab-content')
+        if not tab_content:
+            logger.warning("No tab-content div found; cannot process specifications")
+            return {
+                "product_name": product_name,
+                "key_features": key_features,
+                "technical_specifications": technical_specs,
+                "general_specifications": general_specs
+            }
+        logger.info(f"Found tab-content div")
+        
+        # Process each tab by ID from tab_mapping
+        tabs = [soup.find('div', id=tab_id) for tab_id in tab_mapping.keys()]
+        tabs = [tab for tab in tabs if tab is not None]  # Filter out None results
+        logger.info(f"Found {len(tabs)} tabs with matching IDs: {[tab.get('id') for tab in tabs]}")
+        
+        for tab in tabs:
+            tab_id = tab.get('id')
+            if tab_id not in tab_mapping:
+                logger.warning(f"Tab {tab_id} has no corresponding nav link; skipping")
+                continue
+                
+            tab_label = tab_mapping[tab_id]
+            specs_table = tab.find('table', class_='specifications-table')
+            if not specs_table:
+                logger.warning(f"No specifications table found in {tab_id} ({tab_label})")
+                continue
+                
+            # Extract specifications from the table
+            specs_dict = {}
+            rows = specs_table.find_all('tr', class_='specifications-table_row')
+            logger.info(f"Found {len(rows)} rows in {tab_id} ({tab_label})")
+            for row in rows:
+                cols = row.find_all('td', class_='specifications-table_col')
+                logger.info(f"Processing row with {len(cols)} columns in {tab_id}")
+                if len(cols) == 4:
+                    key1 = cols[0].get_text(strip=True).rstrip(":")
+                    value1 = cols[1].get_text(strip=True)
+                    key2 = cols[2].get_text(strip=True).rstrip(":")
+                    value2 = cols[3].get_text(strip=True)
+                    specs_dict[key1] = value1
+                    specs_dict[key2] = value2
+                elif len(cols) == 2:
+                    key = cols[0].get_text(strip=True).rstrip(":")
+                    value = cols[1].get_text(strip=True)
+                    specs_dict[key] = value
+                
+            logger.info(f"Extracted {len(specs_dict)} items from {tab_id} ({tab_label})")
+            
+            # Assign to the correct category based on label
+            if "technical specifications" in tab_label:
+                technical_specs.update(specs_dict)
+                logger.info(f"Assigned {tab_id} as Technical Specifications with {len(specs_dict)} items")
+            elif "general specifications" in tab_label:
+                general_specs.update(specs_dict)
+                logger.info(f"Assigned {tab_id} as General Specifications with {len(specs_dict)} items")
+            else:
+                logger.info(f"Skipping {tab_id} ({tab_label}) as it’s not Technical or General Specifications")
+        
+        # Log final results
+        logger.info(f"Scraped {len(technical_specs)} technical specifications")
         logger.info(f"Scraped {len(general_specs)} general specifications")
+        
+        # Check for overlap
+        tech_keys = set(technical_specs.keys())
+        gen_keys = set(general_specs.keys())
+        overlap = tech_keys.intersection(gen_keys)
+        if overlap:
+            logger.warning(f"Overlap detected between technical and general specifications: {overlap}")
         
         return {
             "product_name": product_name,
