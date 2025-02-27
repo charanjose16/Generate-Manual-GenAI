@@ -273,8 +273,16 @@
                     "subproduct_link": "https://www.regalrexnord.com/products/blowers/draft-inducer-blowers",
                     "sub_subproducts": [
                         {
-                            "sub_subproduct_name": "",
-                            "sub_subproduct_link": "https://www.regalrexnord.com/cdn-cgi/l/email-protection"
+                            "sub_subproduct_name": "Fasco Round Outlet Shaded Pole Draft Inducer Blower, 115 Volts, Flange: No - A249",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/blowers/draft-inducer-blowers/round-outlet-shaded-pole-draft-inducer-blower-115-volts-flange-no-a249"
+                        },
+                        {
+                            "sub_subproduct_name": "Fasco Round Outlet Three Phase OEM Replacement Draft Inducer Blower, 33-110 Volts, Flange: No - A197",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/blowers/draft-inducer-blowers/round-outlet-three-phase-oem-replacement-draft-inducer-blower-33-110-volts-flange-no-a197"
+                        },
+                        {
+                            "sub_subproduct_name": "Fasco Rectangular Outlet Permanent Split Capacitor OEM Replacement Draft Inducer Blower, 208-230 Volts, Flange: No - A330",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/blowers/draft-inducer-blowers/rectangular-outlet-permanent-split-capacitor-oem-replacement-draft-inducer-blower-208-230-volts-flange-no-a330"
                         }
                     ]
                 },
@@ -283,8 +291,16 @@
                     "subproduct_link": "https://www.regalrexnord.com/products/blowers/ec-centrifugal-fans",
                     "sub_subproducts": [
                         {
-                            "sub_subproduct_name": "",
-                            "sub_subproduct_link": "https://www.regalrexnord.com/cdn-cgi/l/email-protection"
+                            "sub_subproduct_name": "Nicotra Gebhardt COPRA™ EC Fan Plug 450mm-4.4kW-460V",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/blowers/ec-centrifugal-fans/copra-ec-fan-plug-450mm-4-4kw-460v-pac45jm56c0000"
+                        },
+                        {
+                            "sub_subproduct_name": "Nicotra Gebhardt COPRA™ EC Fan Plug 500mm-7.8kW-460V",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/blowers/ec-centrifugal-fans/copra-ec-fan-plug-500mm-7-8kw-460v-pac50lm56c0000"
+                        },
+                        {
+                            "sub_subproduct_name": "Nicotra Gebhardt COPRA™ EC Fan Plug 355mm-4.4kW-460V",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/blowers/ec-centrifugal-fans/copra-ec-fan-plug-355mm-4-4kw-460v-pac35je56c0000"
                         }
                     ]
                 },
@@ -293,8 +309,16 @@
                     "subproduct_link": "https://www.regalrexnord.com/products/blowers/fan-pack",
                     "sub_subproducts": [
                         {
-                            "sub_subproduct_name": "",
-                            "sub_subproduct_link": "https://www.regalrexnord.com/cdn-cgi/l/email-protection"
+                            "sub_subproduct_name": "Genteq KRYO™ FORTRESS 415 CFM Refrigeration Fan Pack, 1550 RPM, 90-240 Volts, TEAO, IP66/67 - MD5472",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/blowers/fan-pack/415-cfm-refrigeration-fan-pack-1550-rpm-90-240-volts-teao-ip66-67-md5472"
+                        },
+                        {
+                            "sub_subproduct_name": "Genteq KRYO™ FORTRESS 355 CFM Refrigeration Fan Pack, 1550 RPM, 90-240 Volts, TEAO, IP66/67 - MD5469",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/blowers/fan-pack/355-cfm-refrigeration-fan-pack-1550-rpm-90-240-volts-teao-ip66-67-md5469"
+                        },
+                        {
+                            "sub_subproduct_name": "Genteq KRYO™ FORTRESS 390 CFM Refrigeration Fan Pack, 1450 RPM, 90-240 Volts, TEAO, IP66/67 - MD5471",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/blowers/fan-pack/390-cfm-refrigeration-fan-pack-1450-rpm-90-240-volts-teao-ip66-67-md5471"
                         }
                     ]
                 },
@@ -303,15 +327,36 @@
                     "subproduct_link": "https://www.regalrexnord.com/products/blowers/transflow-crossflow-blowers",
                     "sub_subproducts": [
                         {
-                            "sub_subproduct_name": "",
-                            "sub_subproduct_link": "https://www.regalrexnord.com/cdn-cgi/l/email-protection"
+                            "sub_subproduct_name": "Fasco Rectangular Outlet Shaded Pole Transflo / Crossflow Blower, 115 Volts, Flange: No - B22513",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/blowers/transflow-crossflow-blowers/rectangular-outlet-shaded-pole-transflo-crossflow-blower-115-volts-flange-no-b22513"
+                        },
+                        {
+                            "sub_subproduct_name": "Fasco Rectangular Outlet Shaded Pole Transflo / Crossflow Blower, 115 Volts, Flange: No - B22507",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/blowers/transflow-crossflow-blowers/rectangular-outlet-shaded-pole-transflo-crossflow-blower-115-volts-flange-no-b22507"
+                        },
+                        {
+                            "sub_subproduct_name": "Fasco Rectangular Outlet Shaded Pole Transflo / Crossflow Blower, 115 Volts, Flange: No - B22510",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/blowers/transflow-crossflow-blowers/rectangular-outlet-shaded-pole-transflo-crossflow-blower-115-volts-flange-no-b22510"
                         }
                     ]
                 },
                 {
                     "subproduct_name": "Blower Accessories",
                     "subproduct_link": "https://www.regalrexnord.comhttps://www.regalrexnord.com/products/blowers/blower-accessories",
-                    "sub_subproducts": []
+                    "sub_subproducts": [
+                        {
+                            "sub_subproduct_name": "Fasco Single Inlet Blower Wheel, 2\" W, CCW, 4500 RPM - 1-6047",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/blowers/blower-accessories/blower-wheels-draft-booster-fan-blades/single-inlet-blower-wheels/single-inlet-blower-wheel-2-w-ccw-4500-rpm-1-6047"
+                        },
+                        {
+                            "sub_subproduct_name": "Fasco Single Inlet Blower Wheel, 2\" W, CCW, 2900 RPM - 1-6066",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/blowers/blower-accessories/blower-wheels-draft-booster-fan-blades/single-inlet-blower-wheels/single-inlet-blower-wheel-2-w-ccw-2900-rpm-1-6066"
+                        },
+                        {
+                            "sub_subproduct_name": "Fasco Single Inlet Blower Wheel, 2 1/2\" W, CCW, 5000 RPM - 1-6045",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/blowers/blower-accessories/blower-wheels-draft-booster-fan-blades/single-inlet-blower-wheels/single-inlet-blower-wheel-2-1-2-w-ccw-5000-rpm-1-6045"
+                        }
+                    ]
                 }
             ]
         },
