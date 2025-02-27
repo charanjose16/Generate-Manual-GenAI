@@ -438,37 +438,111 @@
                 {
                     "subproduct_name": "Plastic Modular Chains and Belts",
                     "subproduct_link": "https://www.regalrexnord.com/products/conveyor-technologies/plastic-modular-chain-and-belt",
-                    "sub_subproducts": []
+                    "sub_subproducts": [
+                        {
+                            "sub_subproduct_name": "Rexnord 5935 Vacuum Straight Running Vacuum, Material: Tan Low Friction, Width: 24in, Pitch: 0.75in - LF5935-24EA",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/conveying/plastic-modular-chain-and-belt/straight-running/5935-vacuum-straight-running-vacuum-material-tan-low-friction-width-24in-pitch-0-75in-10177628"
+                        },
+                        {
+                            "sub_subproduct_name": "Rexnord 7526 Side-flexing Flush Grid, Material: HP, Width: 340mm, Pitch: 0.5in - HP7526-340",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/conveying/plastic-modular-chain-and-belt/side-flexing/7526-side-flexing-flush-grid-material-hp-width-340mm-pitch-0-5in-10028927"
+                        },
+                        {
+                            "sub_subproduct_name": "Rexnord 6422 Series, Material: SMB, Width: 34in (863.6mm), Pitch: 1.5in - 10920253",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/conveying/plastic-modular-chain-and-belt/spiral-cage-belts/6422-series-material-smb-width-34in-863-6mm-pitch-1-5in-10920253"
+                        }
+                    ]
                 },
                 {
                     "subproduct_name": "Conveyor Sprockets and Wheels",
                     "subproduct_link": "https://www.regalrexnord.com/products/conveying#cf-categories=Conveying%20Sprockets%20and%20Wheels",
                     "sub_subproducts": [
                         {
-                            "sub_subproduct_name": "",
-                            "sub_subproduct_link": "https://www.regalrexnord.com/cdn-cgi/l/email-protection"
+                            "sub_subproduct_name": "Rexnord 815 Series Steel GuideRing Kit for 25 & 26 Tooth Sprockets - W865-AC",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/conveying/conveying-sprockets-and-wheels/tabletop-174-and-mattop-174-sprockets/815-series-steel-guidering-kit-for-25-26-tooth-sprockets-10182865"
+                        },
+                        {
+                            "sub_subproduct_name": "Rexnord 820 Series Solid One Piece Cast Iron Sprocket with 25 Teeth and 1in Round Plain Bore - 401-162-14",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/conveying/conveying-sprockets-and-wheels/tabletop-174-and-mattop-174-sprockets/820-series-solid-one-piece-cast-iron-sprocket-with-25-teeth-and-1in-round-plain-bore-10028822"
+                        },
+                        {
+                            "sub_subproduct_name": "Browning Steel Minimum Plain Bore Roller Chain Sprocket - 35B20",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/industrial-chain/sprockets-and-wheels/sprockets/steel-minimum-plain-bore-roller-chain-sprocket-1121664"
                         }
                     ]
                 },
                 {
                     "subproduct_name": "Conveyor Components",
                     "subproduct_link": "https://www.regalrexnord.com/products/conveyor-technologies/regal-conveying-components",
-                    "sub_subproducts": []
+                    "sub_subproducts": [
+                        {
+                            "sub_subproduct_name": "System Plast Heavy Duty Rail Clip- Stainless Steel 3/4\" Stud - VG-018-02",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/conveying/conveyor-components/product-guide-and-brackets/heavy-duty-rail-clip-stainless-steel-3-4-stud-vg-018-02"
+                        },
+                        {
+                            "sub_subproduct_name": "System Plast Bar Cover, UHMW-PE, for 1/4\" x 1-1/2\" Bar, 20 ft. - VG-P2515DBC-20",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/conveying/conveyor-components/curves-straight-tracks-return-systems/bar-cover-uhmw-pe-for-1-4-x-1-1-2-bar-20-ft-vg-p2515dbc-20"
+                        },
+                        {
+                            "sub_subproduct_name": "Rexnord 323-650161 Support & Leveling Elements Conveyor Components - 323-650161",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/conveying/conveyor-components/frame-support-and-levers/323-650161-support-leveling-elements-conveyor-components-10099287"
+                        }
+                          
+                    ]
                 },
                 {
                     "subproduct_name": "Metal Wire Mesh Belts",
                     "subproduct_link": "https://www.regalrexnord.com/products/conveyor-technologies/metal-wire-mesh-belts",
-                    "sub_subproducts": []
+                    "sub_subproducts": [
+                        {
+                            "sub_subproduct_name": "Cambridge T304-4 PTP-4-28- Straight Line Positive Metal Conveyor Belts - 10781173",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/conveying/metal-wire-mesh-belts/straight-line-positive-drive/t304-4-ptp-4-28-straight-line-positive-metal-conveyor-belts-10781173"
+                        },
+                        {
+                            "sub_subproduct_name": "Cambridge T304-40 PTP-40-2 Straight Line Positive Metal Conveyor Belts - 10781172",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/conveying/metal-wire-mesh-belts/straight-line-positive-drive/t304-40-ptp-40-2-straight-line-positive-metal-conveyor-belts-10781172"
+                        },
+                        {
+                            "sub_subproduct_name": "Cambridge 10786897 Straight Line Positive Metal Conveyor Belts - 10786897",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/conveying/metal-wire-mesh-belts/straight-line-positive-drive/10786897-straight-line-positive-metal-conveyor-belts-10786897"
+                        }
+                    ]
                 },
                 {
                     "subproduct_name": "Conveying Systems",
                     "subproduct_link": "https://www.regalrexnord.com/products/conveyor-technologies/conveying-systems",
-                    "sub_subproducts": []
+                    "sub_subproducts": [
+                        {
+                            "sub_subproduct_name": "Rexnord 10400684 Chain Guides Conveyor Components - 10400684",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/conveying/conveyor-components/curves-straight-tracks-return-systems/10400684-chain-guides-conveyor-components-10400684"
+                        },
+                        {
+                            "sub_subproduct_name": "Rexnord 906-656891 Chain Guides Conveyor Components - 906-656891",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/conveying/conveyor-components/curves-straight-tracks-return-systems/906-656891-chain-guides-conveyor-components-10148249"
+                        },
+                        {
+                            "sub_subproduct_name": "Rexnord 10400682 Chain Guides Conveyor Components - 10400682",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/conveying/conveyor-components/curves-straight-tracks-return-systems/10400682-chain-guides-conveyor-components-10400682"
+                        }
+                    ]
                 },
                 {
-                    "subproduct_name": "Gear Drives & Geared Motors",
-                    "subproduct_link": "https://www.regalrexnord.com/products/conveyor-technologies/gear-drives-and-geared-motors",
-                    "sub_subproducts": []
+                    "subproduct_name": "Bulk Handling Components",
+                    "subproduct_link": "https://www.regalrexnord.com/products/industrial-chain",
+                    "sub_subproducts": [
+                        {
+                            "sub_subproduct_name": "Rex 48-GC5212-01 Idlers - 48-GC5212-01",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/industrial-chain/conveying-idlers/48-gc5212-01-idlers-10508056"
+                        },
+                        {
+                            "sub_subproduct_name": "Rex 611-21671-01 Idlers - 611-21671-01",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/industrial-chain/conveying-idlers/611-21671-01-idlers-10508228"
+                        },
+                        {
+                            "sub_subproduct_name": "Rex 24-GC5203-01 Idlers - 24-GC5203-01",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/industrial-chain/conveying-idlers/24-gc5203-01-idlers-10511343"
+                        }
+                    ]
                 }
             ]
         },
@@ -479,87 +553,290 @@
                 {
                     "subproduct_name": "Barrel Couplings",
                     "subproduct_link": "https://www.regalrexnord.com/products/couplings/barrel-couplings-overview",
-                    "sub_subproducts": []
+                    "sub_subproducts": [
+                        {
+                            "sub_subproduct_name": "Jaure Barflex Barflex Coupling -Style TCBR - Heavy Duty Standard Design - Size 400 -Full Flex -Finish Bore - BARFLEX TCBR-0400 B01",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/couplings/coupling-parts-and-kits/barrel/barflex-coupling-style-tcbr-heavy-duty-standard-design-size-400-full-flex-finish-bore-abbr0010019"
+                        },
+                        {
+                            "sub_subproduct_name": "Jaure Barflex Barflex Coupling -Style TCBR - Heavy Duty Standard Design - Size 200 -Full Flex -Finish Bore - BARFLEX TCBR-0200 B01",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/couplings/coupling-parts-and-kits/barrel/barflex-coupling-style-tcbr-heavy-duty-standard-design-size-200-full-flex-finish-bore-abbr0010035"
+                        },
+                        {
+                            "sub_subproduct_name": "Jaure Barflex Barflex Coupling -Style TCBR - Heavy Duty Standard Design - Size 50 -Full Flex -Rough Bore - BARFLEX TCBR-0050 A00",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/couplings/coupling-parts-and-kits/barrel/barflex-coupling-style-tcbr-heavy-duty-standard-design-size-50-full-flex-rough-bore-abbr0010002"
+                        }
+                    ]
                 },
                 {
                     "subproduct_name": "Chain Couplings",
                     "subproduct_link": "https://www.regalrexnord.com/products/couplings/coupling-parts-and-kits/chain",
                     "sub_subproducts": [
                         {
-                            "sub_subproduct_name": "",
-                            "sub_subproduct_link": "https://www.regalrexnord.com/cdn-cgi/l/email-protection"
+                            "sub_subproduct_name": "Morse Chain Coupling - Style N400 - N4 CPLG CHAIN-10 FT",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/couplings/coupling-parts-and-kits/chain/chain-coupling-style-n400-116493"
+                        },
+                        {
+                            "sub_subproduct_name": "Morse Chain Coupling Chain - Style C6018 - C60 18",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/couplings/coupling-parts-and-kits/chain/chain-coupling-chain-style-c6018-061540"
+                        },
+                        {
+                            "sub_subproduct_name": "Morse Chain Coupling - Style N400 - Size 416 - Standard Bore - N416 COUPLING CH",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/couplings/coupling-parts-and-kits/chain/chain-coupling-style-n400-size-416-standard-bore-116197"
                         }
                     ]
                 },
                 {
                     "subproduct_name": "Disc Couplings",
                     "subproduct_link": "https://www.regalrexnord.com/products/couplings/disc-couplings-overview",
-                    "sub_subproducts": []
+                    "sub_subproducts": [
+                        {
+                            "sub_subproduct_name": "Kop-Flex Disc Coupling - Style KD21 - Size 153 - Rough Bore - 153 KD 21 SS500",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/couplings/disc-couplings/disc-coupling-style-kd21-size-153-rough-bore-2429421"
+                        },
+                        {
+                            "sub_subproduct_name": "Kop-Flex Disc Coupling - Style KD20 - Size 204 - Finished Bore - 204 KD 20 SS700 FB",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/couplings/disc-couplings/disc-coupling-style-kd20-size-204-finished-bore-2430940"
+                        },
+                        {
+                            "sub_subproduct_name": "Kop-Flex Disc Coupling - Style KD2 - Size 103 - Finished Bore - 103 KD 2 LS438 FB",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/couplings/disc-couplings/disc-coupling-style-kd2-size-103-finished-bore-2287696"
+                        }
+                    ]
                 },
                 {
                     "subproduct_name": "Driveshaft Couplings",
                     "subproduct_link": "https://www.regalrexnord.com/404?item=web%3a%7bAB0899EC-9525-46EB-9072-C2B8E38F62ED%7d%40en",
-                    "sub_subproducts": []
+                    "sub_subproducts": [
+                        {
+                            "sub_subproduct_name": "Morse Elastomeric Coupling Morflex (R) Center - 702 MORFLEX CENTER",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/couplings/coupling-parts-and-kits/driveshaft/elastomeric-coupling-morflex-r-center-072042"
+                        },
+                        {
+                            "sub_subproduct_name": "Morse Elastomeric Coupling - Size 702 - Plain Bore - 702 MORFLEX FLANGE MB",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/couplings/coupling-parts-and-kits/driveshaft/elastomeric-coupling-size-702-plain-bore-012568"
+                        },
+                        {
+                            "sub_subproduct_name": "Morse Elastomeric Coupling - Size 302 - Finished Bore - 302 MORFLEX FLANGE 5/8 FB",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/couplings/coupling-parts-and-kits/driveshaft/elastomeric-coupling-size-302-finished-bore-084177"
+                        }
+                    ]
                 },
                 {
                     "subproduct_name": "Elastomeric Jaw and Wrap Couplings",
                     "subproduct_link": "https://www.regalrexnord.com/404?item=web%3a%7bD157BBF8-644C-48A4-8F06-946724619909%7d%40en",
-                    "sub_subproducts": []
+                    "sub_subproducts": [
+                        {
+                            "sub_subproduct_name": "Browning Jaw Coupling - Size JS5 - Bushed - CHJS5H",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/couplings/coupling-parts-and-kits/elastomeric/jaw-and-wrap/jaw-coupling-size-js5-bushed-1237668"
+                        },
+                        {
+                            "sub_subproduct_name": "Browning Jaw Coupling - Size JS6 - Bushed - CHJS6P",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/couplings/coupling-parts-and-kits/elastomeric/jaw-and-wrap/jaw-coupling-size-js6-bushed-1237676"
+                        },
+                        {
+                            "sub_subproduct_name": "Browning Jaw Coupling Polyurethane Insert - Style JP5, JS5, JS5H - JS5U",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/couplings/coupling-parts-and-kits/elastomeric/jaw-and-wrap/jaw-coupling-polyurethane-insert-style-jp5-js5-js5h-1303288"
+                        }
+                    ]
                 },
                 {
                     "subproduct_name": "Elastomeric Tire Couplings",
                     "subproduct_link": "https://www.regalrexnord.com/products/couplings/elastomeric-tire-couplings-overview",
-                    "sub_subproducts": []
+                    "sub_subproducts": [
+                        {
+                            "sub_subproduct_name": "Rexnord Omega 7300035 Elements-Flexible Elastomeric Coupling Parts & Kits - 7300035",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/couplings/coupling-parts-and-kits/elastomeric/tire/7300035-elements-flexible-elastomeric-coupling-parts-kits-10287337"
+                        },
+                        {
+                            "sub_subproduct_name": "Rexnord Omega 7300030 Elements-Flexible Elastomeric Coupling Parts & Kits - 7300030",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/couplings/coupling-parts-and-kits/elastomeric/tire/7300030-elements-flexible-elastomeric-coupling-parts-kits-10287336"
+                        },
+                        {
+                            "sub_subproduct_name": "Rexnord Omega 7300050 Elements-Flexible Elastomeric Coupling Parts & Kits - 7300050",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/couplings/coupling-parts-and-kits/elastomeric/tire/7300050-elements-flexible-elastomeric-coupling-parts-kits-10287340"
+                        }
+                    ]
                 },
                 {
                     "subproduct_name": "Flange Couplings",
                     "subproduct_link": "https://www.regalrexnord.com/products/couplings/flange-couplings",
-                    "sub_subproducts": []
+                    "sub_subproducts": [
+                        {
+                            "sub_subproduct_name": "",
+                            "sub_subproduct_link": ""
+                        },
+                        {
+                            "sub_subproduct_name": "",
+                            "sub_subproduct_link": ""
+                        },
+                        {
+                            "sub_subproduct_name": "",
+                            "sub_subproduct_link": ""
+                        }
+                    ]
                 },
                 {
                     "subproduct_name": "Fluid Couplings",
                     "subproduct_link": "https://www.regalrexnord.com/products/couplings/fluid-couplings-overview",
-                    "sub_subproducts": []
+                    "sub_subproducts": [
+                        {
+                            "sub_subproduct_name": "",
+                            "sub_subproduct_link": ""
+                        },
+                        {
+                            "sub_subproduct_name": "",
+                            "sub_subproduct_link": ""
+                        },
+                        {
+                            "sub_subproduct_name": "",
+                            "sub_subproduct_link": ""
+                        }
+                    ]
                 },
                 {
                     "subproduct_name": "Gear Couplings",
                     "subproduct_link": "https://www.regalrexnord.com/products/couplings/gear-couplings-overview",
-                    "sub_subproducts": []
+                    "sub_subproducts": [
+                        {
+                            "sub_subproduct_name": "Jaure Gear Coupling - Style MT - Size 174 - Full Flex - Rough Bore - 174MT FF",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/couplings/coupling-parts-and-kits/gear/gear-coupling-style-mt-size-174-full-flex-rough-bore-ktad9900020"
+                        },
+                        {
+                            "sub_subproduct_name": "Kop-Flex Series H Plus - Gear Coupling - Flex Hub - Rough Bore - Size 1 1/2 - 1 1/2 HG FHUB",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/couplings/coupling-parts-and-kits/gear/series-h-plus-gear-coupling-flex-hub-rough-bore-size-1-1-2-hg1963313"
+                        },
+                        {
+                            "sub_subproduct_name": "Kop-Flex Series H Plus - Gear Coupling - Flex Hub - Rough Bore - Size 2 1/2 - 2 1/2 HG FHUB",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/couplings/coupling-parts-and-kits/gear/series-h-plus-gear-coupling-flex-hub-rough-bore-size-2-1-2-hg1963339"
+                        }
+                    ]
                 },
                 {
                     "subproduct_name": "Gear Spindles",
                     "subproduct_link": "https://www.regalrexnord.com/products/couplings/gear-spindles-overview",
-                    "sub_subproducts": []
+                    "sub_subproducts": [
+                        {
+                            "sub_subproduct_name": "",
+                            "sub_subproduct_link": ""
+                        },
+                        {
+                            "sub_subproduct_name": "",
+                            "sub_subproduct_link": ""
+                        },
+                        {
+                            "sub_subproduct_name": "",
+                            "sub_subproduct_link": ""
+                        }
+                    ]
                 },
                 {
                     "subproduct_name": "Grid Couplings",
                     "subproduct_link": "https://www.regalrexnord.com/products/couplings/grid-couplings-overview",
-                    "sub_subproducts": []
+                    "sub_subproducts": [
+                        {
+                            "sub_subproduct_name": "Kop-Flex Grid Coupling - Style T10 Horizontal Split Cover - Size 1100 - Rough Bore - 1100T10",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/couplings/coupling-parts-and-kits/grid/grid-coupling-style-t10-horizontal-split-cover-size-1100-rough-bore-2282275"
+                        },
+                        {
+                            "sub_subproduct_name": "Falk Steelflex 1090T10 COVER-GRID ASSY 776208 - 0776208",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/couplings/coupling-parts-and-kits/grid/1090t10-cover-grid-assy-776208-10011517"
+                        },
+                        {
+                            "sub_subproduct_name": "Kop-Flex Grid Coupling - Style T20 Vertical Split Cover - Size 1050 - Rough Bore - 1050T20",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/couplings/coupling-parts-and-kits/grid/grid-coupling-style-t20-vertical-split-cover-size-1050-rough-bore-2282481"
+                        }
+                    ]
                 },
                 {
                     "subproduct_name": "Locking Assemblies & Shrink Discs",
                     "subproduct_link": "https://www.regalrexnord.com/404?item=web%3a%7bED480AC4-3669-40C3-B3EF-2977B3AF63B3%7d%40en",
-                    "sub_subproducts": []
+                    "sub_subproducts": [
+                        {
+                            "sub_subproduct_name": "",
+                            "sub_subproduct_link": ""
+                        },
+                        {
+                            "sub_subproduct_name": "",
+                            "sub_subproduct_link": ""
+                        },
+                        {
+                            "sub_subproduct_name": "",
+                            "sub_subproduct_link": ""
+                        }
+                    ]
                 },
                 {
                     "subproduct_name": "Rigid Couplings",
                     "subproduct_link": "https://www.regalrexnord.com/404?item=web%3a%7b2C3F92C6-9106-4070-BF09-2D2CACBF031C%7d%40en",
-                    "sub_subproducts": []
+                    "sub_subproducts": [
+                        {
+                            "sub_subproduct_name": "Browning Rigid Coupling Bushing - Size P1 - Bushed - RS6P",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/couplings/coupling-parts-and-kits/rigid/rigid-coupling-bushing-size-p1-bushed-1235621"
+                        },
+                        {
+                            "sub_subproduct_name": "Browning Rigid Coupling Bushing - Size Q1 - Bushed - RS7Q",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/couplings/coupling-parts-and-kits/rigid/rigid-coupling-bushing-size-q1-bushed-1235639"
+                        },
+                        {
+                            "sub_subproduct_name": "Browning Rigid Coupling Sleeve Keyway - Style CS - Size CS 16 - Finished Bore - CS 16K",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/couplings/coupling-parts-and-kits/rigid/rigid-coupling-sleeve-keyway-style-cs-size-cs-16-finished-bore-1235795"
+                        }
+                    ]
                 },
                 {
                     "subproduct_name": "Shaft Guards",
                     "subproduct_link": "https://www.regalrexnord.com/404?item=web%3a%7bE7E9392C-511F-4C34-9F0B-A8631E7ABBC6%7d%40en",
-                    "sub_subproducts": []
+                    "sub_subproducts": [
+                        {
+                            "sub_subproduct_name": "Falk 2924200 Orange Peel Coupling Guards Coupling Guards - 2924200",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/couplings/coupling-parts-and-kits/shaft-guards/2924200-orange-peel-coupling-guards-coupling-guards-10094913"
+                        },
+                        {
+                            "sub_subproduct_name": "Falk 2924235 MCG Series Orange Peel Coupling Guards - 2924235",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/couplings/coupling-parts-and-kits/shaft-guards/2924235-mcg-series-orange-peel-coupling-guards-10094946"
+                        },
+                        {
+                            "sub_subproduct_name": "Falk 2924201 Orange Peel Coupling Guards Coupling Guards - 2924201",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/couplings/coupling-parts-and-kits/shaft-guards/2924201-orange-peel-coupling-guards-coupling-guards-10094914"
+                        }
+                    ]
                 },
                 {
                     "subproduct_name": "Grease",
                     "subproduct_link": "https://www.regalrexnord.com/404?item=web%3a%7b3892A559-D4B8-43DE-9D81-E773EE7550F5%7d%40en",
-                    "sub_subproducts": []
+                    "sub_subproducts": [
+                        {
+                            "sub_subproduct_name": "Kop-Flex Grease - KSG 14OZ",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/couplings/grease/grease-1968262"
+                        },
+                        {
+                            "sub_subproduct_name": "Kop-Flex Grease - KHP 14OZ",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/couplings/grease/grease-1968270"
+                        },
+                        {
+                            "sub_subproduct_name": "Kop-Flex Grease - KHP 5LB",
+                            "sub_subproduct_link": "https://www.regalrexnord.com/products/couplings/grease/grease-1968114"
+                        }
+                    ]
                 },
                 {
                     "subproduct_name": "Torsionally Soft Couplings",
                     "subproduct_link": "https://www.regalrexnord.com/products/couplings/torsionally-soft-couplings-overview",
-                    "sub_subproducts": []
+                    "sub_subproducts": [
+                        {
+                            "sub_subproduct_name": "",
+                            "sub_subproduct_link": ""
+                        },
+                        {
+                            "sub_subproduct_name": "",
+                            "sub_subproduct_link": ""
+                        },
+                        {
+                            "sub_subproduct_name": "",
+                            "sub_subproduct_link": ""
+                        }
+                    ]
                 }
             ]
         },
