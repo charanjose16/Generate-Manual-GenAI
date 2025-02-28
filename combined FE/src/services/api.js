@@ -12,7 +12,7 @@ export const getMotorIds = async () => {
 // Get failure trends for a given motor and a number of months
 export const getFailureTrends = async (motor_id, months) => {
   const response = await axios.get(
-    `${baseUrl}/failure-trends?motor_id=${motor_id}&months=${months}`
+    `${baseUrl}/api/failure-trends?motor_id=${motor_id}&months=${months}`
   );
   return response.data;
 };
@@ -20,7 +20,7 @@ export const getFailureTrends = async (motor_id, months) => {
 // Get RPM vs Load analytics for a given motor and a number of months
 export const getRpmVsLoad = async (motor_id, months) => {
   const response = await axios.get(
-    `${baseUrl}/rpm-vs-load?motor_id=${motor_id}&months=${months}`
+    `${baseUrl}/api/rpm-vs-load?motor_id=${motor_id}&months=${months}`
   );
   return response.data;
 };
@@ -28,7 +28,7 @@ export const getRpmVsLoad = async (motor_id, months) => {
 // Get Temperature vs Vibration analytics for a given motor and a number of months
 export const getTempVsVibration = async (motor_id, months) => {
   const response = await axios.get(
-    `${baseUrl}/temp-vs-vibration?motor_id=${motor_id}&months=${months}`
+    `${baseUrl}/api/temp-vs-vibration?motor_id=${motor_id}&months=${months}`
   );
   return response.data;
 };
