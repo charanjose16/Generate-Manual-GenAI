@@ -184,7 +184,7 @@ class MaintenanceInsightModule(dspy.Module):
  
 # Initialize the LM for DSPy
 dspy_lm = dspy.LM(
-    model='azure/gpt-35-turbo',  # Replace with your desired model identifier
+    model='azure/gpt-4o',
     api_key=os.getenv("AZURE_OPENAI_API_KEY"),
     api_base=os.getenv("AZURE_OPENAI_ENDPOINT"),
     temperature=0.2,
@@ -717,21 +717,6 @@ UPLOAD_FOLDER = os.getenv("UPLOAD_FOLDER", "vector_db")
 # -------------------------------
 # DSPy CONFIGURATION
 # -------------------------------
-
-# Configure DSPy with Azure OpenAI for manual generation
-try:
-    lm = dspy.LM(
-        model="azure/" + os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME"),
-        api_key=os.getenv("AZURE_OPENAI_API_KEY"),
-        api_base=os.getenv("AZURE_OPENAI_ENDPOINT"),
-        temperature=0.7,
-        max_tokens=4096,
-    )
-    dspy.configure(lm=lm)
-    logger.info("DSPy configured successfully with Azure OpenAI.")
-except Exception as e:
-    logger.error(f"Failed to configure DSPy: {str(e)}")
-    raise RuntimeError(f"Failed to configure DSPy: {str(e)}")
 
 # Define DSPy signature for content generation
 class GenerateContent(Signature):
