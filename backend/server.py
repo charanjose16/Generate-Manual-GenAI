@@ -44,6 +44,7 @@ import concurrent.futures
 from functools import partial, lru_cache
 import aiohttp
 from aiohttp import  BasicAuth,ClientTimeout
+from urllib.parse import quote
 
 # Disable warnings and configure logging
 urllib3.disable_warnings()
@@ -1294,11 +1295,12 @@ async def generate_manual(
                     detail=f"Failed to generate PDF: {str(e)}"
                 )
 
-            # Prepare response
+            # Prepare response with URL-encoded filename using filename*
             filename = f"user_manual_{scraped_data['product_name']}_{language}.pdf"
+            encoded_filename = quote(filename)  # URL-encode the filename to handle special characters
             response = StreamingResponse(pdf_buffer, media_type="application/pdf")
-            response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
-            
+            response.headers["Content-Disposition"] = f"attachment; filename*=UTF-8''{encoded_filename}"
+
             # Stop tracemalloc
             tracemalloc.stop()
             
