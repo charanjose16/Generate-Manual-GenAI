@@ -1,50 +1,689 @@
-import logging
-import requests
+# ---------------------------
+# Standard Library Imports
+# ---------------------------
 import os
+import re
+import json
+import shutil
+import pickle
+import logging
+import asyncio
+import tempfile
+import warnings
 import traceback
-from bs4 import BeautifulSoup
-from fastapi import FastAPI, HTTPException, File, UploadFile, Form
-from fastapi.responses import StreamingResponse, JSONResponse
+import base64
+import urllib.parse
+from urllib.parse import quote
+import urllib3
+import uuid
+import io
 from io import BytesIO
-from dotenv import load_dotenv
+from datetime import datetime
+from functools import partial, lru_cache
+from concurrent.futures import ThreadPoolExecutor
+import concurrent.futures
+
+# ---------------------------
+# Third-Party Libraries
+# ---------------------------
+from dateutil.relativedelta import relativedelta
+from typing import Any, Dict, List, Optional, Tuple
+
+# Requests & HTTP
+import requests
+from requests.auth import HTTPBasicAuth
+from requests.packages.urllib3.exceptions import InsecureRequestWarning
+
+# ---------------------------
+# FastAPI Imports
+# ---------------------------
+from fastapi import (
+    FastAPI,
+    Query,
+    HTTPException,
+    File,
+    UploadFile,
+    Form,
+    BackgroundTasks,
+    WebSocket,
+    WebSocketDisconnect
+)
+from fastapi.responses import StreamingResponse, JSONResponse, FileResponse
+from fastapi.middleware.cors import CORSMiddleware
+
+# ---------------------------
+# Data Processing
+# ---------------------------
+import pandas as pd
+import numpy as np
+from bs4 import BeautifulSoup
+
+# ---------------------------
+# NLP & Machine Learning
+# ---------------------------
 import dspy
 from dspy import InputField, OutputField, Signature, Predict
-from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak, Table, TableStyle,Frame,PageTemplate
-from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.lib.units import inch
-from reportlab.lib import colors
-import re
-from fastapi.middleware.cors import CORSMiddleware
+from sentence_transformers import SentenceTransformer
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
 from langchain_community.document_loaders import PyPDFLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-import json
-from requests.auth import HTTPBasicAuth
-import urllib3
-import tempfile
-import PyPDF2
-from sentence_transformers import SentenceTransformer
-from typing import List, Dict, Any, Optional, Tuple
-import numpy as np
-import warnings
-from requests.packages.urllib3.exceptions import InsecureRequestWarning
 import faiss
-import pickle
-import shutil
-from werkzeug.utils import secure_filename
-from azure.storage.blob import BlobServiceClient
-import urllib.parse
-from datetime import datetime
+
+# ---------------------------
+# PDF & Document Processing
+# ---------------------------
+import PyPDF2
+from PyPDF2 import PdfReader  # For PDF text extraction
 from docx2pdf import convert
+from docx import Document 
 from fpdf import FPDF
-import asyncio
-import concurrent.futures
-from functools import partial, lru_cache
+from reportlab.lib.pagesizes import letter
+from reportlab.platypus import (
+    SimpleDocTemplate,
+    Paragraph,
+    Spacer,
+    PageBreak,
+    Table,
+    TableStyle,
+    Frame,
+    PageTemplate
+)
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import inch
+from reportlab.lib import colors
+from reportlab.lib.utils import ImageReader
+
+# ---------------------------
+# Cloud & Storage
+# ---------------------------
+from azure.storage.blob import BlobServiceClient
+
+# ---------------------------
+# Async Networking
+# ---------------------------
 import aiohttp
-from aiohttp import  BasicAuth,ClientTimeout
-from urllib.parse import quote
+from aiohttp import BasicAuth, ClientTimeout
+
+# ---------------------------
+# Environment & Utility Imports
+# ---------------------------
+from dotenv import load_dotenv
+from werkzeug.utils import secure_filename
+
+# ---------------------------
+# Pydantic Import (Added)
+# ---------------------------
+from pydantic import BaseModel
+
+# Configure logging and load environment variables
+logging.basicConfig(level=logging.INFO)
+load_dotenv()
+
+app = FastAPI()
+
+# Enable CORS for local development
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# UseCase 1
+
+###########################################
+# Global in-memory stores for progress messages and generated PDFs.
+###########################################
+progress_store: dict[str, list[str]] = {}
+pdf_store: dict[str, BytesIO] = {}
+
+class SpecInput(BaseModel):
+    product_name: str
+    specs: dict
+
+# Path to the CSV file
+file_path = r"C:\Users\286194\Downloads\Final Regal Rex Nord - combined\Final Regal Rex Nord - combined\Backend\dataset.csv"
+ 
+#############################################
+# DSPy Setup for Extended Maintenance Insight Module
+#############################################
+ 
+class MaintenanceInsightSignature(dspy.Signature):
+    """
+    DSPy signature for obtaining a maintenance insight.
+    The LM will receive:
+    - aggregated_data: the aggregated JSON data for the motor (grouped by date)
+    - question: a prompt asking for a maintenance insight, which should instruct the LM to return a JSON object
+      with the following keys:
+         - risk: one of "low", "moderate", or "high"
+         - description: a textual description of the risk or trend (formatted as bullet points)
+         - dates: a list of dates (as strings) where anomalies or risk factors were detected
+         - ai_suggestions: a bullet-point formatted list of AI suggestions (including any date information as needed)
+    """
+    aggregated_data: str = dspy.InputField(desc="Aggregated JSON data for the motor")
+    question: str = dspy.InputField(desc="Prompt for maintenance insight")
+    risk: str = dspy.OutputField(desc="Risk rating: low, moderate, or high")
+    description: str = dspy.OutputField(desc="Description of the risk or trend, formatted as bullet points")
+    dates: str = dspy.OutputField(desc="List of relevant dates (as a JSON-formatted string)")
+    ai_suggestions: str = dspy.OutputField(desc="AI-based suggestions formatted as bullet points")
+ 
+class MaintenanceInsightModule(dspy.Module):
+    def __init__(self):
+        # Initialize a chain-of-thought module with the extended signature
+        self.get_insight = dspy.ChainOfThought(MaintenanceInsightSignature)
+   
+    def forward(self, aggregated_data: str, question: str):
+        result = self.get_insight(aggregated_data=aggregated_data, question=question)
+        return {
+            "risk": result.risk,
+            "description": result.description,
+            "dates": result.dates,
+            "ai_suggestions": result.ai_suggestions
+        }
+ 
+# Initialize the LM for DSPy
+dspy_lm = dspy.LM(
+    model='azure/gpt-4o',
+    api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+    api_base=os.getenv("AZURE_OPENAI_ENDPOINT"),
+    temperature=0.2,
+    max_tokens=4096,
+)
+dspy.configure(lm=dspy_lm)
+ 
+# Initialize the extended maintenance insight module
+maintenance_insight_module = MaintenanceInsightModule()
+
+#############################################
+# DSPy Setup for Motor Analytics Module
+#############################################
+
+class MotorAnalyticsSignature(dspy.Signature):
+    """
+    DSPy signature for obtaining motor analytics insights.
+    The LM will receive:
+    - analytics_data: a JSON string containing analytics metrics
+    - prompt: a prompt asking for AI-based observations
+    It returns:
+    - ai_observations: the AI-generated observations formatted accordingly.
+    """
+    analytics_data: str = dspy.InputField(desc="JSON string of analytics data")
+    prompt: str = dspy.InputField(desc="Prompt for motor analytics insights")
+    ai_observations: str = dspy.OutputField(desc="AI-based observations in specified format")
+
+class MotorAnalyticsModule(dspy.Module):
+    def __init__(self):
+        self.get_analytics = dspy.ChainOfThought(MotorAnalyticsSignature)
+   
+    def forward(self, analytics_data: str, prompt: str):
+        result = self.get_analytics(analytics_data=analytics_data, prompt=prompt)
+        return result.ai_observations
+ 
+# Initialize the motor analytics module
+motor_analytics_module = MotorAnalyticsModule()
+ 
+#############################
+# Existing Endpoints
+#############################
+ 
+@app.get("/api/motors")
+def extract_motor_ids():
+    try:
+        df = pd.read_csv(file_path)
+        if "Motor_ID" not in df.columns:
+            raise HTTPException(status_code=400, detail="CSV file is missing the 'Motor_ID' column.")
+        motor_ids = df["Motor_ID"].unique().tolist()
+        return {"motors": motor_ids}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+ 
+@app.get("/api/motor-data")
+def get_motor_data(
+    motor_id: str = Query(..., description="Motor ID to filter data"),
+    months: int = Query(..., description="Number of months for filtering (1, 6, 12, 24, 36, 48, 60)")
+):
+    allowed_months = [1, 6, 12, 24, 36, 48, 60]
+    if months not in allowed_months:
+        raise HTTPException(status_code=400, detail=f"Invalid months parameter. Allowed values: {allowed_months}")
+    try:
+        df = pd.read_csv(file_path, parse_dates=["Timestamp"])
+        today = datetime.today()
+        start_date = today - relativedelta(months=months)
+        filtered_df = df[(df["Timestamp"] >= start_date) & (df["Timestamp"] <= today) & (df["Motor_ID"] == motor_id)]
+        if filtered_df.empty:
+            return {"message": f"No data available for Motor ID {motor_id} in the past {months} months."}
+        return {"motor_data": filtered_df.to_dict(orient="records")}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+ 
+#############################################
+# Extended Motor Maintenance Insight Endpoint
+#############################################
+ 
+@app.get("/api/motor-maintenance")
+def get_motor_maintenance_insight(
+    motor_id: str = Query(..., description="Motor ID for maintenance insight"),
+    months: int = Query(..., description="Number of months for filtering aggregated data (1, 6, 12, 24, 36, 48, 60)")
+):
+    allowed_months = [1, 6, 12, 24, 36, 48, 60]
+    if months not in allowed_months:
+        raise HTTPException(status_code=400, detail=f"Invalid months parameter. Allowed values: {allowed_months}")
+   
+    try:
+        df = pd.read_csv(file_path, parse_dates=["Timestamp"])
+        today = datetime.today()
+        start_date = today - relativedelta(months=months)
+        motor_df = df[(df["Timestamp"] >= start_date) & (df["Timestamp"] <= today) & (df["Motor_ID"] == motor_id)]
+        if motor_df.empty:
+            return {"message": f"No data available for Motor ID {motor_id} in the past {months} months."}
+       
+        motor_df["Date"] = motor_df["Timestamp"].dt.date
+        aggregated_df = motor_df.groupby("Date").size().reset_index(name="record_count")
+        aggregated_data_json = aggregated_df.to_json(orient="records", date_format="iso", indent=2)
+        logging.info(f"Aggregated data for motor {motor_id}:\n{aggregated_data_json}")
+       
+        anomaly_prompt = (
+            f"Analyze the following aggregated maintenance data for Motor ID {motor_id} "
+            f"to detect anomalies in power consumption. Identify unusual spikes or drops, list the specific dates when these anomalies occurred, "
+            f"and provide AI-based suggestions for further investigation. Return your result in JSON format with keys: 'risk', 'description', 'dates', and 'ai_suggestions'. "
+            f"Format both the 'description' and 'ai_suggestions' as bullet points. Data:\n{aggregated_data_json}"
+        )
+        anomaly_insight = maintenance_insight_module.forward(
+            aggregated_data=aggregated_data_json, question=anomaly_prompt
+        )
+       
+        risk_prompt = (
+            f"Analyze the following aggregated maintenance data for Motor ID {motor_id} to determine if the motor is at high risk of failure. "
+            f"Identify the dates where risk factors are evident and provide AI-based suggestions for maintenance actions. Return your result in JSON format with keys: "
+            f"'risk', 'description', 'dates', and 'ai_suggestions'. Format the 'description' and 'ai_suggestions' fields as bullet points. Data:\n{aggregated_data_json}"
+        )
+        risk_insight = maintenance_insight_module.forward(
+            aggregated_data=aggregated_data_json, question=risk_prompt
+        )
+       
+        predictive_prompt = (
+            f"Using the following aggregated maintenance data for Motor ID {motor_id}, perform AI-based predictive failure modeling. "
+            f"Forecast potential future failures by identifying trends and listing the relevant dates or date ranges. Additionally, provide AI-based suggestions on how to rectify any defects observed. "
+            f"Return your result in JSON format with keys: 'risk', 'description', 'dates', and 'ai_suggestions', ensuring that both 'description' and 'ai_suggestions' are formatted as bullet points. Data:\n{aggregated_data_json}"
+        )
+        predictive_insight = maintenance_insight_module.forward(
+            aggregated_data=aggregated_data_json, question=predictive_prompt
+        )
+       
+        if "Status" in motor_df.columns:
+            status_counts = motor_df["Status"].value_counts()
+        else:
+            status_counts = pd.Series({"Operational": 70, "Maintenance": 20, "Failure": 10})
+       
+        pie_chart_data = {
+            "labels": status_counts.index.tolist(),
+            "datasets": [
+                {
+                    "label": "Motor Status",
+                    "data": status_counts.tolist(),
+                    "backgroundColor": ["#36A2EB", "#FFCE56", "#FF6384"],
+                    "hoverBackgroundColor": ["#36A2EB", "#FFCE56", "#FF6384"]
+                }
+            ]
+        }
+       
+        return {
+            "motor_id": motor_id,
+            "maintenance_insights": {
+                "anomaly_detection": anomaly_insight,
+                "high_failure_risk": risk_insight,
+                "predictive_failure_modeling": predictive_insight,
+            },
+            "motor_status_pie_data": pie_chart_data
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+ 
+#############################################
+# New Analytics Endpoint Using DSPy
+#############################################
+ 
+@app.get("/api/analytics")
+def get_motor_analytics(
+    motor_id: str = Query(..., description="Motor ID for analytics"),
+    months: int = Query(..., description="Number of months for filtering data (allowed: 1, 6, 12, 24, 36, 48, 60)")
+):
+    """
+    Returns analytics data for a specific motor_id filtered by the number of months,
+    and generates AI-based observations using DSPy.
+    """
+    allowed_months = [1, 6, 12, 24, 36, 48, 60]
+    if months not in allowed_months:
+        raise HTTPException(status_code=400, detail=f"Invalid months parameter. Allowed values: {allowed_months}")
+ 
+    try:
+        df = pd.read_csv(file_path)
+        df.columns = df.columns.str.strip()
+        df = df.rename(columns={
+            "Timestamp": "timestamp",
+            "Motor_ID": "motor_id",
+            "Voltage (V)": "voltage",
+            "Current (A)": "current",
+            "Power (kW)": "power",
+            "Frequency (Hz)": "frequency",
+            "Power Factor": "power_factor",
+            "Torque (Nm)": "torque",
+            "RPM": "rpm",
+            "Load (%)": "load",  
+            "Temperature (Â°C)": "temperature",
+            "Humidity (%)": "humidity",
+            "Vibration (mm/s)": "vibration",
+            "Status": "status"
+        })
+        df["timestamp"] = pd.to_datetime(df["timestamp"])
+        df["rpm"] = pd.to_numeric(df["rpm"], errors="coerce")
+        df["load"] = pd.to_numeric(df["load"], errors="coerce")
+        df["vibration"] = pd.to_numeric(df["vibration"], errors="coerce")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Dataset not loaded: {e}")
+ 
+    df.columns = df.columns.str.lower()
+ 
+    if "timestamp" not in df.columns:
+        raise HTTPException(status_code=500, detail="Timestamp column not found in dataset")
+    df["timestamp"] = pd.to_datetime(df["timestamp"])
+    if "motor_id" not in df.columns:
+        raise HTTPException(status_code=500, detail="motor_id column not found in dataset")
+ 
+    filtered_df = df[df["motor_id"] == motor_id]
+    if filtered_df.empty:
+        raise HTTPException(status_code=404, detail=f"No data found for motor_id: {motor_id}")
+ 
+    today = datetime.today()
+    start_date = today - relativedelta(months=months)
+    filtered_df = filtered_df[(filtered_df["timestamp"] >= start_date) & (filtered_df["timestamp"] <= today)]
+    if filtered_df.empty:
+        raise HTTPException(status_code=404, detail=f"No data found for motor_id: {motor_id} in the past {months} months")
+ 
+    filtered_data = filtered_df.to_dict(orient="records")
+ 
+    def calculate_averages(data_list, field):
+        values = [float(record[field]) for record in data_list if record.get(field)]
+        return sum(values) / len(values) if values else 0
+     
+    try:
+        analytics = {
+            "voltage": {
+                "avg": round(calculate_averages(filtered_data, "voltage"), 2),
+                "max": round(max(float(r["voltage"]) for r in filtered_data), 2),
+                "min": round(min(float(r["voltage"]) for r in filtered_data), 2)
+            },
+            "current": {
+                "avg": round(calculate_averages(filtered_data, "current"), 2),
+                "max": round(max(float(r["current"]) for r in filtered_data), 2),
+                "min": round(min(float(r["current"]) for r in filtered_data), 2)
+            },
+            "power": {
+                "avg": round(calculate_averages(filtered_data, "power"), 2),
+                "max": round(max(float(r["power"]) for r in filtered_data), 2),
+                "min": round(min(float(r["power"]) for r in filtered_data), 2)
+            },
+            "load": {
+                "avg": round(calculate_averages(filtered_data, "load"), 2),
+                "max": round(max(float(r["load"]) for r in filtered_data), 2),
+                "min": round(min(float(r["load"]) for r in filtered_data), 2)
+            },
+            "vibration": {
+                "avg": round(calculate_averages(filtered_data, "vibration"), 2),
+                "max": round(max(float(r["vibration"]) for r in filtered_data), 2),
+                "min": round(min(float(r["vibration"]) for r in filtered_data), 2)
+            },
+            "failures": len([r for r in filtered_data if r["status"] in ["Motor Failure", "Shutdown"]]),
+            "period": {
+                "start": min(pd.to_datetime(r["timestamp"]) for r in filtered_data).strftime("%Y-%m-%d"),
+                "end": max(pd.to_datetime(r["timestamp"]) for r in filtered_data).strftime("%Y-%m-%d")
+            }
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error computing analytics: {e}")
+ 
+    prompt = f"""
+    You are an AI trained to analyze motor performance data and provide insights. Based on the following data, generate three AI-based observations with recommendations:
+    - Voltage: Avg {analytics['voltage']['avg']}V, Max {analytics['voltage']['max']}V, Min {analytics['voltage']['min']}V
+    - Current: Avg {analytics['current']['avg']}A, Max {analytics['current']['max']}A, Min {analytics['current']['min']}A
+    - Power: Avg {analytics['power']['avg']}W, Max {analytics['power']['max']}W, Min {analytics['power']['min']}W
+    - Load: Avg {analytics['load']['avg']}%, Max {analytics['load']['max']}%, Min {analytics['load']['min']}%
+    - Vibration: Avg {analytics['vibration']['avg']}, Max {analytics['vibration']['max']}, Min {analytics['vibration']['min']}
+    - Failures: {analytics['failures']} incidents
+    - Period: {analytics['period']['start']} to {analytics['period']['end']}
+    Provide three concise insights in this format:
+        Observation: [AI analysis]  
+        Insight: [What's happening]  
+        Recommendation: [What action to take]
+    """
+ 
+    # Use DSPy for AI observations
+    analytics_data_json = json.dumps(analytics)
+    ai_observations = motor_analytics_module.forward(analytics_data=analytics_data_json, prompt=prompt)
+ 
+    return {
+        "analytics": analytics,
+        "ai_observations": ai_observations
+    }
+   
+#############################################
+# Trend Analysis Endpoints
+#############################################
+ 
+ 
+ 
+ 
+class TrendAnalysisSignature(dspy.Signature):
+    """
+    DSPy signature for obtaining trend analysis insights.
+    The LM will receive:
+    - analytics_data: a JSON string containing aggregated or trend data.
+    - prompt: a prompt asking for trend analysis, instructing the LM to return a JSON object
+      with keys such as 'ai_trend' that include observations and recommendations.
+    """
+    analytics_data: str = dspy.InputField(desc="JSON string of trend data")
+    prompt: str = dspy.InputField(desc="Prompt for trend analysis insights")
+    ai_trend: str = dspy.OutputField(desc="AI-generated trend insights with recommendations")
+ 
+class TrendAnalysisModule(dspy.Module):
+    def __init__(self):
+        self.get_trend = dspy.ChainOfThought(TrendAnalysisSignature)
+   
+    def forward(self, analytics_data: str, prompt: str):
+        result = self.get_trend(analytics_data=analytics_data, prompt=prompt)
+        return result.ai_trend
+   
+trend_analysis_module = TrendAnalysisModule()
+ 
+@app.get("/api/motor-ids")
+def get_motor_ids():
+    """Returns list of unique motor IDs from the dataset."""
+    try:
+        df = pd.read_csv(file_path)
+        unique_ids = df["Motor_ID"].unique().tolist()
+        return {"data": unique_ids}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+ 
+ 
+@app.get("/api/failure-trends")
+def get_failure_trends(
+    motor_id: str = Query(..., description="Motor ID for filtering data"),
+    months: int = Query(..., description="Number of months for filtering (1, 6, 12, 24, 36, 48, 60)")
+):
+    """Returns failure trends for a specific motor over time with AI-generated trend insights."""
+    allowed_months = [1, 6, 12, 24, 36, 48, 60]
+    if months not in allowed_months:
+        raise HTTPException(status_code=400, detail=f"Invalid months parameter. Allowed values: {allowed_months}")
+   
+    try:
+        df = pd.read_csv(file_path, parse_dates=["Timestamp"])
+        filtered_df = df[df["Motor_ID"] == motor_id]
+        today = datetime.today()
+        start_date = today - relativedelta(months=months)
+        filtered_df = filtered_df[(filtered_df["Timestamp"] >= start_date) & (filtered_df["Timestamp"] <= today)]
+        if filtered_df.empty:
+            return {"message": f"No data available for Motor ID {motor_id} in the past {months} months."}
+       
+        failure_status = filtered_df[filtered_df["Status"].isin(["High Vibration", "Overload"])]
+        trends = failure_status.groupby(failure_status["Timestamp"].dt.to_period("M")).size()
+        trends_list = [{"month": str(k), "count": int(v)} for k, v in trends.items()]
+       
+        if trends_list:
+            trends_sorted = sorted(trends_list, key=lambda x: x["month"])
+            x_vals = list(range(len(trends_sorted)))
+            y_vals = [item["count"] for item in trends_sorted]
+            slope, intercept = np.polyfit(x_vals, y_vals, 1)
+            regression = {
+                "slope": round(slope, 2),
+                "intercept": round(intercept, 2),
+                "predicted": [
+                    {"month": trends_sorted[i]["month"], "predicted_count": round(slope * i + intercept, 2)}
+                    for i in range(len(trends_sorted))
+                ]
+            }
+            if len(y_vals) >= 3:
+                moving_avg = np.convolve(y_vals, np.ones(3) / 3, mode="valid")
+                moving_average = [
+                    {"month": trends_sorted[i + 1]["month"], "moving_avg": round(moving_avg[i], 2)}
+                    for i in range(len(moving_avg))
+                ]
+            else:
+                moving_average = []
+        else:
+            regression = {}
+            moving_average = []
+       
+        # Build a prompt for trend analysis of failure data
+        failure_data_json = json.dumps(trends_list)
+        prompt = (
+            f"Analyze the following failure trend data for Motor ID {motor_id}: {failure_data_json}. "
+            f"Identify trends, anomalies, and forecast potential future risks. "
+             f"Return your result in JSON format with key 'ai_trend'. containing observations and recommendations in bullet points."
+        )
+        ai_trend_insight = trend_analysis_module.forward(
+            analytics_data=failure_data_json, prompt=prompt
+        )
+       
+        return {
+            "data": trends_list,
+            "total_failures": len(failure_status),
+            "period": {
+                "start": start_date.strftime("%Y-%m-%d"),
+                "end": today.strftime("%Y-%m-%d")
+            },
+            "ai_trend_insight": ai_trend_insight,
+            "trend_analysis": {
+                "regression": regression,
+                "moving_average": moving_average
+            }
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+ 
+@app.get("/api/rpm-vs-load")
+def get_rpm_vs_load(
+    motor_id: str = Query(..., description="Motor ID for filtering data"),
+    months: int = Query(..., description="Number of months for filtering (1, 6, 12, 24, 36, 48, 60)")
+):
+    allowed_months = [1, 6, 12, 24, 36, 48, 60]
+    if months not in allowed_months:
+        raise HTTPException(status_code=400, detail=f"Invalid months parameter. Allowed values: {allowed_months}")
+    try:
+        df = pd.read_csv(file_path, parse_dates=["Timestamp"])
+        for col in ["Motor_ID", "Timestamp", "RPM", "Load (%)"]:
+            if col not in df.columns:
+                raise HTTPException(status_code=500, detail=f"Missing expected column '{col}' in dataset.")
+        filtered_df = df[df["Motor_ID"] == motor_id]
+        today = datetime.today()
+        start_date = today - relativedelta(months=months)
+        filtered_df = filtered_df[(filtered_df["Timestamp"] >= start_date) & (filtered_df["Timestamp"] <= today)]
+        if filtered_df.empty:
+            return {"message": f"No data available for Motor ID {motor_id} in the past {months} months."}
+        filtered_df["Month"] = filtered_df["Timestamp"].dt.to_period("M").astype(str)
+        grouped = filtered_df.groupby("Month").agg(
+            avg_rpm=("RPM", "mean"),
+            avg_load=("Load (%)", "mean")
+        ).reset_index()
+        grouped["avg_rpm"] = grouped["avg_rpm"].round(2)
+        grouped["avg_load"] = grouped["avg_load"].round(2)
+       
+        # Build aggregated data JSON and prompt for RPM vs. Load trend analysis
+        aggregated_data = grouped.to_dict(orient="records")
+        aggregated_data_json = json.dumps(aggregated_data)
+        prompt = (
+            f"Analyze the following monthly aggregated RPM and Load data for Motor ID {motor_id}: {aggregated_data_json}. "
+            f"Identify any trends or shifts in performance ."
+             f"Return your result in JSON format with key 'ai_trend'. containing observations and recommendations in bullet points."
+        )
+        ai_trend_insight = trend_analysis_module.forward(
+            analytics_data=aggregated_data_json, prompt=prompt
+        )
+       
+        return {
+            "data": aggregated_data,
+            "period": {
+                "start": start_date.strftime("%Y-%m-%d"),
+                "end": today.strftime("%Y-%m-%d")
+            },
+            "ai_trend_insight": ai_trend_insight
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+ 
+@app.get("/api/temp-vs-vibration")
+def get_temp_vs_vibration(
+    motor_id: str = Query(..., description="Motor ID for filtering data"),
+    months: int = Query(..., description="Number of months for filtering (1, 6, 12, 24, 36, 48, 60)")
+):
+    allowed_months = [1, 6, 12, 24, 36, 48, 60]
+    if months not in allowed_months:
+        raise HTTPException(status_code=400, detail=f"Invalid months parameter. Allowed values: {allowed_months}")
+    try:
+        df = pd.read_csv(file_path, parse_dates=["Timestamp"])
+        filtered_df = df[df["Motor_ID"] == motor_id]
+        today = datetime.today()
+        start_date = today - relativedelta(months=months)
+        filtered_df = filtered_df[(filtered_df["Timestamp"] >= start_date) & (filtered_df["Timestamp"] <= today)]
+        if filtered_df.empty:
+            return {"message": f"No data available for Motor ID {motor_id} in the past {months} months."}
+        temp_vib_data = filtered_df[["Temperature (°C)", "Vibration (mm/s)", "Timestamp", "Status"]].copy()
+        temp_vib_data["Timestamp"] = temp_vib_data["Timestamp"].dt.strftime("%Y-%m-%d %H:%M:%S")
+        correlation = None
+        if len(filtered_df) > 1:
+            correlation = round(filtered_df[["Temperature (°C)", "Vibration (mm/s)"]].corr().iloc[0, 1], 3)
+       
+        # Build statistics for trend analysis
+        stats = {
+            "avg_temperature": round(filtered_df["Temperature (°C)"].mean(), 2),
+            "avg_vibration": round(filtered_df["Vibration (mm/s)"].mean(), 2),
+            "correlation": correlation,
+            "period": {
+                "start": start_date.strftime("%Y-%m-%d"),
+                "end": today.strftime("%Y-%m-%d")
+            }
+        }
+        stats_json = json.dumps(stats)
+        prompt = (
+            f"Analyze the following temperature and vibration statistics for Motor ID {motor_id}: {stats_json}. "
+            f"Provide an AI-based trend analysis that explains the relationship, highlights any anomalies, and recommends monitoring actions. "
+            f"Return your result in JSON format with key 'ai_trend'. containing observations and recommendations in bullet points."
+        )
+        ai_trend_insight = trend_analysis_module.forward(
+            analytics_data=stats_json, prompt=prompt
+        )
+       
+        return {
+            "data": temp_vib_data.to_dict(orient="records"),
+            "statistics": stats,
+            "ai_trend_insight": ai_trend_insight
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# UseCase 2
 
 # Disable warnings and configure logging
 urllib3.disable_warnings()
@@ -52,9 +691,6 @@ warnings.simplefilter('ignore', InsecureRequestWarning)
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
-
-# Load environment variables
-load_dotenv()
 
 # Set SSL certificate paths if needed
 CERTIFICATE_PATH = os.path.join(os.path.dirname(__file__), "huggingface.co.crt")
@@ -80,31 +716,8 @@ VECTOR_DB_PATH = os.getenv("VECTOR_DB_PATH", "vector_db")
 UPLOAD_FOLDER = os.getenv("UPLOAD_FOLDER", "vector_db")
 
 # -------------------------------
-# FASTAPI SETUP & DSPy CONFIGURATION
+# DSPy CONFIGURATION
 # -------------------------------
-app = FastAPI()
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Configure DSPy with Azure OpenAI for manual generation
-try:
-    lm = dspy.LM(
-        model="azure/" + os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME"),
-        api_key=os.getenv("AZURE_OPENAI_API_KEY"),
-        api_base=os.getenv("AZURE_OPENAI_ENDPOINT"),
-        temperature=0.7,
-        max_tokens=4096,
-    )
-    dspy.configure(lm=lm)
-    logger.info("DSPy configured successfully with Azure OpenAI.")
-except Exception as e:
-    logger.error(f"Failed to configure DSPy: {str(e)}")
-    raise RuntimeError(f"Failed to configure DSPy: {str(e)}")
 
 # Define DSPy signature for content generation
 class GenerateContent(Signature):
@@ -1740,6 +2353,593 @@ async def process_confluence_page(page: dict) -> str:
     except Exception as e:
         logger.error(f"Error processing page {page.get('title', 'Unknown')}: {str(e)}")
         return ""
+
+# UseCase 3
+
+# Get default ReportLab styles and update "Bullet" style if needed.
+STYLES = getSampleStyleSheet()
+if 'Bullet' in STYLES.byName:
+    bullet_style = STYLES.byName['Bullet']
+    bullet_style.fontName = 'Helvetica'
+    bullet_style.fontSize = 10
+    bullet_style.leftIndent = 20
+    bullet_style.bulletIndent = 10
+    bullet_style.bulletFontName = 'Helvetica'
+    bullet_style.bulletFontSize = 10
+else:
+    bullet_style = ParagraphStyle(
+        name='Bullet',
+        parent=STYLES['Normal'],
+        leftIndent=20,
+        bulletIndent=10,
+        bulletFontName='Helvetica',
+        bulletFontSize=10,
+    )
+    STYLES.add(bullet_style)
+
+###########################################
+# DSPy Signature for Product Specification Content (Default)
+###########################################
+class GenerateProductSpecContent(Signature):
+    """
+    Default DSPy signature for generating content for a product specification section.
+    """
+    section_title: str = InputField(desc="Section title")
+    product_category: str = InputField(desc="Product category (e.g., Motors, Bearings)")
+    product_details: str = InputField(desc="Detailed product specifications")
+    prompt: str = InputField(desc="Instructional prompt for content generation")
+    output: str = OutputField(desc="Generated content for the section")
+
+###########################################
+# NEW: DSPy Signature for Product Manager Persona
+###########################################
+class GenerateProductSpecContentManager(Signature):
+    """
+    DSPy signature for generating content for a product specification section tailored for Product Managers.
+    """
+    section_title: str = InputField(desc="Section title")
+    product_category: str = InputField(desc="Product category (e.g., Motors, Bearings)")
+    product_details: str = InputField(desc="Detailed product specifications")
+    prompt: str = InputField(desc="Instructional prompt for content generation for managers")
+    output: str = OutputField(desc="Generated content for the section (Manager view)")
+
+###########################################
+# NEW: DSPy Signature for Product Engineer Persona
+###########################################
+class GenerateProductSpecContentEngineer(Signature):
+    """
+    DSPy signature for generating content for a product specification section tailored for Product Engineers.
+    """
+    section_title: str = InputField(desc="Section title")
+    product_category: str = InputField(desc="Product category (e.g., Motors, Bearings)")
+    product_details: str = InputField(desc="Detailed product specifications")
+    prompt: str = InputField(desc="Instructional prompt for content generation for engineers")
+    output: str = OutputField(desc="Generated content for the section (Engineer view)")
+
+###########################################
+# Helper: Add Decorations (Logo, Border, Footer with Caution Symbol) on Every Page
+###########################################
+def add_decorations(canvas, doc):
+    """
+    Draws the logo, border, and a footer outside the border.
+    
+    - The border is drawn with a 40-point margin from the page edges.
+    - The logo is placed inside the border with an extra 0.25 cm (~7 points) gap from top and left.
+    - The footer area is drawn outside the border at the bottom.
+      It contains a caution symbol (a red circle with a white exclamation mark, 15-pt diameter, 25% smaller)
+      followed by the text "Fully AI generated and formatted." Both are right-aligned such that the rightmost edge
+      is 40 points from the page edge (the same as the border margin).
+    """
+    try:
+        # Define margins and extra gap
+        border_margin = 40.0
+        extra_gap = 7.0  # approx. 0.25 cm in points
+        page_width, page_height = doc.pagesize
+
+        # Draw border inside the page.
+        canvas.setLineWidth(1)
+        canvas.setStrokeColor(colors.black)
+        canvas.rect(border_margin, border_margin, page_width - 2 * border_margin, page_height - 2 * border_margin)
+        
+        # Load and position logo (scaled to 1/3 inch width).
+        logo_path = r"C:\Users\286194\Downloads\Final Regal Rex Nord - combined\Final Regal Rex Nord - combined\Backend\ust-logo.png"
+        logo = ImageReader(logo_path)
+        orig_width, orig_height = logo.getSize()
+        logo_width = (1.0 / 3.0) * inch
+        aspect = orig_height / orig_width
+        logo_height = logo_width * aspect
+        
+        # Position logo inside border with extra_gap from top and left.
+        logo_x = border_margin + extra_gap
+        logo_y = page_height - border_margin - logo_height - extra_gap
+        canvas.drawImage(logo_path, logo_x, logo_y, width=logo_width, height=logo_height, mask='auto', preserveAspectRatio=True)
+        
+        # Footer: Prepare caution symbol and footer text.
+        footer_text = "Fully AI generated and formatted"
+        canvas.setFont("Helvetica", 8)
+        text_width = canvas.stringWidth(footer_text, "Helvetica", 8)
+        # Original symbol diameter was 20; 25% smaller => 15 points.
+        symbol_diameter = 15  
+        gap_between = 5  # gap between symbol and text
+        total_width = symbol_diameter + gap_between + text_width
+        # Right align such that right edge is at border_margin from the right.
+        group_right_x = page_width - border_margin
+        group_start_x = group_right_x - total_width
+        # Position vertically in footer area outside the border.
+        y_out = border_margin / 2  # for example, 20 points from bottom edge
+        
+        # Draw caution symbol first.
+        symbol_radius = symbol_diameter / 2
+        symbol_center_x = group_start_x + symbol_radius
+        symbol_center_y = y_out + symbol_radius
+        canvas.setFillColor(colors.red)
+        canvas.circle(symbol_center_x, symbol_center_y, symbol_radius, stroke=0, fill=1)
+        canvas.setFillColor(colors.white)
+        canvas.setFont("Helvetica-Bold", 12)
+        canvas.drawCentredString(symbol_center_x, symbol_center_y - 4, "!")
+        
+        # Draw footer text immediately to the right of the symbol.
+        canvas.setFillColor(colors.black)
+        canvas.setFont("Helvetica", 8)
+        text_x = group_start_x + symbol_diameter + gap_between
+        canvas.drawString(text_x, y_out + symbol_radius - 4, footer_text)
+    except Exception as e:
+        logging.error(f"Error in add_decorations: {str(e)}")
+
+###########################################
+# Helper: Convert Markdown Bold to HTML and Remove Stray Markers
+###########################################
+def convert_markdown_to_html(text: str) -> str:
+    """
+    Convert markdown-style bold markers (**text**) to HTML bold tags (<b>text</b>),
+    and remove any stray '**' markers.
+    """
+    text = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', text)
+    text = text.replace('**', '')
+    return text
+
+###########################################
+# Helper: Parse and Clean Section Content
+##########################################
+def parse_section_content(section_content: str) -> tuple[str, list[str]]:
+    """
+    Splits a section's content into detailed text and a bullet list.
+    Normalizes extraneous markers (e.g. [[ ## Key Points ## ]]) to "Key Points:".
+    Converts markdown bold in bullet items and removes stray markers.
+    """
+    section_content = re.sub(r'\[\[\s*#*\s*Key Points\s*#*\s*\]\]', 'Key Points:', section_content, flags=re.IGNORECASE)
+    pattern = re.compile(r'Key Points\s*:', re.IGNORECASE)
+    parts = pattern.split(section_content, maxsplit=1)
+    if len(parts) > 1:
+        detailed_text = parts[0].strip()
+        bullet_block = parts[1].strip()
+        bullets = []
+        for line in bullet_block.splitlines():
+            line = line.strip()
+            if line:
+                clean_line = re.sub(r'^\s*\d+\.\s*', '', line)
+                clean_line = convert_markdown_to_html(clean_line)
+                clean_line = re.sub(r'^[-•\s]+', '', clean_line)
+                clean_line = clean_line.strip()
+                if clean_line:
+                    bullets.append(clean_line)
+        return detailed_text, bullets
+    else:
+        return section_content, []
+
+###########################################
+# Helper: Format Detailed Text for PDF
+###########################################
+def format_detailed_text(detailed_text: str) -> list:
+    """
+    Converts detailed text with markdown-like markers into ReportLab flowables.
+    Converts markdown bold to HTML and applies formatting for subheadings, numbered lists, and bullet items.
+    """
+    flowables = []
+    for line in detailed_text.split("\n"):
+        line = line.strip()
+        if not line:
+            flowables.append(Spacer(1, 0.1 * inch))
+            continue
+        line = convert_markdown_to_html(line)
+        if line.startswith("###"):
+            text = line.lstrip("#").strip()
+            flowables.append(Paragraph(text, STYLES['Heading3']))
+        elif re.match(r'^\d+\.', line):
+            numbered_style = ParagraphStyle('Numbered', parent=STYLES['Normal'], leftIndent=20)
+            flowables.append(Paragraph(line, numbered_style))
+        elif line.startswith("-"):
+            text = line.lstrip("-").strip()
+            flowables.append(Paragraph("• " + text, STYLES['Bullet']))
+        else:
+            flowables.append(Paragraph(line, STYLES['Normal']))
+    return flowables
+
+###########################################
+# Helper: Build Prompts for Each Section
+###########################################
+def get_product_spec_prompts(product_category: str, product_details: str, custom_template: str = None) -> dict:
+
+    """
+
+    Generate prompts for each section heading provided in custom_template.
+
+   
+
+    Args:
+
+        product_category (str): The category of the product (e.g., "Smart Thermostat").
+
+        product_details (str): Details about the product (e.g., "Wi-Fi-enabled thermostat...").
+
+        custom_template (str, optional): Sections from frontend, separated by newlines.
+
+   
+
+    Returns:
+
+        dict: Mapping of numbered section headings to their full prompts.
+
+    """
+
+    prompts = {}
+
+    if custom_template and custom_template.strip():
+
+        sections = custom_template.splitlines()
+
+        for i, line in enumerate(sections, start=1):
+
+            line = line.strip()
+
+            if not line:
+
+                continue
+
+            if ':' in line:
+
+                heading, prompt_text = map(str.strip, line.split(':', 1))
+
+            else:
+
+                heading = line
+
+                prompt_text = f"Provide detailed information on {heading}."
+
+            # Remove any leading numbers from the heading
+
+            heading = re.sub(r'^\d+\.\s*', '', heading)
+
+            numbered_heading = f"{i}. {heading}"
+
+            context = f"Product Category: {product_category}\nProduct Details: {product_details}\n\n"
+
+            prompts[numbered_heading] = f"{context}Task: {prompt_text} Include a bullet summary under 'Key Points:' at the end."
+
+    return prompts
+
+###########################################
+# Helper: Generate PDF Using ReportLab
+###########################################
+def generate_pdf_usecase3(product_category: str, content: dict, progress_callback=None) -> BytesIO:
+    """
+    Generate a PDF from the provided content. The PDF includes:
+      - A title page,
+      - A table of contents,
+      - Each section on a new page.
+    Section content is parsed to separate detailed text and bullet summaries.
+    Detailed text is processed for markdown-like formatting.
+    The header includes a smaller logo inside a border, and the footer (outside the border)
+    displays a caution symbol (red circle with white "!" at 15-pt diameter) followed by the text
+    "Fully AI generated and formatted." Both are right-aligned with the same right margin as the border.
+    """
+    try:
+        buffer = BytesIO()
+        doc = SimpleDocTemplate(
+            buffer,
+            pagesize=letter,
+            rightMargin=72,
+            leftMargin=72,
+            topMargin=72,
+            bottomMargin=72
+        )
+        elements = []
+        
+        # Title Page
+        title_text = f"Product Specification for {product_category}"
+        elements.append(Paragraph(title_text, STYLES['Title']))
+        elements.append(Spacer(1, 0.5 * inch))
+        
+        # Table of Contents
+        elements.append(Paragraph("Table of Contents", STYLES['Heading1']))
+        toc_data = [["Section", "Page"]]
+        page_num = 2  # Title/TOC occupies page 1
+        for section in content.keys():
+            toc_data.append([section.strip(), str(page_num)])
+            page_num += 1
+        toc_table = Table(toc_data, colWidths=[400, 50])
+        toc_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.darkblue),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 12),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+        ]))
+        elements.append(toc_table)
+        elements.append(PageBreak())
+        
+        # Process each section.
+        for section, section_content in content.items():
+            elements.append(Paragraph(section.strip(), STYLES['Heading2']))
+            detailed_text, bullet_list = parse_section_content(section_content)
+            flowables = format_detailed_text(detailed_text)
+            elements.extend(flowables)
+            
+            if progress_callback:
+                progress_callback(f"Section '{section}' formatted and added to PDF.")
+            
+            if bullet_list:
+                elements.append(Paragraph("Key Points", STYLES['Heading3']))
+                for bullet in bullet_list:
+                    if not bullet.startswith("•"):
+                        bullet = "• " + bullet
+                    elements.append(Paragraph(bullet, STYLES['Bullet']))
+                    elements.append(Spacer(1, 0.1 * inch))
+            elements.append(PageBreak())
+        
+        # Build the PDF with header/footer decorations on every page.
+        doc.build(elements, onFirstPage=add_decorations, onLaterPages=add_decorations)
+        buffer.seek(0)
+        return buffer
+    except Exception as e:
+        logging.error(f"Error generating PDF: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate PDF: {str(e)}")
+
+###########################################
+# Async Function: Generate Section Content with Persona Handling
+###########################################
+async def generate_section_content(section: str, product_category: str, product_details: str, prompt: str, persona: str) -> tuple:
+    """
+    Asynchronously generate content for a given section based on the selected persona.
+    """
+    # Choose the appropriate DSPy signature based on the persona.
+    persona_lower = persona.lower()
+    if persona_lower in ["manager", "product_manager"]:
+        dsp_signature = GenerateProductSpecContentManager
+    elif persona_lower in ["engineer", "product_engineer"]:
+        dsp_signature = GenerateProductSpecContentEngineer
+    else:
+        # Fallback or raise error if unknown persona.
+        raise HTTPException(status_code=400, detail=f"Unknown persona '{persona}'. Choose either 'product_manager' or 'product_engineer'.")
+    
+    generate_spec = Predict(dsp_signature)
+    result = await asyncio.to_thread(
+        generate_spec,
+        section_title=section,
+        product_category=product_category,
+        product_details=product_details,
+        prompt=prompt,
+        temperature=0.7,
+        max_tokens=1000
+    )
+    content = result.output.strip() if result.output.strip() else "No content available."
+    return section, content
+
+###########################################
+# Background Task: Generate PDF & Update Progress
+###########################################
+async def generate_pdf_task(job_id: str, product_category: str, product_details: str, custom_template: str, persona: str) -> None:
+    def update_progress(msg: str) -> None:
+        progress_store[job_id].append(msg)
+    
+    progress_store[job_id] = []
+    update_progress("Starting PDF generation process...")
+    
+    update_progress("Building prompts from product information.")
+    spec_prompts = get_product_spec_prompts(product_category, product_details, custom_template)
+    update_progress("Prompts built successfully.")
+    
+    update_progress("Generating content for each section concurrently...")
+    tasks = [
+        generate_section_content(section, product_category, product_details, prompt, persona)
+        for section, prompt in spec_prompts.items()
+    ]
+    results = await asyncio.gather(*tasks)
+    generated_content = {section: content for section, content in results}
+    for section, _ in results:
+        update_progress(f"Content generated for section: {section}")
+    
+    update_progress("All sections generated. Now formatting PDF.")
+    pdf_buffer = await asyncio.to_thread(generate_pdf_usecase3, product_category, generated_content, update_progress)
+    update_progress("PDF generated successfully.")
+    
+    pdf_store[job_id] = pdf_buffer
+    update_progress("PDF is ready for download. Use the download endpoint /download/{job_id}.")
+
+async def extract_text_from_pdf(file_content: bytes) -> str:
+    """Extract text from PDF file content."""
+    try:
+        pdf_file = io.BytesIO(file_content)
+        pdf_reader = PyPDF2.PdfReader(pdf_file)
+        text = ""
+        for page_num in range(len(pdf_reader.pages)):
+            page = pdf_reader.pages[page_num]
+            text += page.extract_text()
+        return text
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to extract text from PDF: {str(e)}")
+
+async def extract_text_from_docx(file_content: bytes) -> str:
+    """Extract text from DOCX file content."""
+    try:
+        # Create a temporary file to save the content
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.docx') as temp_file:
+            temp_file.write(file_content)
+            temp_path = temp_file.name
+        
+        # Open and extract text using python-docx
+        doc = Document(temp_path)
+        text = "\n".join([paragraph.text for paragraph in doc.paragraphs])
+        
+        # Clean up the temporary file
+        os.unlink(temp_path)
+        return text
+    except Exception as e:
+        # Ensure temp file is deleted even if there's an error
+        if 'temp_path' in locals() and os.path.exists(temp_path):
+            os.unlink(temp_path)
+        raise HTTPException(status_code=500, detail=f"Failed to extract text from DOCX: {str(e)}")
+
+async def extract_text_from_doc(file_content: bytes) -> str:
+    """For DOC files, we return a message about limitations."""
+    return "DOC file format detected. For best results, please convert to DOCX or PDF format."
+
+
+###########################################
+# Endpoint: Initiate PDF Generation
+###########################################
+@app.post("/api/generate-product-designer-pdf")
+async def generate_product_designer_pdf(
+    background_tasks: BackgroundTasks,
+    product_category: str = Form(..., description="Product category (e.g., 'Motors', 'Bearings')"),
+    product_details: str = Form(..., description="Product details (e.g., 'General Purpose Motor, 230V, 1140 RPM')"),
+    custom_template: str = Form("", description="Optional custom template with separate headings (e.g., 'Heading: Custom text')"),
+    template_file: UploadFile = File(None, description="Optional template file (.txt, .docx, or .pdf). If provided, overrides custom_template."),
+    persona: str = Form(..., description="Persona type: 'product_manager' or 'product_engineer'")
+):
+    """
+    Initiate PDF generation and return a job ID for progress tracking along with extracted text from the uploaded file.
+    If a template file is uploaded, it will be converted to text and used as the custom template.
+    Supported file types: .txt, .docx, .pdf.
+    """
+    available_products = [product["product_name"] for product in products_data.get("products", [])]
+    logger.info(f"Available products: {available_products}")
+    logger.info(f"Requested product_category: {product_category}")
+    if product_category not in available_products:
+        raise HTTPException(status_code=404, detail=f"Product category '{product_category}' not found in available products")
+
+    extracted_text = custom_template  # Default to form-provided custom_template
+
+    if template_file:
+        file_content_type = template_file.content_type
+        file_bytes = await template_file.read()
+
+        if file_content_type == "text/plain":
+            extracted_text = file_bytes.decode("utf-8")
+        elif file_content_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+            doc = Document(BytesIO(file_bytes))
+            extracted_text = "\n".join([para.text for para in doc.paragraphs])
+        elif file_content_type == "application/pdf":
+            try:
+                pdf_reader = PdfReader(BytesIO(file_bytes))
+                extracted_text = ""
+                for page in pdf_reader.pages:
+                    page_text = page.extract_text()
+                    if page_text:
+                        extracted_text += page_text
+                if not extracted_text.strip():
+                    raise HTTPException(status_code=400, detail="Could not extract text from the uploaded PDF.")
+            except Exception as e:
+                logger.error(f"Error extracting text from PDF: {str(e)}")
+                raise HTTPException(status_code=400, detail=f"Failed to extract text from PDF: {str(e)}")
+        else:
+            raise HTTPException(status_code=400, detail="Unsupported file type. Please upload a .txt, .docx, or .pdf file.")
+
+    job_id = str(uuid.uuid4())
+    background_tasks.add_task(generate_pdf_task, job_id, product_category, product_details, extracted_text, persona)
+
+    # Return job_id for frontend tracking
+    return {
+        "job_id": job_id,
+        "message": "PDF generation started. Use the job_id to track progress via WebSocket."
+    }
+
+###########################################
+# Endpoint: Get Available Products
+###########################################
+@app.get("/api/product")
+async def get_products():
+    product_names = [product["product_name"] for product in products_data.get("products", [])]
+    return JSONResponse(content={"products": product_names})
+
+###########################################
+# Endpoint: WebSocket for Progress Updates
+###########################################
+@app.websocket("/api/ws/progress/{job_id}")
+async def websocket_progress(websocket: WebSocket, job_id: str):
+    """
+    Stream real-time progress updates for the given job.
+    """
+    await websocket.accept()
+    last_index = 0
+    try:
+        while True:
+            if job_id in progress_store:
+                messages = progress_store[job_id]
+                if last_index < len(messages):
+                    for msg in messages[last_index:]:
+                        await websocket.send_text(msg)
+                    last_index = len(messages)
+                if messages and messages[-1].startswith("PDF is ready"):
+                    break
+            await asyncio.sleep(1)
+    except WebSocketDisconnect:
+        logging.info(f"WebSocket disconnected for job {job_id}")
+
+###########################################
+# Endpoint: Download Generated PDF
+###########################################
+@app.get("/api/download/{job_id}")
+async def download_pdf(job_id: str):
+    """
+    Download the generated PDF using the job ID.
+    """
+    if job_id in pdf_store:
+        pdf_buffer = pdf_store[job_id]
+        filename = f"product_spec_{job_id}.pdf"
+        return StreamingResponse(
+            pdf_buffer,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+        )
+    else:
+        raise HTTPException(status_code=404, detail="PDF not found or not generated yet.")
+
+##############################################
+# Endpoint : PDF and Document Conversion
+##############################################
+@app.post("/api/extract-pdf-text")
+async def extract_text(template_file: UploadFile = File(...)) -> Dict[str, Any]:
+    """
+    Extract text from an uploaded document file.
+    Supports PDF, DOCX, DOC, and TXT formats.
+    """
+    # Check file type
+    content_type = template_file.content_type
+    file_content = await template_file.read()
+    
+    # Process based on file type
+    try:
+        if content_type == "application/pdf":
+            extracted_text = await extract_text_from_pdf(file_content)
+        elif content_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+            extracted_text = await extract_text_from_docx(file_content)
+        elif content_type == "application/msword":
+            extracted_text = await extract_text_from_doc(file_content)
+        elif content_type == "text/plain":
+            extracted_text = file_content.decode("utf-8")
+        else:
+            raise HTTPException(
+                status_code=400, 
+                detail="Unsupported file type. Only PDF, DOCX, DOC, and TXT files are supported."
+            )
+            
+        return {"extractedText": extracted_text}
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     import uvicorn
