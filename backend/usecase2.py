@@ -94,10 +94,10 @@ app.add_middleware(
 # Configure DSPy with Azure OpenAI for manual generation
 try:
     lm = dspy.LM(
-        model="azure/" + os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME"),
+        model="azure/gpt-4o",
         api_key=os.getenv("AZURE_OPENAI_API_KEY"),
         api_base=os.getenv("AZURE_OPENAI_ENDPOINT"),
-        temperature=0.7,
+        temperature=0.2,
         max_tokens=4096,
     )
     dspy.configure(lm=lm)
@@ -155,133 +155,6 @@ def normalize_text(text):
     text = re.sub(r'\s+', ' ', text).strip()
     return text.lower()
 
-def search_confluence(query, start_boundary=None, end_boundary=None):
-    try:
-        logger.info(f"Starting Confluence search for query: '{query}'")
-        url = f"{CONFLUENCE_BASE_URL}/rest/api/content/search"
-        # Normalize the query for better matching
-        normalized_query = normalize_text(query)
-        cql_query = f'(text ~ "{normalized_query}") AND type = page'
-        params = {
-            "cql": cql_query,
-            "expand": "body.storage,space,version",
-            "limit": 10
-        }
-        auth = HTTPBasicAuth(CONFLUENCE_USERNAME, CONFLUENCE_API_TOKEN)
-        logger.info(f"Making Confluence API request with CQL query: {cql_query}")
-        logger.info(f"Using Confluence URL: {url}")
-        
-        response = requests.get(url, params=params, auth=auth, verify=False)
-        logger.info(f"Confluence API response status code: {response.status_code}")
-        
-        response.raise_for_status()
-        results = response.json().get("results", [])
-        logger.info(f"Retrieved {len(results)} pages from Confluence search")
-
-        # Process each page to extract content within boundaries
-        extracted_content = []
-        for page in results:
-            page_title = page.get("title", "")
-            page_space = page.get("space", {}).get("name", "")
-            logger.info(f"Processing Confluence page: '{page_title}' from space '{page_space}'")
-            
-            body = page.get("body", {}).get("storage", {}).get("value", "")
-            if not body:
-                logger.warning(f"No body content found for page: {page_title}")
-                continue
-
-            # Find the start and end indices of the boundaries
-            start_index = body.find(start_boundary) if start_boundary else 0
-            end_index = body.find(end_boundary, start_index) if end_boundary else len(body)
-
-            if start_boundary and start_index == -1:
-                logger.warning(f"Start boundary '{start_boundary}' not found in page: {page_title}")
-                continue
-
-            if end_boundary and end_index == -1:
-                logger.info(f"End boundary '{end_boundary}' not found in page: {page_title}, using end of content")
-                end_index = len(body)
-
-            # Extract the content within the boundaries
-            extracted_section = body[start_index:end_index]
-            if extracted_section:
-                logger.info(f"Successfully extracted content from page: {page_title} (length: {len(extracted_section)} chars)")
-                # Format the extracted content
-                formatted_content = f"""
-                Page: {page_title}
-                Space: {page_space}
-                Content:
-                {extracted_section}
-                """
-                extracted_content.append(formatted_content)
-            else:
-                logger.warning(f"No content extracted from page: {page_title}")
-
-        combined_content = "\n\n".join(extracted_content)
-        logger.info(f"Total content extracted from Confluence: {len(combined_content)} characters from {len(extracted_content)} pages")
-
-        if not combined_content.strip():
-            logger.warning(f"No content found in Confluence for product: {query}")
-            return f"No content found in Confluence for product: {query}"
-
-        return combined_content
-    except Exception as e:
-        logger.error(f"Error searching Confluence: {str(e)}")
-        logger.error(f"Full traceback: {traceback.format_exc()}")
-        return ""
-
-def extract_confluence_content(pages, product_name):
-    try:
-        content = []
-        total_chars = 0
-        
-        # Normalize the product name for matching
-        normalized_product_name = normalize_text(product_name)
-        
-        for page in pages:
-            page_title = page.get("title", "")
-            page_space = page.get("space", {}).get("name", "")
-            body = page.get("body", {}).get("storage", {}).get("value", "")
-            
-            if not body:
-                logger.warning(f"No body content found for page: {page_title}")
-                continue
-            
-            soup = BeautifulSoup(body, 'html.parser')
-            
-            # Remove scripts and styles
-            for element in soup.find_all(['script', 'style']):
-                element.decompose()
-            
-            # Get the plain text content
-            text_content = soup.get_text()
-            
-            # Normalize the text content for matching
-            normalized_text_content = normalize_text(text_content)
-            
-            # Check if the product name exists in the normalized content
-            if normalized_product_name in normalized_text_content:
-                # Extract the entire page content (or a specific section if needed)
-                formatted_content = f"""
-                Page: {page_title}
-                Space: {page_space}
-                Content:
-                {text_content}
-                """
-                content.append(formatted_content)
-                total_chars += len(text_content)
-        
-        combined_content = "\n\n".join(content)
-        logger.info(f"Total characters extracted from Confluence: {total_chars}")
-        
-        if not combined_content.strip():
-            return f"No content found in Confluence for product: {product_name}"
-        
-        return combined_content
-    except Exception as e:
-        logger.error(f"Error extracting Confluence content: {str(e)}")
-        return f"Error extracting Confluence content: {str(e)}"
-    
 def get_confluence_vector_store(content):
     try:
         if not content.strip():
@@ -554,17 +427,17 @@ async def convert_to_pdf(file: UploadFile) -> bytes:
             logger.info(f"File {file.filename} is already in PDF format")
             return content
             
-        elif file_extension in ['.docx', '.doc']:
-            logger.info(f"Starting conversion of {file_extension} file: {file.filename} to PDF")
-            with tempfile.NamedTemporaryFile(delete=False, suffix=file_extension) as temp_doc:
+        elif file_extension == '.docx':  # Only handle .docx
+            logger.info(f"Starting conversion of .docx file: {file.filename} to PDF")
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.docx') as temp_doc:
                 temp_doc.write(content)
                 temp_doc_path = temp_doc.name
                 
-            temp_pdf_path = temp_doc_path.replace(file_extension, '.pdf')
+            temp_pdf_path = temp_doc_path.replace('.docx', '.pdf')
             
             try:
                 convert(temp_doc_path, temp_pdf_path)
-                logger.info(f"Successfully converted {file_extension} file: {file.filename} to PDF")
+                logger.info(f"Successfully converted .docx file: {file.filename} to PDF")
                 
                 with open(temp_pdf_path, 'rb') as pdf_file:
                     pdf_content = pdf_file.read()
@@ -597,7 +470,7 @@ async def convert_to_pdf(file: UploadFile) -> bytes:
             logger.error(f"Unsupported file type: {file_extension}")
             raise HTTPException(
                 status_code=400,
-                detail=f"Unsupported file type: {file_extension}"
+                detail="Only .docx files are supported for document conversion. .doc files are not supported."
             )
             
     except Exception as e:
@@ -833,78 +706,6 @@ def generate_pdf(product_data, content, is_faq=False):
     except Exception as e:
         logger.error(f"Error generating PDF: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to generate PDF: {str(e)}")
-    
-def scrape_product_data(url):
-    try:
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
-            "Accept-Language": "en-US,en;q=0.9",
-            "Referer": "https://www.google.com/"
-        }
-        response = requests.get(url, headers=headers, verify=False)
-        response.raise_for_status()
-        soup = BeautifulSoup(response.content, 'html.parser')
-        product_name = "Unknown Product"
-        h1_tag = soup.find('h1')
-        if h1_tag:
-            product_name = h1_tag.get_text(strip=True)
-        logger.info(f"Scraped product name: {product_name}")
-        key_features = []
-        key_features_container = soup.find('div', class_='product-info')
-        if key_features_container:
-            feature_list = key_features_container.find('ul')
-            if feature_list:
-                features = feature_list.find_all('li')
-                for feature in features:
-                    key_features.append(feature.get_text(strip=True))
-        logger.info(f"Scraped {len(key_features)} key features")
-        technical_specs = {}
-        tech_specs_div = soup.find('div', id='tab-0')
-        if tech_specs_div:
-            tech_specs_table = tech_specs_div.find('table', class_='specifications-table')
-            if tech_specs_table:
-                for row in tech_specs_table.find_all('tr'):
-                    cols = row.find_all('td')
-                    if len(cols) == 4:
-                        key1 = cols[0].get_text(strip=True).rstrip(":")
-                        value1 = cols[1].get_text(strip=True)
-                        key2 = cols[2].get_text(strip=True).rstrip(":")
-                        value2 = cols[3].get_text(strip=True)
-                        technical_specs[key1] = value1
-                        technical_specs[key2] = value2
-                    elif len(cols) == 2:
-                        key = cols[0].get_text(strip=True).rstrip(":")
-                        value = cols[1].get_text(strip=True)
-                        technical_specs[key] = value
-        logger.info(f"Scraped {len(technical_specs)} technical specifications")
-        general_specs = {}
-        general_specs_div = soup.find('div', id='tab-1')
-        if general_specs_div:
-            general_specs_table = general_specs_div.find('table', class_='specifications-table')
-            if general_specs_table:
-                for row in general_specs_table.find_all('tr'):
-                    cols = row.find_all('td')
-                    if len(cols) == 2:
-                        key = cols[0].get_text(strip=True).rstrip(":")
-                        value = cols[1].get_text(strip=True)
-                        general_specs[key] = value
-                    elif len(cols) == 4:
-                        key1 = cols[0].get_text(strip=True).rstrip(":")
-                        value1 = cols[1].get_text(strip=True)
-                        key2 = cols[2].get_text(strip=True).rstrip(":")
-                        value2 = cols[3].get_text(strip=True)
-                        general_specs[key1] = value1
-                        general_specs[key2] = value2
-        logger.info(f"Scraped {len(general_specs)} general specifications")
-        return {
-            "product_name": product_name,
-            "key_features": key_features,
-            "technical_specifications": technical_specs,
-            "general_specifications": general_specs
-        }
-    except Exception as e:
-        logger.error(f"Error scraping product data: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to scrape product data: {str(e)}")
 
 def get_product_link(selected_item):
     for product in products_data.get("products", []):
@@ -959,19 +760,6 @@ def generate_content_prompts(cleaned_product_name, combined_content, language):
         prompts[section_title] = prompt
         
     return prompts
-
-def format_faq_content(faq_content):
-    """
-    Format FAQ content to ensure questions are numbered.
-    """
-    formatted_content = []
-    questions = faq_content.split("\n\n")  # Split by double newlines
-    for i, question in enumerate(questions, start=1):
-        if "?" in question:  # Ensure it's a question
-            formatted_content.append(f"{i}. {question.strip()}")
-        else:
-            formatted_content.append(question.strip())
-    return "\n\n".join(formatted_content)
 
 async def translate_specifications(specs: Dict[str, str], language: str) -> Dict[str, str]:
     """Translate specification keys and values into the target language using DSPy."""

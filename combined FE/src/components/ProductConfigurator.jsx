@@ -12,10 +12,10 @@ import {
   FaChevronDown,
   FaCheck,
 } from "react-icons/fa";
-
+ 
 // Define your base URL from Vite's environment variable
 const BASE_URL = import.meta.env.VITE_BASE_URL;
-
+ 
 // Sidebar Component
 const Sidebar = ({ activeView, setActiveView }) => {
   return (
@@ -46,7 +46,7 @@ const Sidebar = ({ activeView, setActiveView }) => {
     </div>
   );
 };
-
+ 
 // Updated AddTemplate Component
 const AddTemplate = ({ products, setActiveView }) => {
   const predefinedTemplate = `1. Customer & Market Needs
@@ -54,13 +54,13 @@ const AddTemplate = ({ products, setActiveView }) => {
 3. Technological Innovations
 4. Manufacturing & Feasibility
 5. Compliance & Safety Standards`;
-
+ 
   const [templateMode, setTemplateMode] = useState("upload");
   const [customTemplate, setCustomTemplate] = useState("");
   const [fileName, setFileName] = useState("");
   const [isEditing, setIsEditing] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
-
+ 
   // States for customize mode
   const predefinedSections = [
     "Customer & Market Needs",
@@ -71,7 +71,7 @@ const AddTemplate = ({ products, setActiveView }) => {
   ];
   const [selectedSections, setSelectedSections] = useState([]);
   const [extraCustom, setExtraCustom] = useState("");
-
+ 
   // Load template when product changes
   useEffect(() => {
     if (selectedProduct) {
@@ -106,8 +106,22 @@ const AddTemplate = ({ products, setActiveView }) => {
       alert("Only TXT, DOC, DOCX, or PDF files are allowed.");
       return;
     }
-    setFileName(file.name);
-    if (file.type === "application/pdf") {
+  
+    // If the file is a plain text file, use FileReader.
+    if (file.type === "text/plain") {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const content = event.target.result;
+        setCustomTemplate(content);
+        const productTemplates = JSON.parse(localStorage.getItem("productTemplates") || "{}");
+        productTemplates[selectedProduct.product_name] = content;
+        localStorage.setItem("productTemplates", JSON.stringify(productTemplates));
+        setIsEditing(false);
+      };
+      reader.readAsText(file);
+    } else {
+      // For PDFs, DOC, and DOCX, send to backend for extraction.
+      setFileName(file.name);
       const formData = new FormData();
       formData.append("template_file", file);
       fetch(`${BASE_URL}/api/extract-pdf-text`, {
@@ -117,38 +131,18 @@ const AddTemplate = ({ products, setActiveView }) => {
         .then((response) => response.json())
         .then((data) => {
           setCustomTemplate(data.extractedText);
-          const productTemplates = JSON.parse(
-            localStorage.getItem("productTemplates") || "{}"
-          );
+          const productTemplates = JSON.parse(localStorage.getItem("productTemplates") || "{}");
           productTemplates[selectedProduct.product_name] = data.extractedText;
-          localStorage.setItem(
-            "productTemplates",
-            JSON.stringify(productTemplates)
-          );
+          localStorage.setItem("productTemplates", JSON.stringify(productTemplates));
           setIsEditing(false);
         })
         .catch((error) => {
-          console.error("Error extracting PDF text:", error);
-          alert("Failed to extract text from PDF.");
+          console.error("Error extracting file text:", error);
+          alert("Failed to extract text from file.");
         });
-    } else {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const content = event.target.result;
-        setCustomTemplate(content);
-        const productTemplates = JSON.parse(
-          localStorage.getItem("productTemplates") || "{}"
-        );
-        productTemplates[selectedProduct.product_name] = content;
-        localStorage.setItem(
-          "productTemplates",
-          JSON.stringify(productTemplates)
-        );
-        setIsEditing(false);
-      };
-      reader.readAsText(file);
     }
   };
+  
  
   const handleAddSection = (section) => {
     if (!selectedSections.includes(section)) {
@@ -560,7 +554,7 @@ const Form = ({ setLoading, setProgress, products, loading, progress }) => {
  
     try {
       const response = await fetch(
-        `${BASE_URL}/generate-product-designer-pdf`,
+        `${BASE_URL}/api/generate-product-designer-pdf`,
         {
           method: "POST",
           body: formData,
@@ -576,7 +570,7 @@ const Form = ({ setLoading, setProgress, products, loading, progress }) => {
       setProgress("Job started...");
  
       const wsUrl = BASE_URL.replace("http", "ws");
-      const ws = new WebSocket(`${wsUrl}/ws/progress/${job_id}`);
+      const ws = new WebSocket(`${wsUrl}/api/ws/progress/${job_id}`);
       ws.onmessage = (event) => {
         setProgress(event.data);
         if (event.data.startsWith("PDF is ready")) {
@@ -586,7 +580,7 @@ const Form = ({ setLoading, setProgress, products, loading, progress }) => {
           localStorage.removeItem("details");
           setProduct("");
           setDetails("");
-          window.location.href = `${BASE_URL}/download/${job_id}`;
+          window.location.href = `${BASE_URL}/api/download/${job_id}`;
         }
       };
       ws.onerror = (err) => {

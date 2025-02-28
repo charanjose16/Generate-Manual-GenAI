@@ -242,15 +242,12 @@ export default function UserManualGenerator() {
       if (file) {
         const allowedTypes = {
           pdf: "application/pdf",
-          document: [
-            "application/msword",
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-          ],
+          document: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // Only .docx
           text: "text/plain",
         };
 
         if (fileFormat === "document") {
-          if (allowedTypes.document.includes(file.type)) {
+          if (allowedTypes.document === file.type) {
             setUploadedFile(file);
             setError("");
             return;
@@ -260,7 +257,7 @@ export default function UserManualGenerator() {
           setError("");
           return;
         }
-        setError(`Please upload a valid ${fileFormat.toUpperCase()} file.`);
+        setError(`Please upload a valid ${fileFormat.toUpperCase()} file (.docx only for documents).`);
         setUploadedFile(null);
       }
     }
@@ -655,7 +652,7 @@ export default function UserManualGenerator() {
               Select format
             </option>
             <option value="pdf">PDF</option>
-            <option value="document">Document</option>
+            <option value="document">Document (.docx)</option>
             <option value="text">Text</option>
           </select>
         </div>
@@ -680,7 +677,7 @@ export default function UserManualGenerator() {
                 fileFormat === "pdf"
                   ? "application/pdf"
                   : fileFormat === "document"
-                  ? "application/msword, application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                  ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document" // Only .docx
                   : "text/plain"
               }
               disabled={isGenerating}
