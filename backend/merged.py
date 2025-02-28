@@ -2800,7 +2800,7 @@ async def extract_text_from_doc(file_content: bytes) -> str:
 ###########################################
 # Endpoint: Initiate PDF Generation
 ###########################################
-@app.post("/generate-product-designer-pdf")
+@app.post("/api/generate-product-designer-pdf")
 async def generate_product_designer_pdf(
     background_tasks: BackgroundTasks,
     product_category: str = Form(..., description="Product category (e.g., 'Motors', 'Bearings')"),
@@ -2867,7 +2867,7 @@ async def get_products():
 ###########################################
 # Endpoint: WebSocket for Progress Updates
 ###########################################
-@app.websocket("/ws/progress/{job_id}")
+@app.websocket("/api/ws/progress/{job_id}")
 async def websocket_progress(websocket: WebSocket, job_id: str):
     """
     Stream real-time progress updates for the given job.
@@ -2891,7 +2891,7 @@ async def websocket_progress(websocket: WebSocket, job_id: str):
 ###########################################
 # Endpoint: Download Generated PDF
 ###########################################
-@app.get("/download/{job_id}")
+@app.get("/api/download/{job_id}")
 async def download_pdf(job_id: str):
     """
     Download the generated PDF using the job ID.

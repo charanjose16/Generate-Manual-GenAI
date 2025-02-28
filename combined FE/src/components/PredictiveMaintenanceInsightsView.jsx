@@ -264,7 +264,7 @@ const PredictiveMaintenanceInsightsView = ({ motor, months }) => {
           });
           // Fetch data from the API using the baseUrl from .env
           const response = await fetch(
-            `${baseUrl}/motor-maintenance?${params.toString()}`
+            `${baseUrl}/api/motor-maintenance?${params.toString()}`
           );
           if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);

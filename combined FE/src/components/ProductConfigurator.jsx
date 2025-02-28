@@ -506,7 +506,7 @@ const Form = ({ setLoading, setProgress, products, loading, progress }) => {
 
     try {
       const response = await fetch(
-        `${BASE_URL}/generate-product-designer-pdf`,
+        `${BASE_URL}/api/generate-product-designer-pdf`,
         {
           method: "POST",
           body: formData,
@@ -520,7 +520,7 @@ const Form = ({ setLoading, setProgress, products, loading, progress }) => {
       setProgress("Job started...");
 
       const wsUrl = BASE_URL.replace("http", "ws");
-      const ws = new WebSocket(`${wsUrl}/ws/progress/${job_id}`);
+      const ws = new WebSocket(`${wsUrl}/api/ws/progress/${job_id}`);
       ws.onmessage = (event) => {
         setProgress(event.data);
         if (event.data.startsWith("PDF is ready")) {
@@ -530,7 +530,7 @@ const Form = ({ setLoading, setProgress, products, loading, progress }) => {
           localStorage.removeItem("details");
           setProduct("");
           setDetails("");
-          window.location.href = `${BASE_URL}/download/${job_id}`;
+          window.location.href = `${BASE_URL}/api/download/${job_id}`;
         }
       };
       ws.onerror = () => {
