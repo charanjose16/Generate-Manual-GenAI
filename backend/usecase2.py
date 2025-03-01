@@ -700,7 +700,9 @@ def generate_pdf(product_data, content, is_faq=False):
             
             elements.append(Spacer(1, 0.2 * inch))
         
-        doc.build(elements)
+        # The key fix: explicitly specifying onFirstPage and onLaterPages
+        doc.build(elements, onFirstPage=add_page_number, onLaterPages=add_page_number)
+        
         buffer.seek(0)
         return buffer
     except Exception as e:
