@@ -22,6 +22,8 @@ from datetime import datetime
 from functools import partial, lru_cache
 from concurrent.futures import ThreadPoolExecutor
 import concurrent.futures
+import win32com.client  # For handling .doc files
+import pythoncom  # For COM initialization
 
 # ---------------------------
 # Third-Party Libraries
@@ -1039,8 +1041,8 @@ async def convert_to_pdf(file: UploadFile) -> bytes:
         if file_extension == '.pdf':
             logger.info(f"File {file.filename} is already in PDF format")
             return content
-            
-        elif file_extension == '.docx':  # Only handle .docx
+        
+        elif file_extension == '.docx':
             logger.info(f"Starting conversion of .docx file: {file.filename} to PDF")
             with tempfile.NamedTemporaryFile(delete=False, suffix='.docx') as temp_doc:
                 temp_doc.write(content)
@@ -1061,8 +1063,81 @@ async def convert_to_pdf(file: UploadFile) -> bytes:
                 os.unlink(temp_doc_path)
                 if os.path.exists(temp_pdf_path):
                     os.unlink(temp_pdf_path)
-                    logger.info("Cleaned up temporary conversion files")
+            
+        elif file_extension == '.doc':
+            logger.info(f"Starting conversion of .doc file: {file.filename} to PDF")
+            
+            # Create a temporary directory
+            temp_dir = tempfile.mkdtemp()
+            temp_doc_path = os.path.join(temp_dir, "document.doc")
+            temp_pdf_path = os.path.join(temp_dir, "document.pdf")
+            
+            # Write the doc file to disk
+            with open(temp_doc_path, 'wb') as f:
+                f.write(content)
+                
+            logger.info(f"Created temporary file at {temp_doc_path}")
+            
+            # Initialize COM in a separate thread
+            pythoncom.CoInitialize()
+            success = False
+            
+            try:
+                logger.info("Creating Word application instance")
+                word = win32com.client.DispatchEx('Word.Application')
+                word.Visible = False
+                word.DisplayAlerts = 0
+                
+                try:
+                    # Use absolute paths
+                    abs_doc_path = os.path.abspath(temp_doc_path)
+                    abs_pdf_path = os.path.abspath(temp_pdf_path)
                     
+                    logger.info(f"Opening document from {abs_doc_path}")
+                    doc = word.Documents.Open(abs_doc_path, ReadOnly=1)
+                    
+                    logger.info(f"Saving as PDF to {abs_pdf_path}")
+                    doc.SaveAs(abs_pdf_path, FileFormat=17)  # 17 = wdFormatPDF
+                    doc.Close()
+                    
+                    if os.path.exists(abs_pdf_path):
+                        logger.info("PDF created successfully")
+                        with open(abs_pdf_path, 'rb') as pdf_file:
+                            success = True
+                            return pdf_file.read()
+                    else:
+                        logger.error(f"PDF file not found at {abs_pdf_path}")
+                        
+                except Exception as e:
+                    logger.error(f"Error in Word automation: {str(e)}", exc_info=True)
+                    if "RPC_E_SERVERCALL_RETRYLATER" in str(e):
+                        logger.error("RPC server busy - Word might be running in non-interactive mode")
+                    elif "Call was rejected by callee" in str(e):
+                        logger.error("COM call rejected - could be security settings or privileges")
+                
+                finally:
+                    try:
+                        word.Quit()
+                    except:
+                        pass
+            
+            except Exception as e:
+                logger.error(f"Error creating Word application: {str(e)}", exc_info=True)
+            
+            finally:
+                pythoncom.CoUninitialize()
+                
+                # Clean up temp files
+                try:
+                    import shutil
+                    shutil.rmtree(temp_dir)
+                    logger.info(f"Cleaned up temporary directory {temp_dir}")
+                except Exception as e:
+                    logger.warning(f"Failed to clean up: {str(e)}")
+            
+            if not success:
+                raise Exception("Failed to convert DOC to PDF using COM automation")
+                
         elif file_extension == '.txt':
             logger.info(f"Starting conversion of TXT file: {file.filename} to PDF")
             pdf = FPDF()
@@ -1083,11 +1158,11 @@ async def convert_to_pdf(file: UploadFile) -> bytes:
             logger.error(f"Unsupported file type: {file_extension}")
             raise HTTPException(
                 status_code=400,
-                detail="Only .docx files are supported for document conversion. .doc files are not supported."
+                detail="Supported file types: PDF, DOCX, DOC, and TXT files."
             )
-            
+    
     except Exception as e:
-        logger.error(f"Error converting file to PDF: {str(e)}")
+        logger.error(f"Error converting file to PDF: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail=f"Failed to convert file to PDF: {str(e)}"

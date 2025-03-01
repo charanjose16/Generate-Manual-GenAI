@@ -45,6 +45,8 @@ from functools import partial, lru_cache
 import aiohttp
 from aiohttp import  BasicAuth,ClientTimeout
 from urllib.parse import quote
+import win32com.client  # For handling .doc files
+import pythoncom  # For COM initialization
 
 # Disable warnings and configure logging
 urllib3.disable_warnings()
@@ -426,30 +428,81 @@ async def convert_to_pdf(file: UploadFile) -> bytes:
         if file_extension == '.pdf':
             logger.info(f"File {file.filename} is already in PDF format")
             return content
+        
+        elif file_extension in ['.docx', '.doc']:
+            logger.info(f"Starting conversion of {file_extension} file: {file.filename} to PDF")
             
-        elif file_extension == '.docx':  # Only handle .docx
-            logger.info(f"Starting conversion of .docx file: {file.filename} to PDF")
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.docx') as temp_doc:
-                temp_doc.write(content)
-                temp_doc_path = temp_doc.name
+            # Create a temporary directory
+            temp_dir = tempfile.mkdtemp()
+            temp_doc_path = os.path.join(temp_dir, f"document{file_extension}")
+            temp_pdf_path = os.path.join(temp_dir, "document.pdf")
+            
+            # Write the document file to disk
+            with open(temp_doc_path, 'wb') as f:
+                f.write(content)
                 
-            temp_pdf_path = temp_doc_path.replace('.docx', '.pdf')
+            logger.info(f"Created temporary file at {temp_doc_path}")
+            
+            # Initialize COM in a separate thread
+            pythoncom.CoInitialize()
+            success = False
             
             try:
-                convert(temp_doc_path, temp_pdf_path)
-                logger.info(f"Successfully converted .docx file: {file.filename} to PDF")
+                logger.info("Creating Word application instance")
+                word = win32com.client.DispatchEx('Word.Application')
+                word.Visible = False
+                word.DisplayAlerts = 0
                 
-                with open(temp_pdf_path, 'rb') as pdf_file:
-                    pdf_content = pdf_file.read()
-                
-                return pdf_content
-                
-            finally:
-                os.unlink(temp_doc_path)
-                if os.path.exists(temp_pdf_path):
-                    os.unlink(temp_pdf_path)
-                    logger.info("Cleaned up temporary conversion files")
+                try:
+                    # Use absolute paths
+                    abs_doc_path = os.path.abspath(temp_doc_path)
+                    abs_pdf_path = os.path.abspath(temp_pdf_path)
                     
+                    logger.info(f"Opening document from {abs_doc_path}")
+                    doc = word.Documents.Open(abs_doc_path, ReadOnly=1)
+                    
+                    logger.info(f"Saving as PDF to {abs_pdf_path}")
+                    doc.SaveAs(abs_pdf_path, FileFormat=17)  # 17 = wdFormatPDF
+                    doc.Close()
+                    
+                    if os.path.exists(abs_pdf_path):
+                        logger.info("PDF created successfully")
+                        with open(abs_pdf_path, 'rb') as pdf_file:
+                            success = True
+                            return pdf_file.read()
+                    else:
+                        logger.error(f"PDF file not found at {abs_pdf_path}")
+                        
+                except Exception as e:
+                    logger.error(f"Error in Word automation: {str(e)}", exc_info=True)
+                    if "RPC_E_SERVERCALL_RETRYLATER" in str(e):
+                        logger.error("RPC server busy - Word might be running in non-interactive mode")
+                    elif "Call was rejected by callee" in str(e):
+                        logger.error("COM call rejected - could be security settings or privileges")
+                
+                finally:
+                    try:
+                        word.Quit()
+                    except:
+                        pass
+            
+            except Exception as e:
+                logger.error(f"Error creating Word application: {str(e)}", exc_info=True)
+            
+            finally:
+                pythoncom.CoUninitialize()
+                
+                # Clean up temp files
+                try:
+                    import shutil
+                    shutil.rmtree(temp_dir)
+                    logger.info(f"Cleaned up temporary directory {temp_dir}")
+                except Exception as e:
+                    logger.warning(f"Failed to clean up: {str(e)}")
+            
+            if not success:
+                raise Exception(f"Failed to convert {file_extension} to PDF using COM automation")
+                
         elif file_extension == '.txt':
             logger.info(f"Starting conversion of TXT file: {file.filename} to PDF")
             pdf = FPDF()
@@ -460,7 +513,12 @@ async def convert_to_pdf(file: UploadFile) -> bytes:
             lines = text_content.split('\n')
             
             for line in lines:
-                pdf.multi_cell(0, 10, txt=line)
+                # Replace any non-printable characters
+                line = ''.join(c if ord(c) < 128 else ' ' for c in line)
+                if line.strip():
+                    pdf.multi_cell(0, 10, txt=line)
+                else:
+                    pdf.ln(5)
             
             pdf_content = pdf.output(dest='S').encode('latin-1')
             logger.info(f"Successfully converted TXT file: {file.filename} to PDF")
@@ -470,11 +528,11 @@ async def convert_to_pdf(file: UploadFile) -> bytes:
             logger.error(f"Unsupported file type: {file_extension}")
             raise HTTPException(
                 status_code=400,
-                detail="Only .docx files are supported for document conversion. .doc files are not supported."
+                detail="Supported file types: PDF, DOCX, DOC, and TXT files."
             )
-            
+    
     except Exception as e:
-        logger.error(f"Error converting file to PDF: {str(e)}")
+        logger.error(f"Error converting file to PDF: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail=f"Failed to convert file to PDF: {str(e)}"

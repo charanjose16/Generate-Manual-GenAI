@@ -242,12 +242,12 @@ export default function UserManualGenerator() {
       if (file) {
         const allowedTypes = {
           pdf: "application/pdf",
-          document: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // Only .docx
+          document: ["application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/msword"], // Both .docx and .doc
           text: "text/plain",
         };
-
+  
         if (fileFormat === "document") {
-          if (allowedTypes.document === file.type) {
+          if (allowedTypes.document.includes(file.type)) {
             setUploadedFile(file);
             setError("");
             return;
@@ -257,7 +257,7 @@ export default function UserManualGenerator() {
           setError("");
           return;
         }
-        setError(`Please upload a valid ${fileFormat.toUpperCase()} file (.docx only for documents).`);
+        setError(`Please upload a valid ${fileFormat.toUpperCase()} file. For documents, both .doc and .docx are supported.`);
         setUploadedFile(null);
       }
     }
@@ -313,6 +313,8 @@ export default function UserManualGenerator() {
     } finally {
       setIsGenerating(false);
       setProgressMessage("");
+      setUploadedFile(null);
+      setFileFormat("");
     }
   };
 
@@ -360,6 +362,8 @@ export default function UserManualGenerator() {
     } finally {
       setIsGenerating(false);
       setProgressMessage("");
+      setUploadedFile(null);
+      setFileFormat("");
     }
   };
 
@@ -652,7 +656,7 @@ export default function UserManualGenerator() {
               Select format
             </option>
             <option value="pdf">PDF</option>
-            <option value="document">Document (.docx)</option>
+            <option value="document">Document (.docx, .doc)</option>
             <option value="text">Text</option>
           </select>
         </div>
@@ -677,7 +681,7 @@ export default function UserManualGenerator() {
                 fileFormat === "pdf"
                   ? "application/pdf"
                   : fileFormat === "document"
-                  ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document" // Only .docx
+                  ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword" // Both .docx and .doc
                   : "text/plain"
               }
               disabled={isGenerating}
