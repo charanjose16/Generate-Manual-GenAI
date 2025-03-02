@@ -1701,7 +1701,7 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 # WebSocket endpoint
-@app.websocket("/api/wsusecase2/{client_id}")
+@app.websocket("/api/wsusecase2/progress/{client_id}")
 async def websocket_endpoint(websocket: WebSocket, client_id: str):
     try:
         await manager.connect(websocket, client_id)

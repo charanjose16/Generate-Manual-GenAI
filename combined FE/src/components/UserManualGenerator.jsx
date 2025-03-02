@@ -248,7 +248,7 @@ export default function UserManualGenerator() {
     if (isGenerating && !websocket) {
       // Get correct WebSocket URL (ws or wss based on HTTPS)
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${protocol}//${baseUrl.replace(/^https?:\/\//, '')}/api/wsusecase2/${clientId}`;
+      const wsUrl = `${protocol}//${baseUrl.replace(/^https?:\/\//, '')}/api/wsusecase2/progress/${clientId}`;
       console.log('Connecting to WebSocket:', wsUrl);
       
       const ws = new WebSocket(wsUrl);
