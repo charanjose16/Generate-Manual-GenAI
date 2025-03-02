@@ -1546,12 +1546,24 @@ def format_specifications_tables(product_data, is_faq=False):
             tables.append(Paragraph(language_texts["technical_specifications"], sub_header_style))
             tables.append(Spacer(1, 0.1 * inch))
             
-            data = [[language_texts["specification"], language_texts["value"]]]
+            # Create paragraph style for cell content with wrapping
+            cell_style = styles['Normal'].clone('CellStyle')
+            cell_style.fontSize = 10
+            cell_style.leading = 12  # Line spacing
+            
+            # Prepare data with paragraphs to enable wrapping
+            data = [[Paragraph(language_texts["specification"], cell_style), 
+                     Paragraph(language_texts["value"], cell_style)]]
+            
             for key, value in tech_specs.items():
-                data.append([str(key), str(value) if value is not None else "N/A"])
+                data.append([
+                    Paragraph(str(key), cell_style), 
+                    Paragraph(str(value) if value is not None else "N/A", cell_style)
+                ])
             
             if len(data) > 1:
-                table = Table(data, colWidths=[250, 250])
+                # Adjust column widths (first column wider for specification names)
+                table = Table(data, colWidths=[275, 225])
                 table.setStyle(TableStyle([
                     ('BACKGROUND', (0, 0), (-1, 0), header_bg_color),
                     ('TEXTCOLOR', (0, 0), (-1, 0), header_text_color),
@@ -1564,6 +1576,9 @@ def format_specifications_tables(product_data, is_faq=False):
                     ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8fafc')]),
                     ('LEFTPADDING', (0, 0), (-1, -1), 10),
                     ('RIGHTPADDING', (0, 0), (-1, -1), 10),
+                    ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),  # Vertical alignment
+                    ('TOPPADDING', (0, 1), (-1, -1), 8),     # Add more padding between rows
+                    ('BOTTOMPADDING', (0, 1), (-1, -1), 8),
                 ]))
                 tables.append(table)
             else:
@@ -1584,12 +1599,24 @@ def format_specifications_tables(product_data, is_faq=False):
             tables.append(Paragraph(language_texts["general_specifications"], sub_header_style))
             tables.append(Spacer(1, 0.1 * inch))
             
-            data = [[language_texts["specification"], language_texts["value"]]]
+            # Create paragraph style for cell content with wrapping
+            cell_style = styles['Normal'].clone('CellStyle')
+            cell_style.fontSize = 10
+            cell_style.leading = 12  # Line spacing
+            
+            # Prepare data with paragraphs to enable wrapping
+            data = [[Paragraph(language_texts["specification"], cell_style), 
+                     Paragraph(language_texts["value"], cell_style)]]
+            
             for key, value in gen_specs.items():
-                data.append([str(key), str(value) if value is not None else "N/A"])
+                data.append([
+                    Paragraph(str(key), cell_style), 
+                    Paragraph(str(value) if value is not None else "N/A", cell_style)
+                ])
             
             if len(data) > 1:
-                table = Table(data, colWidths=[250, 250])
+                # Adjust column widths (first column wider for specification names)
+                table = Table(data, colWidths=[275, 225])
                 table.setStyle(TableStyle([
                     ('BACKGROUND', (0, 0), (-1, 0), header_bg_color),
                     ('TEXTCOLOR', (0, 0), (-1, 0), header_text_color),
@@ -1602,6 +1629,9 @@ def format_specifications_tables(product_data, is_faq=False):
                     ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8fafc')]),
                     ('LEFTPADDING', (0, 0), (-1, -1), 10),
                     ('RIGHTPADDING', (0, 0), (-1, -1), 10),
+                    ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),  # Vertical alignment
+                    ('TOPPADDING', (0, 1), (-1, -1), 8),     # Add more padding between rows
+                    ('BOTTOMPADDING', (0, 1), (-1, -1), 8),
                 ]))
                 tables.append(table)
             else:
@@ -1678,15 +1708,20 @@ async def parallel_content_generation(prompts: Dict[str, str], language: str) ->
 async def generate_manual(
     product_category: str = Form(...),
     rag_source: Optional[UploadFile] = File(None),
-    language: str = Form(...)
+    language: str = Form(...),
+    client_id: str = Form(...)  # Add client_id parameter
 ):
     try:
         # Enable tracemalloc for debugging
         import tracemalloc
         tracemalloc.start()
         
+        # Send initial progress
+        await manager.send_progress(client_id, "Initializing document generation...", 5)
+        
         async with aiohttp.ClientSession() as session:
             # Parallel execution of initial data gathering
+            await manager.send_progress(client_id, "Retrieving product information...", 10)
             product_link = get_product_link(product_category)
             if not product_link:
                 raise HTTPException(status_code=400, detail="Product link not found")
@@ -1698,11 +1733,13 @@ async def generate_manual(
             ]
 
             # Execute tasks concurrently
+            await manager.send_progress(client_id, "Gathering information from sources...", 20)
             scraped_data, confluence_content = await asyncio.gather(*tasks)
             cleaned_product_name = clean_product_query(scraped_data["product_name"])
 
             # Handle RAG source upload if provided
             if rag_source:
+                await manager.send_progress(client_id, "Processing uploaded file...", 30)
                 upload_task = asyncio.create_task(upload_to_azure_blob(rag_source))
                 try:
                     await upload_task
@@ -1710,6 +1747,7 @@ async def generate_manual(
                     logger.error(f"Failed to upload PDF: {str(e)}")
 
             # Parallel processing of vector stores and content retrieval
+            await manager.send_progress(client_id, "Retrieving additional content...", 40)
             with concurrent.futures.ThreadPoolExecutor() as executor:
                 future_tasks = []
                 
@@ -1736,6 +1774,7 @@ async def generate_manual(
                 azure_blob_content = results.done.pop().result()
 
             # Combine all content sources
+            await manager.send_progress(client_id, "Analyzing content...", 50)
             combined_content = combine_all_content(
                 scraped_data,
                 "",
@@ -1744,10 +1783,12 @@ async def generate_manual(
             )
 
             # Generate content prompts
+            await manager.send_progress(client_id, "Preparing content generation...", 60)
             prompts = generate_content_prompts(cleaned_product_name, combined_content, language)
 
             # Generate content with better error handling
             try:
+                await manager.send_progress(client_id, "Generating manual content...", 70)
                 generated_content = await parallel_content_generation(prompts, language)
                 if not generated_content:
                     raise HTTPException(
@@ -1768,6 +1809,7 @@ async def generate_manual(
 
             # Generate PDF with error handling
             try:
+                await manager.send_progress(client_id, "Creating PDF document...", 85)
                 with concurrent.futures.ThreadPoolExecutor() as executor:
                     pdf_buffer = await asyncio.get_event_loop().run_in_executor(
                         executor,
@@ -1787,6 +1829,7 @@ async def generate_manual(
                     detail=f"Failed to generate PDF: {str(e)}"
                 )
 
+            await manager.send_progress(client_id, "Finalizing document...", 95)
             # Prepare response with URL-encoded filename using filename*
             filename = f"user_manual_{scraped_data['product_name']}_{language}.pdf"
             encoded_filename = quote(filename)  # URL-encode the filename to handle special characters
@@ -1795,6 +1838,8 @@ async def generate_manual(
 
             # Stop tracemalloc
             tracemalloc.stop()
+            
+            await manager.send_progress(client_id, "Document ready!", 100)
             
             return response
 
@@ -1812,18 +1857,24 @@ async def generate_manual(
 async def generate_faq(
     product_category: str = Form(...),
     language: str = Form(...),
-    preview: bool = Form(True)  # New parameter
+    preview: bool = Form(True),
+    client_id: str = Form(...)
 ):
     try:
         logger.info(f"Starting FAQ generation for {product_category} in {language}")
         
+        # Send initial progress
+        await manager.send_progress(client_id, "Initializing FAQ generation...", 5)
+        
         async with aiohttp.ClientSession() as session:
             # Get product link
+            await manager.send_progress(client_id, "Retrieving product information...", 10)
             product_link = get_product_link(product_category)
             if not product_link:
                 raise HTTPException(status_code=400, detail="Product link not found")
             
             # Create tasks for parallel execution
+            await manager.send_progress(client_id, "Gathering information from sources...", 20)
             tasks = [
                 async_scrape_product_data(product_link, session),
                 async_search_confluence(product_category, session)
@@ -1834,6 +1885,7 @@ async def generate_faq(
             cleaned_product_name = clean_product_query(scraped_data["product_name"])
             
             # Retrieve Azure Blob content
+            await manager.send_progress(client_id, "Retrieving additional content...", 30)
             azure_blob_content = await asyncio.get_event_loop().run_in_executor(
                 None,
                 retrieve_azure_blob_content,
@@ -1845,6 +1897,8 @@ async def generate_faq(
             
             # Generate FAQ content asynchronously
             try:
+                await manager.send_progress(client_id, "Analyzing data and preparing FAQ content...", 40)
+                
                 # Create predictor instance
                 predictor = Predict(GenerateContent)
                 
@@ -1872,6 +1926,7 @@ async def generate_faq(
                 }
                 
                 # Generate content
+                await manager.send_progress(client_id, "Generating FAQ content...", 60)
                 result = await asyncio.to_thread(
                     lambda: predictor(
                         section_title=input_data["section_title"],
@@ -1897,6 +1952,7 @@ async def generate_faq(
             
             # Generate PDF with error handling
             try:
+                await manager.send_progress(client_id, "Creating PDF document...", 80)
                 with concurrent.futures.ThreadPoolExecutor() as executor:
                     pdf_buffer = await asyncio.get_event_loop().run_in_executor(
                         executor,
@@ -1912,6 +1968,7 @@ async def generate_faq(
                     )
                     
                 logger.info("PDF generated successfully")
+                await manager.send_progress(client_id, "Finalizing document...", 95)
                 
             except Exception as e:
                 logger.error(f"Error generating PDF: {str(e)}")
@@ -1925,6 +1982,7 @@ async def generate_faq(
                 import base64
                 pdf_bytes = pdf_buffer.getvalue()
                 pdf_base64 = base64.b64encode(pdf_bytes).decode('utf-8')
+                await manager.send_progress(client_id, "Document ready!", 100)
                 return JSONResponse({
                     "pdf_base64": pdf_base64,
                     "filename": f"faq_{scraped_data['product_name']}_{language}.pdf"
@@ -1934,8 +1992,9 @@ async def generate_faq(
                 filename = f"faq_{scraped_data['product_name']}_{language}.pdf"
                 response = StreamingResponse(pdf_buffer, media_type="application/pdf")
                 response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
+                await manager.send_progress(client_id, "Document ready!", 100)
                 return response
-            
+
     except Exception as e:
         logger.error(f"Error in FAQ generation: {str(e)}")
         logger.error(f"Traceback: {traceback.format_exc()}")
@@ -2066,7 +2125,7 @@ async def async_scrape_product_data(url: str, session: aiohttp.ClientSession) ->
                 general_specs.update(specs_dict)
                 logger.info(f"Assigned {tab_id} as General Specifications with {len(specs_dict)} items")
             else:
-                logger.info(f"Skipping {tab_id} ({tab_label}) as it’s not Technical or General Specifications")
+                logger.info(f"Skipping {tab_id} ({tab_label}) as it's not Technical or General Specifications")
         
         # Log final results
         logger.info(f"Scraped {len(technical_specs)} technical specifications")
@@ -2232,6 +2291,43 @@ async def process_confluence_page(page: dict) -> str:
     except Exception as e:
         logger.error(f"Error processing page {page.get('title', 'Unknown')}: {str(e)}")
         return ""
+
+# WebSocket connection manager
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections = {}
+
+    async def connect(self, websocket: WebSocket, client_id: str):
+        await websocket.accept()
+        self.active_connections[client_id] = websocket
+
+    def disconnect(self, client_id: str):
+        if client_id in self.active_connections:
+            del self.active_connections[client_id]
+
+    async def send_progress(self, client_id: str, message: str, percentage: int):
+        if client_id in self.active_connections:
+            await self.active_connections[client_id].send_json({
+                "message": message,
+                "percentage": percentage
+            })
+
+manager = ConnectionManager()
+
+# WebSocket endpoint
+@app.websocket("/api/wsusecase2/{client_id}")
+async def websocket_endpoint(websocket: WebSocket, client_id: str):
+    try:
+        await manager.connect(websocket, client_id)
+        while True:
+            # Keep the connection alive
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        manager.disconnect(client_id)
+    except Exception as e:
+        logger.error(f"WebSocket error: {str(e)}")
+        if client_id in manager.active_connections:
+            manager.disconnect(client_id)
 
 # UseCase 3
 

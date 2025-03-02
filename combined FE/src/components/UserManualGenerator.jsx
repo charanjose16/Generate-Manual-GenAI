@@ -127,7 +127,7 @@ PDFPreviewModal.propTypes = {
 };
 
 // Loading Overlay Component
-function LoadingOverlay({ isLoading, progressMessage }) {
+function LoadingOverlay({ isLoading, progressMessage, progressPercentage }) {
   if (!isLoading) return null;
 
   return (
@@ -167,8 +167,24 @@ function LoadingOverlay({ isLoading, progressMessage }) {
             marginBottom: "16px",
           }}
         />
-        <p style={{ fontSize: "16px", color: "#1f2937", margin: 0 }}>
+        <p style={{ fontSize: "16px", color: "#1f2937", margin: "0 0 16px 0" }}>
           {progressMessage}
+        </p>
+        <div style={{ 
+          width: "100%", 
+          backgroundColor: "#e5e7eb", 
+          borderRadius: "4px", 
+          overflow: "hidden" 
+        }}>
+          <div style={{ 
+            height: "8px", 
+            width: `${progressPercentage}%`, 
+            backgroundColor: "#14b8a6",
+            transition: "width 0.3s ease-in-out"
+          }} />
+        </div>
+        <p style={{ fontSize: "14px", color: "#6b7280", marginTop: "8px" }}>
+          {progressPercentage}% Complete
         </p>
       </div>
       <style>
@@ -187,12 +203,14 @@ function LoadingOverlay({ isLoading, progressMessage }) {
 LoadingOverlay.propTypes = {
   isLoading: PropTypes.bool.isRequired,
   progressMessage: PropTypes.string.isRequired,
+  progressPercentage: PropTypes.number.isRequired,
 };
 
 export default function UserManualGenerator() {
   const [language, setLanguage] = useState("");
-  const [isGenerating, setIsGenerating] = useState(false); // Unified loading state
-  const [progressMessage, setProgressMessage] = useState(""); // Progress message
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [progressMessage, setProgressMessage] = useState("");
+  const [progressPercentage, setProgressPercentage] = useState(0);
   const [error, setError] = useState("");
   const [products, setProducts] = useState([]);
   const [selectedProduct, setSelectedProduct] = useState("");
@@ -203,6 +221,8 @@ export default function UserManualGenerator() {
   const [uploadedFile, setUploadedFile] = useState(null);
   const [showPreview, setShowPreview] = useState(false);
   const [pdfUrl, setPdfUrl] = useState(null);
+  const [websocket, setWebsocket] = useState(null);
+  const [clientId, setClientId] = useState("");
 
   const baseUrl = import.meta.env.VITE_BASE_URL;
   axios.defaults.headers.common["Access-Control-Allow-Origin"] = "*";
@@ -218,6 +238,81 @@ export default function UserManualGenerator() {
     };
     fetchData();
   }, [baseUrl]);
+
+  useEffect(() => {
+    const newClientId = `client_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    setClientId(newClientId);
+  }, []);
+
+  useEffect(() => {
+    if (isGenerating && !websocket) {
+      // Get correct WebSocket URL (ws or wss based on HTTPS)
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${protocol}//${baseUrl.replace(/^https?:\/\//, '')}/api/wsusecase2/${clientId}`;
+      console.log('Connecting to WebSocket:', wsUrl);
+      
+      const ws = new WebSocket(wsUrl);
+      
+      ws.onopen = () => {
+        console.log('WebSocket connection established');
+        // Send a ping to keep the connection alive
+        ws.send('ping');
+      };
+      
+      ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        setProgressMessage(data.message);
+        setProgressPercentage(data.percentage);
+        
+        // If the server sends "100" as percentage, we're done
+        if (data.percentage === 100) {
+          setTimeout(() => {
+            if (ws.readyState === WebSocket.OPEN) {
+              ws.close();
+            }
+          }, 1000);
+        }
+      };
+      
+      ws.onerror = (error) => {
+        console.error('WebSocket error:', error);
+        // Fallback to polling if WebSocket fails
+        setProgressMessage("Connection issue. Using fallback progress tracking...");
+      };
+      
+      ws.onclose = (event) => {
+        console.log('WebSocket connection closed', event.code, event.reason);
+      };
+      
+      // Ping every 30 seconds to keep connection alive
+      const pingInterval = setInterval(() => {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send('ping');
+        }
+      }, 30000);
+      
+      setWebsocket(ws);
+      
+      return () => {
+        clearInterval(pingInterval);
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.close();
+        }
+      };
+    } else if (!isGenerating && websocket) {
+      if (websocket.readyState === WebSocket.OPEN) {
+        websocket.close();
+      }
+      setWebsocket(null);
+    }
+    
+    // Cleanup function
+    return () => {
+      if (websocket && websocket.readyState === WebSocket.OPEN) {
+        websocket.close();
+      }
+    };
+  }, [isGenerating, clientId, baseUrl, websocket]);
 
   const handleProductChange = (value) => {
     if (!isGenerating) {
@@ -270,25 +365,18 @@ export default function UserManualGenerator() {
     }
     setIsGenerating(true);
     setError("");
+    setProgressPercentage(0);
 
     try {
-      setProgressMessage("Fetching product data...");
+      setProgressMessage("Connecting to server...");
       const formData = new FormData();
       formData.append("product_category", selectedItem);
       formData.append("language", language);
+      formData.append("client_id", clientId);
       if (uploadedFile) {
-        setProgressMessage("Processing uploaded file...");
         formData.append("rag_source", uploadedFile);
       }
 
-      setProgressMessage("Gathering information from sources...");
-      // Simulate backend stages (since we can't get real-time backend updates without WebSocket)
-      await new Promise((resolve) => setTimeout(resolve, 10000)); // Simulate delay
-
-      setProgressMessage("Generating manual content...");
-      await new Promise((resolve) => setTimeout(resolve, 15000)); // Simulate content generation
-
-      setProgressMessage("Creating PDF document...");
       const response = await axios.post(`${baseUrl}/api/generate-manual`, formData, {
         responseType: "blob",
       });
@@ -313,6 +401,7 @@ export default function UserManualGenerator() {
     } finally {
       setIsGenerating(false);
       setProgressMessage("");
+      setProgressPercentage(0);
       setUploadedFile(null);
       setFileFormat("");
     }
@@ -325,20 +414,15 @@ export default function UserManualGenerator() {
     }
     setIsGenerating(true);
     setError("");
+    setProgressPercentage(0);
 
     try {
-      setProgressMessage("Fetching product data...");
+      setProgressMessage("Connecting to server...");
       const formData = new FormData();
       formData.append("product_category", selectedItem);
       formData.append("language", language);
+      formData.append("client_id", clientId);
 
-      setProgressMessage("Gathering information from sources...");
-      await new Promise((resolve) => setTimeout(resolve, 10000)); // Simulate delay
-
-      setProgressMessage("Generating FAQ content...");
-      await new Promise((resolve) => setTimeout(resolve, 15000)); // Simulate content generation
-
-      setProgressMessage("Creating PDF document...");
       const response = await axios.post(`${baseUrl}/api/generate-faq`, formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
@@ -354,6 +438,12 @@ export default function UserManualGenerator() {
         const url = URL.createObjectURL(blob);
         setPdfUrl(url);
         setShowPreview(true);
+        
+        // Reset selection states after successful generation
+        setSelectedProduct("");
+        setSelectedSubProduct("");
+        setSelectedItem("");
+        setLanguage("");
       } else {
         throw new Error("Invalid PDF data received");
       }
@@ -362,6 +452,7 @@ export default function UserManualGenerator() {
     } finally {
       setIsGenerating(false);
       setProgressMessage("");
+      setProgressPercentage(0);
       setUploadedFile(null);
       setFileFormat("");
     }
@@ -782,7 +873,11 @@ export default function UserManualGenerator() {
           language={language}
         />
       )}
-      <LoadingOverlay isLoading={isGenerating} progressMessage={progressMessage} />
+      <LoadingOverlay 
+        isLoading={isGenerating} 
+        progressMessage={progressMessage} 
+        progressPercentage={progressPercentage} 
+      />
     </div>
   );
 }
