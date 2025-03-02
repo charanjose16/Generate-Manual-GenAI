@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 import dspy
 from dspy import InputField, OutputField, Signature, Predict
 from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak, Table, TableStyle,Frame,PageTemplate
+from reportlab.platypus import BaseDocTemplate, Paragraph, Spacer, PageBreak, Table, TableStyle,Frame,PageTemplate
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import inch
 from reportlab.lib import colors
@@ -633,15 +633,21 @@ def generate_pdf(product_data, content, is_faq=False):
     try:
         buffer = BytesIO()
         
-        doc = SimpleDocTemplate(
-            buffer,
-            pagesize=letter,
-            rightMargin=72,
-            leftMargin=72,
-            topMargin=72,
-            bottomMargin=72
-        )
+        # Dictionary to store section names and their page numbers
+        section_pages = {}
         
+        # Custom paragraph class to set bookmarks
+        class BookmarkParagraph(Paragraph):
+            def __init__(self, text, style, bookmark_key):
+                super().__init__(text, style)
+                self.bookmark_key = bookmark_key
+            
+            def draw(self):
+                super().draw()
+                self.canv.bookmarkPage(self.bookmark_key)
+                section_pages[self.bookmark_key] = self.canv.getPageNumber()
+        
+        # Function to add page numbers to ALL pages
         def add_page_number(canvas, doc):
             canvas.saveState()
             page_num = canvas.getPageNumber()
@@ -650,18 +656,41 @@ def generate_pdf(product_data, content, is_faq=False):
             canvas.drawCentredString(doc.pagesize[0] / 2, 36, text)
             logger.info(f"Drawing page number {page_num} at y=36")
             canvas.restoreState()
-
-        frame = Frame(
-            doc.leftMargin,
-            doc.bottomMargin + 40,
-            doc.width,
-            doc.height - 40,
-            id='normal'
-        )
-
-        template = PageTemplate(id='page_template', frames=[frame], onPage=add_page_number)
-        doc.addPageTemplates([template])
         
+        # Build document with helper function
+        def create_doc():
+            # Create the document
+            doc = BaseDocTemplate(
+                buffer,
+                pagesize=letter,
+                rightMargin=72,
+                leftMargin=72,
+                topMargin=72,
+                bottomMargin=72
+            )
+            
+            # Create a single frame for all pages
+            frame = Frame(
+                doc.leftMargin,
+                doc.bottomMargin + 40,  # Leave space for page numbers
+                doc.width,
+                doc.height - 40,
+                id='normal'
+            )
+            
+            # Create a SINGLE template for ALL pages
+            template = PageTemplate(
+                id='all_pages', 
+                frames=frame,
+                onPage=add_page_number
+            )
+            
+            # Add ONLY this template to the document - no defaults
+            doc.addPageTemplates([template])
+            
+            return doc
+        
+        # Get styles
         styles = getSampleStyleSheet()
         
         title_style = styles['Title']
@@ -685,81 +714,82 @@ def generate_pdf(product_data, content, is_faq=False):
         normal_style.leading = 14
         normal_style.textColor = colors.black
         
-        elements = []
-        
-        language_texts = get_language_texts(product_data.get("language", "en"))
-        if is_faq:
-            title_text = f"{language_texts['faq_title']}"
-        else:
-            title_text = f"{language_texts['manual_title']}"
+        # Build elements list
+        def build_elements(include_toc_pages=True):
+            elements = []
             
-        elements.append(Paragraph(title_text, title_style))
-        elements.append(Spacer(1, 0.25 * inch))
-        elements.append(Paragraph(product_data['product_category'], styles['Heading3']))
-        elements.append(Spacer(1, 0.5 * inch))
-        
-        elements.append(Spacer(1, inch))
-        elements.append(Paragraph(language_texts['table_of_contents'], heading1_style))
-        
-        section_starts = {}
-        current_page = 2
-        
-        for section, section_content in content.items():
-            section_starts[section] = current_page
-            paragraphs = clean_content(section_content).split('\n')
-            estimated_lines = len(paragraphs) * 2
-            current_page += max(1, estimated_lines // 40)
-        
-        toc_data = [[language_texts['section'], language_texts['page']]]
-        for section in content.keys():
-            clean_section = clean_content(section)
-            page_num = section_starts.get(section, "")
-            toc_data.append([clean_section, str(page_num)])
-        
-        toc_table = Table(toc_data, colWidths=[400, 100])
-        toc_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1e40af')),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-            ('ALIGN', (0, 0), (0, -1), 'LEFT'),
-            ('ALIGN', (1, 0), (1, -1), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 13),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 15),
-            ('GRID', (0, 0), (-1, -1), 1, colors.lightgrey),
-            ('BOX', (0, 0), (-1, -1), 2, colors.HexColor('#cbd5e1')),
-            ('LEFTPADDING', (0, 0), (-1, -1), 15),
-            ('RIGHTPADDING', (0, 0), (-1, -1), 15),
-        ]))
-        elements.append(toc_table)
-        
-        for section, section_content in content.items():
-            elements.append(PageBreak())
+            language_texts = get_language_texts(product_data.get("language", "en"))
+            if is_faq:
+                title_text = f"{language_texts['faq_title']}"
+            else:
+                title_text = f"{language_texts['manual_title']}"
             
-            clean_section = clean_content(section)
-            elements.append(Paragraph(clean_section, heading1_style))
-            elements.append(Spacer(1, 0.1 * inch))
+            elements.append(Paragraph(title_text, title_style))
+            elements.append(Spacer(1, 0.25 * inch))
+            elements.append(Paragraph(product_data['product_category'], styles['Heading3']))
+            elements.append(Spacer(1, 0.5 * inch))
+            
+            elements.append(Paragraph(language_texts['table_of_contents'], heading1_style))
+            toc_data = [[language_texts['section'], language_texts['page']]]
+            for section in content.keys():
+                clean_section = clean_content(section)
+                page_num = section_pages.get(clean_section, "") if include_toc_pages else ""
+                toc_data.append([clean_section, str(page_num)])
+            
+            toc_table = Table(toc_data, colWidths=[400, 100])
+            toc_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1e40af')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                ('ALIGN', (0, 0), (0, -1), 'LEFT'),
+                ('ALIGN', (1, 0), (1, -1), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 13),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 15),
+                ('GRID', (0, 0), (-1, -1), 1, colors.lightgrey),
+                ('BOX', (0, 0), (-1, -1), 2, colors.HexColor('#cbd5e1')),
+                ('LEFTPADDING', (0, 0), (-1, -1), 15),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 15),
+            ]))
+            elements.append(toc_table)
+            
+            for section, section_content in content.items():
+                elements.append(PageBreak())
+                clean_section = clean_content(section)
+                elements.append(BookmarkParagraph(clean_section, heading1_style, clean_section))
+                elements.append(Spacer(1, 0.1 * inch))
 
-            if section == language_texts["technical_specifications"]:
-                tables = format_specifications_tables(product_data, is_faq)
-                if tables:
-                    for table in tables:
-                        elements.append(table)
-                        elements.append(Spacer(1, 0.2 * inch))
-                    continue
+                if section == language_texts["technical_specifications"]:
+                    tables = format_specifications_tables(product_data, is_faq)
+                    if tables:
+                        for table in tables:
+                            elements.append(table)
+                            elements.append(Spacer(1, 0.2 * inch))
+                        continue
+                
+                paragraphs = clean_content(section_content).split('\n')
+                for paragraph in paragraphs:
+                    if paragraph.strip():
+                        if paragraph.strip().endswith(':'):
+                            elements.append(Paragraph(paragraph.strip(), heading2_style))
+                        else:
+                            elements.append(Paragraph(paragraph.strip(), normal_style))
+                        elements.append(Spacer(1, 0.05 * inch))
+                
+                elements.append(Spacer(1, 0.2 * inch))
             
-            paragraphs = clean_content(section_content).split('\n')
-            for paragraph in paragraphs:
-                if paragraph.strip():
-                    if paragraph.strip().endswith(':'):
-                        elements.append(Paragraph(paragraph.strip(), heading2_style))
-                    else:
-                        elements.append(Paragraph(paragraph.strip(), normal_style))
-                    elements.append(Spacer(1, 0.05 * inch))
-            
-            elements.append(Spacer(1, 0.2 * inch))
+            return elements
         
-        # The key fix: explicitly specifying onFirstPage and onLaterPages
-        doc.build(elements, onFirstPage=add_page_number, onLaterPages=add_page_number)
+        # First build to collect page numbers
+        doc = create_doc()
+        first_elements = build_elements(include_toc_pages=False)
+        doc.build(first_elements)
+        
+        # Second build with updated TOC
+        buffer.seek(0)
+        buffer.truncate(0)  # Clear the buffer for the second build
+        doc = create_doc()
+        second_elements = build_elements(include_toc_pages=True)
+        doc.build(second_elements)
         
         buffer.seek(0)
         return buffer
