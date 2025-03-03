@@ -1,4 +1,4 @@
-import { useState, useEffect, Fragment } from "react";
+import { useState, useEffect } from "react";
 import { Listbox, Transition } from "@headlessui/react";
 import axios from "axios";
 import PropTypes from 'prop-types';
@@ -474,18 +474,21 @@ export default function UserManualGenerator() {
           <label className="block mb-1">Product</label>
           <Listbox value={selectedProduct} onChange={handleProductChange}>
             {({ open }) => (
-              <>
+              <div className="relative">
                 <Listbox.Button className="relative w-full py-2 pl-3 pr-10 text-left bg-white border border-gray-300 rounded-md shadow-sm cursor-default focus:outline-none">
                   <span className="block truncate">
                     {selectedProduct || "Select a product"}
                   </span>
                 </Listbox.Button>
+
                 <Transition
                   show={open}
-                  as={Fragment}
-                  leave="transition ease-in duration-100"
-                  leaveFrom="opacity-100"
-                  leaveTo="opacity-0"
+                  enter="transition duration-100 ease-out"
+                  enterFrom="transform scale-95 opacity-0"
+                  enterTo="transform scale-100 opacity-100"
+                  leave="transition duration-75 ease-out"
+                  leaveFrom="transform scale-100 opacity-100"
+                  leaveTo="transform scale-95 opacity-0"
                 >
                   <Listbox.Options className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
                     {products.map((product, index) => (
@@ -503,7 +506,7 @@ export default function UserManualGenerator() {
                     ))}
                   </Listbox.Options>
                 </Transition>
-              </>
+              </div>
             )}
           </Listbox>
         </div>
@@ -513,18 +516,21 @@ export default function UserManualGenerator() {
             <label className="block mb-1">Sub-Product</label>
             <Listbox value={selectedSubProduct} onChange={handleSubProductChange}>
               {({ open }) => (
-                <>
+                <div className="relative">
                   <Listbox.Button className="relative w-full py-2 pl-3 pr-10 text-left bg-white border border-gray-300 rounded-md shadow-sm cursor-default focus:outline-none">
                     <span className="block truncate">
                       {selectedSubProduct || "Select a sub-product"}
                     </span>
                   </Listbox.Button>
+
                   <Transition
                     show={open}
-                    as={Fragment}
-                    leave="transition ease-in duration-100"
-                    leaveFrom="opacity-100"
-                    leaveTo="opacity-0"
+                    enter="transition duration-100 ease-out"
+                    enterFrom="transform scale-95 opacity-0"
+                    enterTo="transform scale-100 opacity-100"
+                    leave="transition duration-75 ease-out"
+                    leaveFrom="transform scale-100 opacity-100"
+                    leaveTo="transform scale-95 opacity-0"
                   >
                     <Listbox.Options className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
                       {(() => {
@@ -550,7 +556,7 @@ export default function UserManualGenerator() {
                       })()}
                     </Listbox.Options>
                   </Transition>
-                </>
+                </div>
               )}
             </Listbox>
           </div>
@@ -561,18 +567,21 @@ export default function UserManualGenerator() {
             <label className="block mb-1">Items</label>
             <Listbox value={selectedItem} onChange={setSelectedItem}>
               {({ open }) => (
-                <>
+                <div className="relative">
                   <Listbox.Button className="relative w-full py-2 pl-3 pr-10 text-left bg-white border border-gray-300 rounded-md shadow-sm cursor-default focus:outline-none">
                     <span className="block truncate">
                       {selectedItem || "Select an item"}
                     </span>
                   </Listbox.Button>
+
                   <Transition
                     show={open}
-                    as={Fragment}
-                    leave="transition ease-in duration-100"
-                    leaveFrom="opacity-100"
-                    leaveTo="opacity-0"
+                    enter="transition duration-100 ease-out"
+                    enterFrom="transform scale-95 opacity-0"
+                    enterTo="transform scale-100 opacity-100"
+                    leave="transition duration-75 ease-out"
+                    leaveFrom="transform scale-100 opacity-100"
+                    leaveTo="transform scale-95 opacity-0"
                   >
                     <Listbox.Options className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
                       {(() => {
@@ -601,7 +610,7 @@ export default function UserManualGenerator() {
                       })()}
                     </Listbox.Options>
                   </Transition>
-                </>
+                </div>
               )}
             </Listbox>
           </div>
@@ -611,7 +620,7 @@ export default function UserManualGenerator() {
           <label className="block mb-1">Language</label>
           <Listbox value={language} onChange={setLanguage}>
             {({ open }) => (
-              <>
+              <div className="relative">
                 <Listbox.Button className="relative w-full py-2 pl-3 pr-10 text-left bg-white border border-gray-300 rounded-md shadow-sm cursor-default focus:outline-none">
                   <span className="block truncate">
                     {language
@@ -628,12 +637,15 @@ export default function UserManualGenerator() {
                       : "Select a language"}
                   </span>
                 </Listbox.Button>
+
                 <Transition
                   show={open}
-                  as={Fragment}
-                  leave="transition ease-in duration-100"
-                  leaveFrom="opacity-100"
-                  leaveTo="opacity-0"
+                  enter="transition duration-100 ease-out"
+                  enterFrom="transform scale-95 opacity-0"
+                  enterTo="transform scale-100 opacity-100"
+                  leave="transition duration-75 ease-out"
+                  leaveFrom="transform scale-100 opacity-100"
+                  leaveTo="transform scale-95 opacity-0"
                 >
                   <Listbox.Options className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
                     {languages.map((lang) => (
@@ -651,7 +663,7 @@ export default function UserManualGenerator() {
                     ))}
                   </Listbox.Options>
                 </Transition>
-              </>
+              </div>
             )}
           </Listbox>
         </div>
