@@ -147,7 +147,7 @@ class SpecInput(BaseModel):
     specs: dict
 
 # Path to the CSV file
-file_path = r"C:\Users\286194\Downloads\Final Regal Rex Nord - combined\Final Regal Rex Nord - combined\Backend\dataset.csv"
+file_path = r"C:\Users\231852\Desktop\03-03-2025\New folder\Backend\dataset.csv"
  
 #############################################
 # DSPy Setup for Extended Maintenance Insight Module
@@ -231,7 +231,7 @@ motor_analytics_module = MotorAnalyticsModule()
 # Existing Endpoints
 #############################
  
-@app.get("/api/motors")
+@app.get("/api/motor/motors")
 def extract_motor_ids():
     try:
         df = pd.read_csv(file_path)
@@ -242,7 +242,7 @@ def extract_motor_ids():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
  
-@app.get("/api/motor-data")
+@app.get("/api/motor/motor-data")
 def get_motor_data(
     motor_id: str = Query(..., description="Motor ID to filter data"),
     months: int = Query(..., description="Number of months for filtering (1, 6, 12, 24, 36, 48, 60)")
@@ -265,7 +265,7 @@ def get_motor_data(
 # Extended Motor Maintenance Insight Endpoint
 #############################################
  
-@app.get("/api/motor-maintenance")
+@app.get("/api/motor/motor-maintenance")
 def get_motor_maintenance_insight(
     motor_id: str = Query(..., description="Motor ID for maintenance insight"),
     months: int = Query(..., description="Number of months for filtering aggregated data (1, 6, 12, 24, 36, 48, 60)")
@@ -348,7 +348,7 @@ def get_motor_maintenance_insight(
 # New Analytics Endpoint Using DSPy
 #############################################
  
-@app.get("/api/analytics")
+@app.get("/api/motor/analytics")
 def get_motor_analytics(
     motor_id: str = Query(..., description="Motor ID for analytics"),
     months: int = Query(..., description="Number of months for filtering data (allowed: 1, 6, 12, 24, 36, 48, 60)")
@@ -500,7 +500,7 @@ class TrendAnalysisModule(dspy.Module):
    
 trend_analysis_module = TrendAnalysisModule()
  
-@app.get("/api/motor-ids")
+@app.get("/api/motor/motor-ids")
 def get_motor_ids():
     """Returns list of unique motor IDs from the dataset."""
     try:
@@ -511,7 +511,7 @@ def get_motor_ids():
         raise HTTPException(status_code=500, detail=str(e))
  
  
-@app.get("/api/failure-trends")
+@app.get("/api/motor/failure-trends")
 def get_failure_trends(
     motor_id: str = Query(..., description="Motor ID for filtering data"),
     months: int = Query(..., description="Number of months for filtering (1, 6, 12, 24, 36, 48, 60)")
@@ -586,7 +586,7 @@ def get_failure_trends(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
  
-@app.get("/api/rpm-vs-load")
+@app.get("/api/motor/rpm-vs-load")
 def get_rpm_vs_load(
     motor_id: str = Query(..., description="Motor ID for filtering data"),
     months: int = Query(..., description="Number of months for filtering (1, 6, 12, 24, 36, 48, 60)")
@@ -636,7 +636,7 @@ def get_rpm_vs_load(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
  
-@app.get("/api/temp-vs-vibration")
+@app.get("/api/motor/temp-vs-vibration")
 def get_temp_vs_vibration(
     motor_id: str = Query(..., description="Motor ID for filtering data"),
     months: int = Query(..., description="Number of months for filtering (1, 6, 12, 24, 36, 48, 60)")
@@ -1704,7 +1704,7 @@ async def parallel_content_generation(prompts: Dict[str, str], language: str) ->
         raise ValueError(f"Content generation failed: {str(e)}")
 
 # Modified generate_manual endpoint
-@app.post("/api/generate-manual")
+@app.post("/api/motor/generate-manual")
 async def generate_manual(
     product_category: str = Form(...),
     rag_source: Optional[UploadFile] = File(None),
@@ -1853,7 +1853,7 @@ async def generate_manual(
             detail=f"Manual generation failed: {str(e)}"
         )
 
-@app.post("/api/generate-faq")
+@app.post("/api/motor/generate-faq")
 async def generate_faq(
     product_category: str = Form(...),
     language: str = Form(...),
@@ -2004,7 +2004,7 @@ PRODUCTS_FILE_PATH = os.path.join(os.path.dirname(__file__), "product_names.json
 with open(PRODUCTS_FILE_PATH, "r") as file:
     products_data = json.load(file)
 
-@app.get("/api/products")
+@app.get("/api/motor/products")
 async def get_products():
     return JSONResponse(content={"products": products_data.get("products", [])})
 
@@ -2315,7 +2315,7 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 # WebSocket endpoint
-@app.websocket("/api/wsusecase2/progress/{client_id}")
+@app.websocket("/api/motor/wsusecase2/progress/{client_id}")
 async def websocket_endpoint(websocket: WebSocket, client_id: str):
     try:
         await manager.connect(websocket, client_id)
@@ -2768,7 +2768,7 @@ async def convert_docx_to_pdf(file_content: bytes) -> bytes:
 ###########################################
 # Endpoint: Initiate PDF Generation
 ###########################################
-@app.post("/api/generate-product-designer-pdf")
+@app.post("/api/motor/generate-product-designer-pdf")
 async def generate_product_designer_pdf(
     background_tasks: BackgroundTasks,
     product_category: str = Form(..., description="Product category (e.g., 'Motors', 'Bearings')"),
@@ -2827,7 +2827,7 @@ async def generate_product_designer_pdf(
 ###########################################
 # Endpoint: Get Available Products
 ###########################################
-@app.get("/api/product")
+@app.get("/api/motor/product")
 async def get_products():
     product_names = [product["product_name"] for product in products_data.get("products", [])]
     return JSONResponse(content={"products": product_names})
@@ -2835,7 +2835,7 @@ async def get_products():
 ###########################################
 # Endpoint: WebSocket for Progress Updates
 ###########################################
-@app.websocket("/api/ws/progress/{job_id}")
+@app.websocket("/api/motor/ws/progress/{job_id}")
 async def websocket_progress(websocket: WebSocket, job_id: str):
     """
     Stream real-time progress updates for the given job.
@@ -2859,7 +2859,7 @@ async def websocket_progress(websocket: WebSocket, job_id: str):
 ###########################################
 # Endpoint: Download Generated PDF
 ###########################################
-@app.get("/api/download/{job_id}")
+@app.get("/api/motor/download/{job_id}")
 async def download_pdf(job_id: str):
     """
     Download the generated PDF using the job ID.
@@ -2878,7 +2878,7 @@ async def download_pdf(job_id: str):
 ##############################################
 # Endpoint : PDF and Document Conversion
 ##############################################
-@app.post("/api/extract-pdf-text")
+@app.post("/api/motor/extract-pdf-text")
 async def extract_text(template_file: UploadFile = File(...)) -> Dict[str, Any]:
     """
     Extract text from an uploaded document file.

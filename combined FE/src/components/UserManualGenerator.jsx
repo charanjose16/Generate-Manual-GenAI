@@ -230,7 +230,7 @@ export default function UserManualGenerator() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const response = await axios.get(`${baseUrl}/api/products`);
+        const response = await axios.get(`${baseUrl}/products`);
         setProducts(response.data.products);
       } catch (err) {
         setError(`Failed to load products: ${err.message}`);
@@ -248,7 +248,7 @@ export default function UserManualGenerator() {
     if (isGenerating && !websocket) {
       // Get correct WebSocket URL (ws or wss based on HTTPS)
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${protocol}//${baseUrl.replace(/^https?:\/\//, '')}/api/wsusecase2/progress/${clientId}`;
+      const wsUrl = `${protocol}//${baseUrl.replace(/^https?:\/\//, '')}/wsusecase2/progress/${clientId}`;
       console.log('Connecting to WebSocket:', wsUrl);
       
       const ws = new WebSocket(wsUrl);
@@ -377,7 +377,7 @@ export default function UserManualGenerator() {
         formData.append("rag_source", uploadedFile);
       }
 
-      const response = await axios.post(`${baseUrl}/api/generate-manual`, formData, {
+      const response = await axios.post(`${baseUrl}/generate-manual`, formData, {
         responseType: "blob",
       });
 
@@ -423,7 +423,7 @@ export default function UserManualGenerator() {
       formData.append("language", language);
       formData.append("client_id", clientId);
 
-      const response = await axios.post(`${baseUrl}/api/generate-faq`, formData, {
+      const response = await axios.post(`${baseUrl}/generate-faq`, formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
 

@@ -69,7 +69,7 @@ const AnalyticsView = ({ motor, months }) => {
       const startTime = Date.now();
 
       try {
-        const url = `${baseUrl}/api/analytics?motor_id=${motor}&months=${months}`;
+        const url = `${baseUrl}/analytics?motor_id=${motor}&months=${months}`;
         const response = await fetch(url, { signal });
 
         // If a 404 is returned, treat it as "no data found".

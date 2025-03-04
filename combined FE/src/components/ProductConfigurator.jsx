@@ -124,7 +124,7 @@ const AddTemplate = ({ products, setActiveView }) => {
       setFileName(file.name);
       const formData = new FormData();
       formData.append("template_file", file);
-      fetch(`${BASE_URL}/api/extract-pdf-text`, {
+      fetch(`${BASE_URL}/extract-pdf-text`, {
         method: "POST",
         body: formData,
       })
@@ -554,7 +554,7 @@ const Form = ({ setLoading, setProgress, products, loading, progress }) => {
  
     try {
       const response = await fetch(
-        `${BASE_URL}/api/generate-product-designer-pdf`,
+        `${BASE_URL}/generate-product-designer-pdf`,
         {
           method: "POST",
           body: formData,
@@ -570,7 +570,7 @@ const Form = ({ setLoading, setProgress, products, loading, progress }) => {
       setProgress("Job started...");
  
       const wsUrl = BASE_URL.replace("http", "ws");
-      const ws = new WebSocket(`${wsUrl}/api/ws/progress/${job_id}`);
+      const ws = new WebSocket(`${wsUrl}/ws/progress/${job_id}`);
       ws.onmessage = (event) => {
         setProgress(event.data);
         if (event.data.startsWith("PDF is ready")) {
@@ -580,7 +580,7 @@ const Form = ({ setLoading, setProgress, products, loading, progress }) => {
           localStorage.removeItem("details");
           setProduct("");
           setDetails("");
-          window.location.href = `${BASE_URL}/api/download/${job_id}`;
+          window.location.href = `${BASE_URL}/download/${job_id}`;
         }
       };
       ws.onerror = (err) => {
@@ -777,7 +777,7 @@ const ProductConfigurator = () => {
   useEffect(() => {
     const fetchProducts = async () => {
       try {
-        const response = await fetch(`${BASE_URL}/api/products`);
+        const response = await fetch(`${BASE_URL}/products`);
         if (!response.ok) throw new Error("Failed to fetch products");
         const data = await response.json();
         setProducts(data.products);
