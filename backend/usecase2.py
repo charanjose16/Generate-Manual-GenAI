@@ -1090,7 +1090,7 @@ async def parallel_content_generation(prompts: Dict[str, str], language: str) ->
         raise ValueError(f"Content generation failed: {str(e)}")
 
 # Modified generate_manual endpoint
-@app.post("/api/generate-manual")
+@app.post("/api/motor/generate-manual")
 async def generate_manual(
     product_category: str = Form(...),
     rag_source: Optional[UploadFile] = File(None),
@@ -1239,7 +1239,7 @@ async def generate_manual(
             detail=f"Manual generation failed: {str(e)}"
         )
 
-@app.post("/api/generate-faq")
+@app.post("/api/motor/generate-faq")
 async def generate_faq(
     product_category: str = Form(...),
     language: str = Form(...),
@@ -1390,7 +1390,7 @@ PRODUCTS_FILE_PATH = os.path.join(os.path.dirname(__file__), "product_names.json
 with open(PRODUCTS_FILE_PATH, "r") as file:
     products_data = json.load(file)
 
-@app.get("/api/products")
+@app.get("/api/motor/products")
 async def get_products():
     return JSONResponse(content={"products": products_data.get("products", [])})
 
@@ -1701,7 +1701,7 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 # WebSocket endpoint
-@app.websocket("/api/wsusecase2/progress/{client_id}")
+@app.websocket("/api/motor/wsusecase2/progress/{client_id}")
 async def websocket_endpoint(websocket: WebSocket, client_id: str):
     try:
         await manager.connect(websocket, client_id)
