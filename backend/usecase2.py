@@ -95,17 +95,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Track active tasks for progress updates
-active_tasks = {}
-
-# Helper function to update progress
-async def update_progress(client_id: str, message: str, percentage: int):
-    logger.info(f"Updating progress for {client_id}: {message}, {percentage}%")
-    active_tasks[client_id] = {"message": message, "percentage": percentage}
-    if percentage >= 100:
-        await asyncio.sleep(1)  # Brief delay to ensure client receives final update
-        active_tasks.pop(client_id, None)
-
 # Configure DSPy with Azure OpenAI for manual generation
 try:
     lm = dspy.LM(
@@ -128,6 +117,21 @@ class GenerateContent(Signature):
     prompt: str = InputField(desc="Prompt for generating content")
     language: str = InputField(desc="Target language for content generation")
     output: str = OutputField(desc="Generated content in specified language")
+
+# -------------------------------
+# SSE Progress
+# -------------------------------
+
+# Track active tasks for progress updates
+active_tasks = {}
+
+# Helper function to update progress
+async def update_progress(client_id: str, message: str, percentage: int):
+    logger.info(f"Updating progress for {client_id}: {message}, {percentage}%")
+    active_tasks[client_id] = {"message": message, "percentage": percentage}
+    if percentage >= 100:
+        await asyncio.sleep(1)  # Brief delay to ensure client receives final update
+        active_tasks.pop(client_id, None)
 
 # -------------------------------
 # TRANSLATION & UTILITY FUNCTIONS
@@ -1600,7 +1604,7 @@ async def sse_progress(client_id: str):
             progress = active_tasks.get(client_id, {"message": "Waiting...", "percentage": 0})
             logger.info(f"Sending progress for {client_id}: {progress}")
             yield {"event": "progress", "data": json.dumps(progress)}
-            await asyncio.sleep(1)  # Adjust polling interval as needed
+            await asyncio.sleep(1)
     return EventSourceResponse(event_generator())
 
 if __name__ == "__main__":

@@ -47,9 +47,7 @@ from fastapi import (
     File,
     UploadFile,
     Form,
-    BackgroundTasks,
-    WebSocket,
-    WebSocketDisconnect
+    BackgroundTasks
 )
 from fastapi.responses import StreamingResponse, JSONResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -97,6 +95,7 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 from reportlab.lib import colors
 from reportlab.lib.utils import ImageReader
+import reportlab.pdfgen.canvas as reportlab_canvas
 
 # ---------------------------
 # Cloud & Storage
@@ -475,10 +474,6 @@ def get_motor_analytics(
 #############################################
 # Trend Analysis Endpoints
 #############################################
- 
- 
- 
- 
 class TrendAnalysisSignature(dspy.Signature):
     """
     DSPy signature for obtaining trend analysis insights.
@@ -510,8 +505,7 @@ def get_motor_ids():
         return {"data": unique_ids}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
- 
- 
+
 @app.get("/api/motor/failure-trends")
 def get_failure_trends(
     motor_id: str = Query(..., description="Motor ID for filtering data"),
@@ -720,6 +714,18 @@ VECTOR_DB_PATH = os.getenv("VECTOR_DB_PATH", "vector_db")
 UPLOAD_FOLDER = os.getenv("UPLOAD_FOLDER", "vector_db")
 
 # -------------------------------
+# DSPy CONFIGURATION
+# -------------------------------
+
+# Define DSPy signature for content generation
+class GenerateContent(Signature):
+    """Generate structured content for a specific section in the specified language."""
+    section_title: str = InputField(desc="Title of the section")
+    prompt: str = InputField(desc="Prompt for generating content")
+    language: str = InputField(desc="Target language for content generation")
+    output: str = OutputField(desc="Generated content in specified language")
+
+# -------------------------------
 # SSE Progress
 # -------------------------------
 
@@ -733,18 +739,6 @@ async def update_progress(client_id: str, message: str, percentage: int):
     if percentage >= 100:
         await asyncio.sleep(1)  # Brief delay to ensure client receives final update
         active_tasks.pop(client_id, None)
-
-# -------------------------------
-# DSPy CONFIGURATION
-# -------------------------------
-
-# Define DSPy signature for content generation
-class GenerateContent(Signature):
-    """Generate structured content for a specific section in the specified language."""
-    section_title: str = InputField(desc="Title of the section")
-    prompt: str = InputField(desc="Prompt for generating content")
-    language: str = InputField(desc="Target language for content generation")
-    output: str = OutputField(desc="Generated content in specified language")
 
 # -------------------------------
 # TRANSLATION & UTILITY FUNCTIONS
@@ -2222,7 +2216,13 @@ async def sse_progress(client_id: str):
 
 # UseCase 3
 
-# Get default ReportLab styles and update "Bullet" style if needed.
+# Global stores for progress updates and generated PDFs
+progress_store: Dict[str, List[str]] = {}
+pdf_store: Dict[str, BytesIO] = {}
+
+###########################################
+# UseCase 3: ReportLab Styles and DSPy Signatures
+###########################################
 STYLES = getSampleStyleSheet()
 if 'Bullet' in STYLES.byName:
     bullet_style = STYLES.byName['Bullet']
@@ -2244,7 +2244,7 @@ else:
     STYLES.add(bullet_style)
 
 ###########################################
-# DSPy Signature for Product Specification Content (Default)
+# DSPy Signatures for Product Specification Content
 ###########################################
 class GenerateProductSpecContent(Signature):
     """
@@ -2257,7 +2257,7 @@ class GenerateProductSpecContent(Signature):
     output: str = OutputField(desc="Generated content for the section")
 
 ###########################################
-# NEW: DSPy Signature for Product Manager Persona
+# DSPy Signature for Product Manager Persona
 ###########################################
 class GenerateProductSpecContentManager(Signature):
     """
@@ -2270,7 +2270,7 @@ class GenerateProductSpecContentManager(Signature):
     output: str = OutputField(desc="Generated content for the section (Manager view)")
 
 ###########################################
-# NEW: DSPy Signature for Product Engineer Persona
+# DSPy Signature for Product Engineer Persona
 ###########################################
 class GenerateProductSpecContentEngineer(Signature):
     """
@@ -2283,58 +2283,38 @@ class GenerateProductSpecContentEngineer(Signature):
     output: str = OutputField(desc="Generated content for the section (Engineer view)")
 
 ###########################################
-# Helper: Add Decorations (Logo, Border, Footer with Caution Symbol) on Every Page
+# Helper: Add Decorations (Logo, Border, Footer)
 ###########################################
-def add_decorations(canvas, doc):
-    """
-    Draws the logo, border, and a footer outside the border.
-    
-    - The border is drawn with a 40-point margin from the page edges.
-    - The logo is placed inside the border with an extra 0.25 cm (~7 points) gap from top and left.
-    - The footer area is drawn outside the border at the bottom.
-      It contains a caution symbol (a red circle with a white exclamation mark, 15-pt diameter, 25% smaller)
-      followed by the text "Fully AI generated and formatted." Both are right-aligned such that the rightmost edge
-      is 40 points from the page edge (the same as the border margin).
-    """
+def add_decorations(canvas: reportlab_canvas.Canvas, doc: SimpleDocTemplate) -> None:  # type: ignore
     try:
-        # Define margins and extra gap
         border_margin = 40.0
-        extra_gap = 7.0  # approx. 0.25 cm in points
+        extra_gap = 7.0
         page_width, page_height = doc.pagesize
 
-        # Draw border inside the page.
         canvas.setLineWidth(1)
         canvas.setStrokeColor(colors.black)
         canvas.rect(border_margin, border_margin, page_width - 2 * border_margin, page_height - 2 * border_margin)
-        
-        # Load and position logo (scaled to 1/3 inch width).
-        logo_path = r"C:\Users\286194\Downloads\Final Regal Rex Nord - combined\Final Regal Rex Nord - combined\Backend\ust-logo.png"
+
+        logo_path = r".\ust-logo.png"
         logo = ImageReader(logo_path)
         orig_width, orig_height = logo.getSize()
         logo_width = (1.0 / 3.0) * inch
         aspect = orig_height / orig_width
         logo_height = logo_width * aspect
-        
-        # Position logo inside border with extra_gap from top and left.
         logo_x = border_margin + extra_gap
         logo_y = page_height - border_margin - logo_height - extra_gap
         canvas.drawImage(logo_path, logo_x, logo_y, width=logo_width, height=logo_height, mask='auto', preserveAspectRatio=True)
-        
-        # Footer: Prepare caution symbol and footer text.
+
         footer_text = "Fully AI generated and formatted"
         canvas.setFont("Helvetica", 8)
         text_width = canvas.stringWidth(footer_text, "Helvetica", 8)
-        # Original symbol diameter was 20; 25% smaller => 15 points.
-        symbol_diameter = 15  
-        gap_between = 5  # gap between symbol and text
+        symbol_diameter = 15
+        gap_between = 5
         total_width = symbol_diameter + gap_between + text_width
-        # Right align such that right edge is at border_margin from the right.
         group_right_x = page_width - border_margin
         group_start_x = group_right_x - total_width
-        # Position vertically in footer area outside the border.
-        y_out = border_margin / 2  # for example, 20 points from bottom edge
-        
-        # Draw caution symbol first.
+        y_out = border_margin / 2
+
         symbol_radius = symbol_diameter / 2
         symbol_center_x = group_start_x + symbol_radius
         symbol_center_y = y_out + symbol_radius
@@ -2344,7 +2324,6 @@ def add_decorations(canvas, doc):
         canvas.setFont("Helvetica-Bold", 12)
         canvas.drawCentredString(symbol_center_x, symbol_center_y - 4, "!")
         
-        # Draw footer text immediately to the right of the symbol.
         canvas.setFillColor(colors.black)
         canvas.setFont("Helvetica", 8)
         text_x = group_start_x + symbol_diameter + gap_between
@@ -2353,26 +2332,17 @@ def add_decorations(canvas, doc):
         logging.error(f"Error in add_decorations: {str(e)}")
 
 ###########################################
-# Helper: Convert Markdown Bold to HTML and Remove Stray Markers
+# Helper: Convert Markdown Bold to HTML
 ###########################################
 def convert_markdown_to_html(text: str) -> str:
-    """
-    Convert markdown-style bold markers (**text**) to HTML bold tags (<b>text</b>),
-    and remove any stray '**' markers.
-    """
     text = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', text)
     text = text.replace('**', '')
     return text
 
 ###########################################
 # Helper: Parse and Clean Section Content
-##########################################
-def parse_section_content(section_content: str) -> tuple[str, list[str]]:
-    """
-    Splits a section's content into detailed text and a bullet list.
-    Normalizes extraneous markers (e.g. [[ ## Key Points ## ]]) to "Key Points:".
-    Converts markdown bold in bullet items and removes stray markers.
-    """
+###########################################
+def parse_section_content(section_content: str) -> Tuple[str, List[str]]:
     section_content = re.sub(r'\[\[\s*#*\s*Key Points\s*#*\s*\]\]', 'Key Points:', section_content, flags=re.IGNORECASE)
     pattern = re.compile(r'Key Points\s*:', re.IGNORECASE)
     parts = pattern.split(section_content, maxsplit=1)
@@ -2390,17 +2360,12 @@ def parse_section_content(section_content: str) -> tuple[str, list[str]]:
                 if clean_line:
                     bullets.append(clean_line)
         return detailed_text, bullets
-    else:
-        return section_content, []
+    return section_content, []
 
 ###########################################
 # Helper: Format Detailed Text for PDF
 ###########################################
-def format_detailed_text(detailed_text: str) -> list:
-    """
-    Converts detailed text with markdown-like markers into ReportLab flowables.
-    Converts markdown bold to HTML and applies formatting for subheadings, numbered lists, and bullet items.
-    """
+def format_detailed_text(detailed_text: str) -> List:
     flowables = []
     for line in detailed_text.split("\n"):
         line = line.strip()
@@ -2425,80 +2390,28 @@ def format_detailed_text(detailed_text: str) -> list:
 # Helper: Build Prompts for Each Section
 ###########################################
 def get_product_spec_prompts(product_category: str, product_details: str, custom_template: str = None) -> dict:
-
-    """
-
-    Generate prompts for each section heading provided in custom_template.
-
-   
-
-    Args:
-
-        product_category (str): The category of the product (e.g., "Smart Thermostat").
-
-        product_details (str): Details about the product (e.g., "Wi-Fi-enabled thermostat...").
-
-        custom_template (str, optional): Sections from frontend, separated by newlines.
-
-   
-
-    Returns:
-
-        dict: Mapping of numbered section headings to their full prompts.
-
-    """
-
     prompts = {}
-
     if custom_template and custom_template.strip():
-
         sections = custom_template.splitlines()
-
         for i, line in enumerate(sections, start=1):
-
             line = line.strip()
-
             if not line:
-
                 continue
-
             if ':' in line:
-
                 heading, prompt_text = map(str.strip, line.split(':', 1))
-
             else:
-
                 heading = line
-
                 prompt_text = f"Provide detailed information on {heading}."
-
-            # Remove any leading numbers from the heading
-
             heading = re.sub(r'^\d+\.\s*', '', heading)
-
             numbered_heading = f"{i}. {heading}"
-
             context = f"Product Category: {product_category}\nProduct Details: {product_details}\n\n"
-
             prompts[numbered_heading] = f"{context}Task: {prompt_text} Include a bullet summary under 'Key Points:' at the end."
-
     return prompts
 
 ###########################################
 # Helper: Generate PDF Using ReportLab
 ###########################################
 def generate_pdf_usecase3(product_category: str, content: dict, progress_callback=None) -> BytesIO:
-    """
-    Generate a PDF from the provided content. The PDF includes:
-      - A title page,
-      - A table of contents,
-      - Each section on a new page.
-    Section content is parsed to separate detailed text and bullet summaries.
-    Detailed text is processed for markdown-like formatting.
-    The header includes a smaller logo inside a border, and the footer (outside the border)
-    displays a caution symbol (red circle with white "!" at 15-pt diameter) followed by the text
-    "Fully AI generated and formatted." Both are right-aligned with the same right margin as the border.
-    """
     try:
         buffer = BytesIO()
         doc = SimpleDocTemplate(
@@ -2510,20 +2423,27 @@ def generate_pdf_usecase3(product_category: str, content: dict, progress_callbac
             bottomMargin=72
         )
         elements = []
-        
+
         # Title Page
         title_text = f"Product Specification for {product_category}"
         elements.append(Paragraph(title_text, STYLES['Title']))
         elements.append(Spacer(1, 0.5 * inch))
-        
-        # Table of Contents
-        elements.append(Paragraph("Table of Contents", STYLES['Heading1']))
-        toc_data = [["Section", "Page"]]
+
+        # Table of Contents with proper wrapping
+        from reportlab.lib.styles import ParagraphStyle
+        toc_heading_style = ParagraphStyle(name="TOCHeading", fontSize=10, leading=12)
+        toc_data = [
+            [Paragraph("Section", toc_heading_style), Paragraph("Page", toc_heading_style)]
+        ]
         page_num = 2  # Title/TOC occupies page 1
         for section in content.keys():
-            toc_data.append([section.strip(), str(page_num)])
+            toc_data.append([
+                Paragraph(section.strip(), toc_heading_style),
+                Paragraph(str(page_num), toc_heading_style)
+            ])
             page_num += 1
-        toc_table = Table(toc_data, colWidths=[400, 50])
+
+        toc_table = Table(toc_data, colWidths=[380, 88])
         toc_table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.darkblue),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
@@ -2532,20 +2452,21 @@ def generate_pdf_usecase3(product_category: str, content: dict, progress_callbac
             ('FONTSIZE', (0, 0), (-1, 0), 12),
             ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
             ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
         ]))
         elements.append(toc_table)
         elements.append(PageBreak())
-        
-        # Process each section.
+
+        # Sections
         for section, section_content in content.items():
             elements.append(Paragraph(section.strip(), STYLES['Heading2']))
             detailed_text, bullet_list = parse_section_content(section_content)
             flowables = format_detailed_text(detailed_text)
             elements.extend(flowables)
-            
+
             if progress_callback:
                 progress_callback(f"Section '{section}' formatted and added to PDF.")
-            
+
             if bullet_list:
                 elements.append(Paragraph("Key Points", STYLES['Heading3']))
                 for bullet in bullet_list:
@@ -2554,8 +2475,7 @@ def generate_pdf_usecase3(product_category: str, content: dict, progress_callbac
                     elements.append(Paragraph(bullet, STYLES['Bullet']))
                     elements.append(Spacer(1, 0.1 * inch))
             elements.append(PageBreak())
-        
-        # Build the PDF with header/footer decorations on every page.
+
         doc.build(elements, onFirstPage=add_decorations, onLaterPages=add_decorations)
         buffer.seek(0)
         return buffer
@@ -2564,20 +2484,15 @@ def generate_pdf_usecase3(product_category: str, content: dict, progress_callbac
         raise HTTPException(status_code=500, detail=f"Failed to generate PDF: {str(e)}")
 
 ###########################################
-# Async Function: Generate Section Content with Persona Handling
+# Async Helper: Generate Section Content with Persona Handling
 ###########################################
 async def generate_section_content(section: str, product_category: str, product_details: str, prompt: str, persona: str) -> tuple:
-    """
-    Asynchronously generate content for a given section based on the selected persona.
-    """
-    # Choose the appropriate DSPy signature based on the persona.
     persona_lower = persona.lower()
     if persona_lower in ["manager", "product_manager"]:
         dsp_signature = GenerateProductSpecContentManager
     elif persona_lower in ["engineer", "product_engineer"]:
         dsp_signature = GenerateProductSpecContentEngineer
     else:
-        # Fallback or raise error if unknown persona.
         raise HTTPException(status_code=400, detail=f"Unknown persona '{persona}'. Choose either 'product_manager' or 'product_engineer'.")
     
     generate_spec = Predict(dsp_signature)
@@ -2622,39 +2537,23 @@ async def generate_pdf_task(job_id: str, product_category: str, product_details:
     update_progress("PDF generated successfully.")
     
     pdf_store[job_id] = pdf_buffer
-    update_progress("PDF is ready for download. Use the download endpoint /download/{job_id}.")
+    update_progress("PDF is ready for download. Use the download endpoint /api/motor/download/{job_id}.")
 
+###########################################
+# Async Helper: Extract Text from PDF
+###########################################
 async def extract_text_from_pdf(file_content: bytes) -> str:
-    """Extract text from PDF file content."""
     try:
         pdf_file = io.BytesIO(file_content)
-        pdf_reader = PyPDF2.PdfReader(pdf_file)
+        pdf_reader = PdfReader(pdf_file)
         text = ""
-        for page_num in range(len(pdf_reader.pages)):
-            page = pdf_reader.pages[page_num]
-            text += page.extract_text()
+        for page in pdf_reader.pages:
+            page_text = page.extract_text()
+            if page_text:
+                text += page_text
         return text
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to extract text from PDF: {str(e)}")
-
-async def convert_docx_to_pdf(file_content: bytes) -> bytes:
-    # Save DOCX content to a temporary file
-    with tempfile.NamedTemporaryFile(delete=False, suffix='.docx') as temp_docx:
-        temp_docx.write(file_content)
-        temp_docx_path = temp_docx.name
-    
-    # Convert to PDF
-    temp_pdf_path = temp_docx_path.replace('.docx', '.pdf')
-    convert(temp_docx_path, temp_pdf_path)
-    
-    # Read PDF content
-    with open(temp_pdf_path, 'rb') as pdf_file:
-        pdf_content = pdf_file.read()
-    
-    # Clean up temporary files
-    os.unlink(temp_docx_path)
-    os.unlink(temp_pdf_path)
-    return pdf_content
 
 ###########################################
 # Endpoint: Initiate PDF Generation
@@ -2668,23 +2567,14 @@ async def generate_product_designer_pdf(
     template_file: UploadFile = File(None, description="Optional template file (.txt, .docx, or .pdf). If provided, overrides custom_template."),
     persona: str = Form(..., description="Persona type: 'product_manager' or 'product_engineer'")
 ):
-    """
-    Initiate PDF generation and return a job ID for progress tracking along with extracted text from the uploaded file.
-    If a template file is uploaded, it will be converted to text and used as the custom template.
-    Supported file types: .txt, .docx, .pdf.
-    """
     available_products = [product["product_name"] for product in products_data.get("products", [])]
-    logger.info(f"Available products: {available_products}")
-    logger.info(f"Requested product_category: {product_category}")
     if product_category not in available_products:
         raise HTTPException(status_code=404, detail=f"Product category '{product_category}' not found in available products")
 
-    extracted_text = custom_template  # Default to form-provided custom_template
-
+    extracted_text = custom_template
     if template_file:
         file_content_type = template_file.content_type
         file_bytes = await template_file.read()
-
         if file_content_type == "text/plain":
             extracted_text = file_bytes.decode("utf-8")
         elif file_content_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
@@ -2701,18 +2591,16 @@ async def generate_product_designer_pdf(
                 if not extracted_text.strip():
                     raise HTTPException(status_code=400, detail="Could not extract text from the uploaded PDF.")
             except Exception as e:
-                logger.error(f"Error extracting text from PDF: {str(e)}")
+                logging.error(f"Error extracting text from PDF: {str(e)}")
                 raise HTTPException(status_code=400, detail=f"Failed to extract text from PDF: {str(e)}")
         else:
             raise HTTPException(status_code=400, detail="Unsupported file type. Please upload a .txt, .docx, or .pdf file.")
 
     job_id = str(uuid.uuid4())
     background_tasks.add_task(generate_pdf_task, job_id, product_category, product_details, extracted_text, persona)
-
-    # Return job_id for frontend tracking
     return {
         "job_id": job_id,
-        "message": "PDF generation started. Use the job_id to track progress via WebSocket."
+        "message": "PDF generation started. Use the job_id to track progress via SSE at /api/motor/sse/progress/{job_id}."
     }
 
 ###########################################
@@ -2724,37 +2612,32 @@ async def get_products():
     return JSONResponse(content={"products": product_names})
 
 ###########################################
-# Endpoint: WebSocket for Progress Updates
+# Endpoint: SSE for Progress Updates
 ###########################################
-@app.websocket("/api/motor/ws/progress/{job_id}")
-async def websocket_progress(websocket: WebSocket, job_id: str):
-    """
-    Stream real-time progress updates for the given job.
-    """
-    await websocket.accept()
-    last_index = 0
-    try:
+@app.get("/api/motor/sse/progress/{job_id}")
+async def sse_progress(job_id: str):
+    async def event_generator():
+        if job_id not in progress_store:
+            yield {"event": "error", "data": "Job not found"}
+            return
+        last_index = 0
         while True:
-            if job_id in progress_store:
-                messages = progress_store[job_id]
-                if last_index < len(messages):
-                    for msg in messages[last_index:]:
-                        await websocket.send_text(msg)
-                    last_index = len(messages)
-                if messages and messages[-1].startswith("PDF is ready"):
-                    break
+            messages = progress_store.get(job_id, [])
+            if last_index < len(messages):
+                for msg in messages[last_index:]:
+                    yield {"event": "progress", "data": msg}
+                last_index = len(messages)
+            if messages and messages[-1].startswith("PDF is ready"):
+                yield {"event": "complete", "data": messages[-1]}
+                break
             await asyncio.sleep(1)
-    except WebSocketDisconnect:
-        logging.info(f"WebSocket disconnected for job {job_id}")
+    return EventSourceResponse(event_generator())
 
 ###########################################
 # Endpoint: Download Generated PDF
 ###########################################
 @app.get("/api/motor/download/{job_id}")
 async def download_pdf(job_id: str):
-    """
-    Download the generated PDF using the job ID.
-    """
     if job_id in pdf_store:
         pdf_buffer = pdf_store[job_id]
         filename = f"product_spec_{job_id}.pdf"
@@ -2766,39 +2649,41 @@ async def download_pdf(job_id: str):
     else:
         raise HTTPException(status_code=404, detail="PDF not found or not generated yet.")
 
-##############################################
-# Endpoint : PDF and Document Conversion
-##############################################
+###########################################
+# Endpoint: Extract Text from Document Files
+###########################################
 @app.post("/api/motor/extract-pdf-text")
 async def extract_text(template_file: UploadFile = File(...)) -> Dict[str, Any]:
     """
-    Extract text from an uploaded document file.
-    Supports PDF, DOCX, DOC, and TXT formats.
+    Accepts a file (PDF, DOCX/DOC, or TXT) via multipart/form-data and extracts text.
+    For DOCX/DOC files, text is extracted directly using python-docx.
+    For PDFs, if the extracted text has very short lines (e.g. one word per line),
+    newlines are removed and then re-inserted after sentence-ending punctuation.
+    Each non-empty line (or paragraph) is returned as an individual entity.
     """
-    # Check file type
     content_type = template_file.content_type
     file_content = await template_file.read()
-    
-    # Process based on file type
     try:
         if content_type == "application/pdf":
             extracted_text = await extract_text_from_pdf(file_content)
-        elif content_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
-            text = await extract_text_from_pdf(await convert_docx_to_pdf(file_content))
-            extracted_text=text
-        elif content_type == "application/msword":
-            text = await extract_text_from_pdf(await convert_docx_to_pdf(file_content))
-            extracted_text=text
+            # Replace multiple newlines with a space
+            extracted_text = re.sub(r'\n+', ' ', extracted_text)
+            # Insert newline after period (assuming end of sentence)
+            extracted_text = re.sub(r'\.\s+', '.\n', extracted_text)
+            entities = [line.strip() for line in extracted_text.splitlines() if line.strip()]
+        elif content_type in [
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "application/msword"
+        ]:
+            extracted_text = "\n".join([para.text for para in Document(BytesIO(file_content)).paragraphs])
+            entities = [line.strip() for line in extracted_text.splitlines() if line.strip()]
         elif content_type == "text/plain":
             extracted_text = file_content.decode("utf-8")
+            entities = [line.strip() for line in extracted_text.splitlines() if line.strip()]
         else:
-            raise HTTPException(
-                status_code=400, 
-                detail="Unsupported file type. Only PDF, DOCX, DOC, and TXT files are supported."
-            )
-            
-        return {"extractedText": extracted_text}
-    
+            raise HTTPException(status_code=400, detail="Unsupported file type. Only PDF, DOCX, DOC, and TXT files are supported.")
+        
+        return {"extractedText": extracted_text, "entities": entities}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

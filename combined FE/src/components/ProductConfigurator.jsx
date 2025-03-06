@@ -12,10 +12,10 @@ import {
   FaChevronDown,
   FaCheck,
 } from "react-icons/fa";
- 
+
 // Define your base URL from Vite's environment variable
 const BASE_URL = import.meta.env.VITE_BASE_URL;
- 
+
 // Sidebar Component
 const Sidebar = ({ activeView, setActiveView }) => {
   return (
@@ -46,7 +46,7 @@ const Sidebar = ({ activeView, setActiveView }) => {
     </div>
   );
 };
- 
+
 // Updated AddTemplate Component
 const AddTemplate = ({ products, setActiveView }) => {
   const predefinedTemplate = `1. Customer & Market Needs
@@ -54,13 +54,13 @@ const AddTemplate = ({ products, setActiveView }) => {
 3. Technological Innovations
 4. Manufacturing & Feasibility
 5. Compliance & Safety Standards`;
- 
+
   const [templateMode, setTemplateMode] = useState("upload");
   const [customTemplate, setCustomTemplate] = useState("");
   const [fileName, setFileName] = useState("");
   const [isEditing, setIsEditing] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
- 
+
   // States for customize mode
   const predefinedSections = [
     "Customer & Market Needs",
@@ -71,7 +71,7 @@ const AddTemplate = ({ products, setActiveView }) => {
   ];
   const [selectedSections, setSelectedSections] = useState([]);
   const [extraCustom, setExtraCustom] = useState("");
- 
+
   // Load template when product changes
   useEffect(() => {
     if (selectedProduct) {
@@ -84,12 +84,12 @@ const AddTemplate = ({ products, setActiveView }) => {
       setCustomTemplate("");
     }
   }, [selectedProduct]);
- 
+
   const handleToggle = (mode) => {
     setTemplateMode(mode);
     setIsEditing(false);
   };
- 
+
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (!file || !selectedProduct) {
@@ -106,16 +106,21 @@ const AddTemplate = ({ products, setActiveView }) => {
       alert("Only TXT, DOC, DOCX, or PDF files are allowed.");
       return;
     }
-  
+
     // If the file is a plain text file, use FileReader.
     if (file.type === "text/plain") {
       const reader = new FileReader();
       reader.onload = (event) => {
         const content = event.target.result;
         setCustomTemplate(content);
-        const productTemplates = JSON.parse(localStorage.getItem("productTemplates") || "{}");
+        const productTemplates = JSON.parse(
+          localStorage.getItem("productTemplates") || "{}"
+        );
         productTemplates[selectedProduct.product_name] = content;
-        localStorage.setItem("productTemplates", JSON.stringify(productTemplates));
+        localStorage.setItem(
+          "productTemplates",
+          JSON.stringify(productTemplates)
+        );
         setIsEditing(false);
       };
       reader.readAsText(file);
@@ -131,9 +136,14 @@ const AddTemplate = ({ products, setActiveView }) => {
         .then((response) => response.json())
         .then((data) => {
           setCustomTemplate(data.extractedText);
-          const productTemplates = JSON.parse(localStorage.getItem("productTemplates") || "{}");
+          const productTemplates = JSON.parse(
+            localStorage.getItem("productTemplates") || "{}"
+          );
           productTemplates[selectedProduct.product_name] = data.extractedText;
-          localStorage.setItem("productTemplates", JSON.stringify(productTemplates));
+          localStorage.setItem(
+            "productTemplates",
+            JSON.stringify(productTemplates)
+          );
           setIsEditing(false);
         })
         .catch((error) => {
@@ -142,18 +152,17 @@ const AddTemplate = ({ products, setActiveView }) => {
         });
     }
   };
-  
- 
+
   const handleAddSection = (section) => {
     if (!selectedSections.includes(section)) {
       setSelectedSections([...selectedSections, section]);
     }
   };
- 
+
   const handleRemoveSection = (section) => {
     setSelectedSections(selectedSections.filter((s) => s !== section));
   };
- 
+
   const handleCustomizeSave = (e) => {
     e.preventDefault();
     if (!selectedProduct) {
@@ -174,11 +183,11 @@ const AddTemplate = ({ products, setActiveView }) => {
     localStorage.setItem("productTemplates", JSON.stringify(productTemplates));
     setIsEditing(false);
   };
- 
+
   const handleEditClick = () => {
     setIsEditing(true);
   };
- 
+
   const handleSave = (e) => {
     e.preventDefault();
     if (!selectedProduct) {
@@ -192,11 +201,11 @@ const AddTemplate = ({ products, setActiveView }) => {
     localStorage.setItem("productTemplates", JSON.stringify(productTemplates));
     setIsEditing(false);
   };
- 
+
   const handleBackToForm = () => {
     setActiveView("productConfiguration");
   };
- 
+
   return (
     <div className="min-h-screen w-full bg-gray-100 overflow-auto">
       <div className="w-full px-4 py-6 sm:px-6 lg:px-8">
@@ -284,7 +293,7 @@ const AddTemplate = ({ products, setActiveView }) => {
                 )}
               </Listbox>
             </div>
- 
+
             {/* Template Configuration (Only if Product is Selected) */}
             {selectedProduct ? (
               <>
@@ -310,7 +319,7 @@ const AddTemplate = ({ products, setActiveView }) => {
                     Customize Template
                   </button>
                 </div>
- 
+
                 {templateMode === "upload" ? (
                   <div className="mb-4">
                     {!isEditing && (
@@ -410,7 +419,7 @@ const AddTemplate = ({ products, setActiveView }) => {
                     </div>
                   </div>
                 )}
- 
+
                 {customTemplate && !isEditing && (
                   <div className="mt-6">
                     <h3 className="text-md font-medium text-gray-700 mb-3">
@@ -428,7 +437,7 @@ const AddTemplate = ({ products, setActiveView }) => {
                     </button>
                   </div>
                 )}
- 
+
                 {isEditing && (
                   <div className="space-y-4">
                     <form onSubmit={handleSave}>
@@ -476,7 +485,7 @@ const AddTemplate = ({ products, setActiveView }) => {
     </div>
   );
 };
- 
+
 // Updated Form Component
 const Form = ({ setLoading, setProgress, products, loading, progress }) => {
   const [product, setProduct] = useState(() => {
@@ -489,18 +498,18 @@ const Form = ({ setLoading, setProgress, products, loading, progress }) => {
   });
   const [details, setDetails] = useState(localStorage.getItem("details") || "");
   const [persona, setPersona] = useState("product_manager");
- 
+
   const productTemplates = JSON.parse(
     localStorage.getItem("productTemplates") || "{}"
   );
   const templateExists =
     product && product.product_name && productTemplates[product.product_name];
- 
+
   const personaOptions = [
     { id: 1, value: "product_manager", label: "Product Manager" },
     { id: 2, value: "product_engineer", label: "Product Engineer" },
   ];
- 
+
   useEffect(() => {
     localStorage.setItem(
       "product",
@@ -510,26 +519,28 @@ const Form = ({ setLoading, setProgress, products, loading, progress }) => {
     );
     localStorage.setItem("details", details);
   }, [product, details]);
- 
+
   // Inside the Form component
- 
+
   const handleSubmit = async (e) => {
     e.preventDefault();
- 
-    // Check if a product is selected
-    if (!product || !product.product_name) {
+
+    const selectedProduct =
+      typeof product === "string" ? { product_name: product } : product;
+
+    if (!selectedProduct || !selectedProduct.product_name) {
       alert(
         "Please select a product before generating the design specification."
       );
       return;
     }
- 
+
     // Retrieve the template for the selected product from localStorage
     const productTemplates = JSON.parse(
       localStorage.getItem("productTemplates") || "{}"
     );
     const templateForProduct = productTemplates[product.product_name] || "";
- 
+
     // Check if a template exists for the selected product
     if (!templateForProduct) {
       alert(
@@ -537,10 +548,10 @@ const Form = ({ setLoading, setProgress, products, loading, progress }) => {
       );
       return;
     }
- 
+
     setLoading(true);
     setProgress("Initializing PDF generation...");
- 
+
     const formData = new FormData();
     formData.append(
       "product_category",
@@ -551,7 +562,7 @@ const Form = ({ setLoading, setProgress, products, loading, progress }) => {
     formData.append("product_details", details);
     formData.append("custom_template", templateForProduct);
     formData.append("persona", persona);
- 
+
     try {
       const response = await fetch(
         `${BASE_URL}/generate-product-designer-pdf`,
@@ -560,33 +571,35 @@ const Form = ({ setLoading, setProgress, products, loading, progress }) => {
           body: formData,
         }
       );
- 
+
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(errorText || "Failed to initiate PDF generation");
       }
- 
+
       const { job_id } = await response.json();
       setProgress("Job started...");
- 
-      const wsUrl = BASE_URL.replace("http", "ws");
-      const ws = new WebSocket(`${wsUrl}/ws/progress/${job_id}`);
-      ws.onmessage = (event) => {
+
+      // Replace WebSocket with SSE:
+      const eventSource = new EventSource(`${BASE_URL}/sse/progress/${job_id}`);
+      eventSource.addEventListener("progress", (event) => {
         setProgress(event.data);
-        if (event.data.startsWith("PDF is ready")) {
-          ws.close();
-          setLoading(false);
-          localStorage.removeItem("product");
-          localStorage.removeItem("details");
-          setProduct("");
-          setDetails("");
-          window.location.href = `${BASE_URL}/download/${job_id}`;
-        }
-      };
-      ws.onerror = (err) => {
-        console.error("WebSocket error:", err);
+      });
+      eventSource.addEventListener("complete", (event) => {
+        setProgress(event.data);
+        eventSource.close();
         setLoading(false);
-        alert("WebSocket error occurred: " + (err.message || "Unknown error"));
+        localStorage.removeItem("product");
+        localStorage.removeItem("details");
+        setProduct("");
+        setDetails("");
+        window.location.href = `${BASE_URL}/download/${job_id}`;
+      });
+      eventSource.onerror = (err) => {
+        console.error("SSE error:", err);
+        setLoading(false);
+        alert("SSE error occurred: " + (err.message || "Unknown error"));
+        eventSource.close();
       };
     } catch (error) {
       console.error("Error during PDF generation:", error);
@@ -594,7 +607,7 @@ const Form = ({ setLoading, setProgress, products, loading, progress }) => {
       alert("An error occurred while generating the PDF: " + error.message);
     }
   };
- 
+
   return (
     <div className="relative w-full h-full min-h-screen">
       <div
@@ -624,12 +637,13 @@ const Form = ({ setLoading, setProgress, products, loading, progress }) => {
                       />
                     </Listbox.Button>
                     <Transition
+                      show={open} // <-- Add this prop
                       as={Fragment}
                       leave="transition ease-in duration-100"
                       leaveFrom="opacity-100"
                       leaveTo="opacity-0"
                     >
-                      <Listbox.Options className="absolute z-10 mt-1 w-full bg-gray-200 shadow-lg max-h-60 rounded-md py-1 text-base ring-1 ring-gray-300 overflow-auto focus:outline-none">
+                      <Listbox.Options className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 overflow-auto focus:outline-none">
                         {products.length > 0 ? (
                           products.map((prod, index) => (
                             <Listbox.Option
@@ -672,7 +686,7 @@ const Form = ({ setLoading, setProgress, products, loading, progress }) => {
                 )}
               </Listbox>
             </div>
- 
+
             <label className="block mb-2 font-medium">Persona</label>
             <div className="relative mb-4">
               <Listbox value={persona} onChange={setPersona}>
@@ -733,7 +747,7 @@ const Form = ({ setLoading, setProgress, products, loading, progress }) => {
                 )}
               </Listbox>
             </div>
- 
+
             <label className="block mb-2 font-medium">Product Details</label>
             <textarea
               className="w-full p-2 border rounded mb-4 focus:ring-2 focus:ring-teal-500 transition-colors"
@@ -743,7 +757,7 @@ const Form = ({ setLoading, setProgress, products, loading, progress }) => {
               rows={4}
               disabled={loading}
             />
- 
+
             <button
               type="submit"
               className="bg-teal-300 text-black w-full py-2 rounded hover:bg-teal-400 disabled:bg-teal-300 mt-4 transition-colors flex items-center justify-center uppercase"
@@ -766,28 +780,33 @@ const Form = ({ setLoading, setProgress, products, loading, progress }) => {
     </div>
   );
 };
- 
+
 // Main ProductConfigurator Component
 const ProductConfigurator = () => {
   const [activeView, setActiveView] = useState("productConfiguration");
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState("");
- 
+
   useEffect(() => {
     const fetchProducts = async () => {
       try {
-        const response = await fetch(`${BASE_URL}/products`);
+        const response = await fetch(`${BASE_URL}/product`);
         if (!response.ok) throw new Error("Failed to fetch products");
         const data = await response.json();
-        setProducts(data.products);
+        // Transform each product name string into an object
+        const transformedProducts = data.products.map((name) => ({
+          product_name: name,
+        }));
+        console.log("Fetched products:", transformedProducts);
+        setProducts(transformedProducts);
       } catch (error) {
         console.error("Error fetching products:", error);
       }
     };
     fetchProducts();
   }, []);
- 
+
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden">
       <div className="flex flex-grow overflow-hidden">
@@ -810,5 +829,5 @@ const ProductConfigurator = () => {
     </div>
   );
 };
- 
+
 export default ProductConfigurator;
