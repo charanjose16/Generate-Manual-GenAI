@@ -221,7 +221,6 @@ export default function UserManualGenerator() {
   const [uploadedFile, setUploadedFile] = useState(null);
   const [showPreview, setShowPreview] = useState(false);
   const [pdfUrl, setPdfUrl] = useState(null);
-  const [websocket, setWebsocket] = useState(null);
   const [clientId, setClientId] = useState("");
 
   const baseUrl = import.meta.env.VITE_BASE_URL;
@@ -245,74 +244,44 @@ export default function UserManualGenerator() {
   }, []);
 
   useEffect(() => {
-    if (isGenerating && !websocket) {
-      // Get correct WebSocket URL (ws or wss based on HTTPS)
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${protocol}//${baseUrl.replace(/^https?:\/\//, '')}/wsusecase2/progress/${clientId}`;
-      console.log('Connecting to WebSocket:', wsUrl);
-      
-      const ws = new WebSocket(wsUrl);
-      
-      ws.onopen = () => {
-        console.log('WebSocket connection established');
-        // Send a ping to keep the connection alive
-        ws.send('ping');
-      };
-      
-      ws.onmessage = (event) => {
+    if (isGenerating) {
+      const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
+      const sseUrl = `${protocol}//${baseUrl.replace(/^https?:\/\//, '')}/sseusecase2/progress/${clientId}`;
+      console.log(`Connecting to SSE: ${sseUrl}`);
+      const eventSource = new EventSource(sseUrl);
+  
+      // Listen for "progress" events
+      eventSource.addEventListener("progress", (event) => {
+        console.log("Received progress event:", event.data);
         const data = JSON.parse(event.data);
         setProgressMessage(data.message);
         setProgressPercentage(data.percentage);
-        
-        // If the server sends "100" as percentage, we're done
-        if (data.percentage === 100) {
-          setTimeout(() => {
-            if (ws.readyState === WebSocket.OPEN) {
-              ws.close();
-            }
-          }, 1000);
-        }
+      });
+  
+      // Listen for "complete" events
+      eventSource.addEventListener("complete", (event) => {
+        console.log("Received complete event:", event.data);
+        const data = JSON.parse(event.data);
+        setProgressMessage(data.message);
+        setProgressPercentage(data.percentage);
+        eventSource.close();
+        setIsGenerating(false);
+      });
+  
+      // Handle connection errors
+      eventSource.onerror = (error) => {
+        console.error("SSE connection error:", error);
+        setProgressMessage("Connection issue with progress updates...");
+        eventSource.close();
+        setIsGenerating(false);
       };
-      
-      ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
-        // Fallback to polling if WebSocket fails
-        setProgressMessage("Connection issue. Using fallback progress tracking...");
-      };
-      
-      ws.onclose = (event) => {
-        console.log('WebSocket connection closed', event.code, event.reason);
-      };
-      
-      // Ping every 30 seconds to keep connection alive
-      const pingInterval = setInterval(() => {
-        if (ws && ws.readyState === WebSocket.OPEN) {
-          ws.send('ping');
-        }
-      }, 30000);
-      
-      setWebsocket(ws);
-      
+  
+      // Cleanup on unmount
       return () => {
-        clearInterval(pingInterval);
-        if (ws && ws.readyState === WebSocket.OPEN) {
-          ws.close();
-        }
+        eventSource.close();
       };
-    } else if (!isGenerating && websocket) {
-      if (websocket.readyState === WebSocket.OPEN) {
-        websocket.close();
-      }
-      setWebsocket(null);
     }
-    
-    // Cleanup function
-    return () => {
-      if (websocket && websocket.readyState === WebSocket.OPEN) {
-        websocket.close();
-      }
-    };
-  }, [isGenerating, clientId, baseUrl, websocket]);
+  }, [isGenerating, clientId, baseUrl]);
 
   const handleProductChange = (value) => {
     if (!isGenerating) {
@@ -366,9 +335,9 @@ export default function UserManualGenerator() {
     setIsGenerating(true);
     setError("");
     setProgressPercentage(0);
+    setProgressMessage("Starting...");
 
     try {
-      setProgressMessage("Connecting to server...");
       const formData = new FormData();
       formData.append("product_category", selectedItem);
       formData.append("language", language);
@@ -398,10 +367,8 @@ export default function UserManualGenerator() {
       setLanguage("");
     } catch (err) {
       setError(err.response?.data?.detail || err.message);
-    } finally {
       setIsGenerating(false);
-      setProgressMessage("");
-      setProgressPercentage(0);
+    } finally {
       setUploadedFile(null);
       setFileFormat("");
     }
@@ -415,9 +382,9 @@ export default function UserManualGenerator() {
     setIsGenerating(true);
     setError("");
     setProgressPercentage(0);
+    setProgressMessage("Starting...");
 
     try {
-      setProgressMessage("Connecting to server...");
       const formData = new FormData();
       formData.append("product_category", selectedItem);
       formData.append("language", language);
@@ -438,8 +405,6 @@ export default function UserManualGenerator() {
         const url = URL.createObjectURL(blob);
         setPdfUrl(url);
         setShowPreview(true);
-        
-        // Reset selection states after successful generation
         setSelectedProduct("");
         setSelectedSubProduct("");
         setSelectedItem("");
@@ -449,10 +414,8 @@ export default function UserManualGenerator() {
       }
     } catch (err) {
       setError(err.response?.data?.detail || "Failed to generate FAQ");
-    } finally {
       setIsGenerating(false);
-      setProgressMessage("");
-      setProgressPercentage(0);
+    } finally {
       setUploadedFile(null);
       setFileFormat("");
     }

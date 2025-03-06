@@ -24,12 +24,13 @@ from concurrent.futures import ThreadPoolExecutor
 import concurrent.futures
 import win32com.client  # For handling .doc files
 import pythoncom  # For COM initialization
+from sse_starlette.sse import EventSourceResponse
 
 # ---------------------------
 # Third-Party Libraries
 # ---------------------------
 from dateutil.relativedelta import relativedelta
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, AsyncGenerator
 
 # Requests & HTTP
 import requests
@@ -717,6 +718,21 @@ AZURE_STORAGE_SAS_URL = os.getenv('AZURE_STORAGE_SAS_URL')
 # Vector database path for Azure Blob Storage indexing
 VECTOR_DB_PATH = os.getenv("VECTOR_DB_PATH", "vector_db")
 UPLOAD_FOLDER = os.getenv("UPLOAD_FOLDER", "vector_db")
+
+# -------------------------------
+# SSE Progress
+# -------------------------------
+
+# Track active tasks for progress updates
+active_tasks = {}
+
+# Helper function to update progress
+async def update_progress(client_id: str, message: str, percentage: int):
+    logger.info(f"Updating progress for {client_id}: {message}, {percentage}%")
+    active_tasks[client_id] = {"message": message, "percentage": percentage}
+    if percentage >= 100:
+        await asyncio.sleep(1)  # Brief delay to ensure client receives final update
+        active_tasks.pop(client_id, None)
 
 # -------------------------------
 # DSPy CONFIGURATION
@@ -1703,155 +1719,101 @@ async def parallel_content_generation(prompts: Dict[str, str], language: str) ->
         logger.error(f"Error in parallel content generation: {str(e)}")
         raise ValueError(f"Content generation failed: {str(e)}")
 
-# Modified generate_manual endpoint
 @app.post("/api/motor/generate-manual")
 async def generate_manual(
     product_category: str = Form(...),
     rag_source: Optional[UploadFile] = File(None),
     language: str = Form(...),
-    client_id: str = Form(...)  # Add client_id parameter
+    client_id: str = Form(...)
 ):
     try:
-        # Enable tracemalloc for debugging
+        logger.info(f"Starting generation for client_id: {client_id}")
         import tracemalloc
         tracemalloc.start()
-        
-        # Send initial progress
-        await manager.send_progress(client_id, "Initializing document generation...", 5)
-        
+
+        await update_progress(client_id, "Initializing document generation...", 5)
+
         async with aiohttp.ClientSession() as session:
-            # Parallel execution of initial data gathering
-            await manager.send_progress(client_id, "Retrieving product information...", 10)
+            await update_progress(client_id, "Retrieving product information...", 10)
             product_link = get_product_link(product_category)
             if not product_link:
                 raise HTTPException(status_code=400, detail="Product link not found")
 
-            # Create tasks for parallel execution
+            await update_progress(client_id, "Gathering information from sources...", 20)
             tasks = [
                 async_scrape_product_data(product_link, session),
                 async_search_confluence(product_category, session)
             ]
-
-            # Execute tasks concurrently
-            await manager.send_progress(client_id, "Gathering information from sources...", 20)
             scraped_data, confluence_content = await asyncio.gather(*tasks)
             cleaned_product_name = clean_product_query(scraped_data["product_name"])
 
-            # Handle RAG source upload if provided
             if rag_source:
-                await manager.send_progress(client_id, "Processing uploaded file...", 30)
+                await update_progress(client_id, "Processing uploaded file...", 30)
                 upload_task = asyncio.create_task(upload_to_azure_blob(rag_source))
                 try:
                     await upload_task
                 except Exception as e:
                     logger.error(f"Failed to upload PDF: {str(e)}")
 
-            # Parallel processing of vector stores and content retrieval
-            await manager.send_progress(client_id, "Retrieving additional content...", 40)
+            await update_progress(client_id, "Retrieving additional content...", 40)
             with concurrent.futures.ThreadPoolExecutor() as executor:
                 future_tasks = []
-                
-                # Create vector store for Confluence content
                 if confluence_content:
-                    future_tasks.append(
-                        executor.submit(get_confluence_vector_store, confluence_content)
-                    )
-
-                # Get Azure Blob Storage content
-                future_tasks.append(
-                    executor.submit(retrieve_azure_blob_content, cleaned_product_name)
-                )
-
-                # Wait for all tasks to complete
-                results = await asyncio.get_event_loop().run_in_executor(
-                    None,
-                    concurrent.futures.wait,
-                    future_tasks
-                )
-                
-                # Extract results
+                    future_tasks.append(executor.submit(get_confluence_vector_store, confluence_content))
+                future_tasks.append(executor.submit(retrieve_azure_blob_content, cleaned_product_name))
+                results = await asyncio.get_event_loop().run_in_executor(None, concurrent.futures.wait, future_tasks)
                 confluence_vector_store = results.done.pop().result() if confluence_content else None
                 azure_blob_content = results.done.pop().result()
 
-            # Combine all content sources
-            await manager.send_progress(client_id, "Analyzing content...", 50)
-            combined_content = combine_all_content(
-                scraped_data,
-                "",
-                confluence_content,
-                azure_blob_content
-            )
+            await update_progress(client_id, "Analyzing content...", 50)
+            combined_content = combine_all_content(scraped_data, "", confluence_content, azure_blob_content)
 
-            # Generate content prompts
-            await manager.send_progress(client_id, "Preparing content generation...", 60)
+            await update_progress(client_id, "Preparing content generation...", 60)
             prompts = generate_content_prompts(cleaned_product_name, combined_content, language)
 
-            # Generate content with better error handling
             try:
-                await manager.send_progress(client_id, "Generating manual content...", 70)
+                await update_progress(client_id, "Generating manual content...", 70)
                 generated_content = await parallel_content_generation(prompts, language)
                 if not generated_content:
-                    raise HTTPException(
-                        status_code=500,
-                        detail="No content was generated successfully"
-                    )
+                    raise HTTPException(status_code=500, detail="No content was generated successfully")
             except ValueError as ve:
-                raise HTTPException(
-                    status_code=500,
-                    detail=str(ve)
-                )
+                raise HTTPException(status_code=500, detail=str(ve))
             except Exception as e:
                 logger.error(f"Unexpected error in content generation: {str(e)}")
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Content generation failed: {str(e)}"
-                )
+                raise HTTPException(status_code=500, detail=f"Content generation failed: {str(e)}")
 
-            # Generate PDF with error handling
             try:
-                await manager.send_progress(client_id, "Creating PDF document...", 85)
+                await update_progress(client_id, "Creating PDF document...", 85)
                 with concurrent.futures.ThreadPoolExecutor() as executor:
                     pdf_buffer = await asyncio.get_event_loop().run_in_executor(
                         executor,
                         generate_pdf,
-                        {
-                            "product_category": product_category,
-                            "product_name": scraped_data["product_name"],
-                            "language": language,
-                            "scraped_data": scraped_data
-                        },
+                        {"product_category": product_category, "product_name": scraped_data["product_name"], "language": language, "scraped_data": scraped_data},
                         generated_content
                     )
             except Exception as e:
                 logger.error(f"Error generating PDF: {str(e)}")
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Failed to generate PDF: {str(e)}"
-                )
+                raise HTTPException(status_code=500, detail=f"Failed to generate PDF: {str(e)}")
 
-            await manager.send_progress(client_id, "Finalizing document...", 95)
-            # Prepare response with URL-encoded filename using filename*
+            await update_progress(client_id, "Finalizing document...", 95)
             filename = f"user_manual_{scraped_data['product_name']}_{language}.pdf"
-            encoded_filename = quote(filename)  # URL-encode the filename to handle special characters
+            encoded_filename = quote(filename)
             response = StreamingResponse(pdf_buffer, media_type="application/pdf")
             response.headers["Content-Disposition"] = f"attachment; filename*=UTF-8''{encoded_filename}"
 
-            # Stop tracemalloc
             tracemalloc.stop()
-            
-            await manager.send_progress(client_id, "Document ready!", 100)
-            
+            await update_progress(client_id, "Document ready!", 100)
+
             return response
 
     except HTTPException as he:
+        active_tasks.pop(client_id, None)
         raise he
     except Exception as e:
         logger.error(f"Error in manual generation: {str(e)}")
         logger.error(f"Traceback: {traceback.format_exc()}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Manual generation failed: {str(e)}"
-        )
+        active_tasks.pop(client_id, None)
+        raise HTTPException(status_code=500, detail=f"Manual generation failed: {str(e)}")
 
 @app.post("/api/motor/generate-faq")
 async def generate_faq(
@@ -1861,48 +1823,31 @@ async def generate_faq(
     client_id: str = Form(...)
 ):
     try:
-        logger.info(f"Starting FAQ generation for {product_category} in {language}")
-        
-        # Send initial progress
-        await manager.send_progress(client_id, "Initializing FAQ generation...", 5)
-        
+        logger.info(f"Starting FAQ generation for client_id: {client_id}")
+        await update_progress(client_id, "Initializing FAQ generation...", 5)
+
         async with aiohttp.ClientSession() as session:
-            # Get product link
-            await manager.send_progress(client_id, "Retrieving product information...", 10)
+            await update_progress(client_id, "Retrieving product information...", 10)
             product_link = get_product_link(product_category)
             if not product_link:
                 raise HTTPException(status_code=400, detail="Product link not found")
-            
-            # Create tasks for parallel execution
-            await manager.send_progress(client_id, "Gathering information from sources...", 20)
+
+            await update_progress(client_id, "Gathering information from sources...", 20)
             tasks = [
                 async_scrape_product_data(product_link, session),
                 async_search_confluence(product_category, session)
             ]
-            
-            # Execute tasks concurrently
             scraped_data, confluence_content = await asyncio.gather(*tasks)
             cleaned_product_name = clean_product_query(scraped_data["product_name"])
-            
-            # Retrieve Azure Blob content
-            await manager.send_progress(client_id, "Retrieving additional content...", 30)
-            azure_blob_content = await asyncio.get_event_loop().run_in_executor(
-                None,
-                retrieve_azure_blob_content,
-                cleaned_product_name
-            )
-            
-            # Get language texts
+
+            await update_progress(client_id, "Retrieving additional content...", 30)
+            azure_blob_content = await asyncio.get_event_loop().run_in_executor(None, retrieve_azure_blob_content, cleaned_product_name)
+
             language_texts = get_language_texts(language)
-            
-            # Generate FAQ content asynchronously
+
             try:
-                await manager.send_progress(client_id, "Analyzing data and preparing FAQ content...", 40)
-                
-                # Create predictor instance
+                await update_progress(client_id, "Analyzing data and preparing FAQ content...", 40)
                 predictor = Predict(GenerateContent)
-                
-                # Prepare input for GenerateContent
                 input_data = {
                     "section_title": language_texts["faq"],
                     "prompt": f"""Generate a comprehensive FAQ section for {cleaned_product_name}.
@@ -1924,80 +1869,48 @@ async def generate_faq(
                     """,
                     "language": language
                 }
-                
-                # Generate content
-                await manager.send_progress(client_id, "Generating FAQ content...", 60)
-                result = await asyncio.to_thread(
-                    lambda: predictor(
-                        section_title=input_data["section_title"],
-                        prompt=input_data["prompt"],
-                        language=input_data["language"]
-                    )
-                )
-                
+                await update_progress(client_id, "Generating FAQ content...", 60)
+                result = await asyncio.to_thread(lambda: predictor(**input_data))
                 if not result or not hasattr(result, 'output'):
-                    raise HTTPException(
-                        status_code=500,
-                        detail="No FAQ content was generated"
-                    )
-                
+                    raise HTTPException(status_code=500, detail="No FAQ content was generated")
                 logger.info("FAQ content generated successfully")
-                
             except Exception as e:
                 logger.error(f"Error generating FAQ content: {str(e)}")
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"FAQ generation failed: {str(e)}"
-                )
-            
-            # Generate PDF with error handling
+                raise HTTPException(status_code=500, detail=f"FAQ generation failed: {str(e)}")
+
             try:
-                await manager.send_progress(client_id, "Creating PDF document...", 80)
+                await update_progress(client_id, "Creating PDF document...", 80)
                 with concurrent.futures.ThreadPoolExecutor() as executor:
                     pdf_buffer = await asyncio.get_event_loop().run_in_executor(
                         executor,
                         generate_pdf,
-                        {
-                            "product_category": product_category,
-                            "product_name": scraped_data["product_name"],
-                            "language": language,
-                            "scraped_data": scraped_data
-                        },
+                        {"product_category": product_category, "product_name": scraped_data["product_name"], "language": language, "scraped_data": scraped_data},
                         {language_texts["faq"]: result.output},
-                        True  # is_faq=True
+                        True
                     )
-                    
                 logger.info("PDF generated successfully")
-                await manager.send_progress(client_id, "Finalizing document...", 95)
-                
+                await update_progress(client_id, "Finalizing document...", 95)
             except Exception as e:
                 logger.error(f"Error generating PDF: {str(e)}")
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Failed to generate PDF: {str(e)}"
-                )
-            
-            # Convert PDF to base64 if preview is requested
+                raise HTTPException(status_code=500, detail=f"Failed to generate PDF: {str(e)}")
+
             if preview:
                 import base64
                 pdf_bytes = pdf_buffer.getvalue()
                 pdf_base64 = base64.b64encode(pdf_bytes).decode('utf-8')
-                await manager.send_progress(client_id, "Document ready!", 100)
-                return JSONResponse({
-                    "pdf_base64": pdf_base64,
-                    "filename": f"faq_{scraped_data['product_name']}_{language}.pdf"
-                })
+                await update_progress(client_id, "Document ready!", 100)
+                return JSONResponse({"pdf_base64": pdf_base64, "filename": f"faq_{scraped_data['product_name']}_{language}.pdf"})
             else:
-                # Direct download response
                 filename = f"faq_{scraped_data['product_name']}_{language}.pdf"
                 response = StreamingResponse(pdf_buffer, media_type="application/pdf")
                 response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
-                await manager.send_progress(client_id, "Document ready!", 100)
+                await update_progress(client_id, "Document ready!", 100)
                 return response
 
     except Exception as e:
         logger.error(f"Error in FAQ generation: {str(e)}")
         logger.error(f"Traceback: {traceback.format_exc()}")
+        active_tasks.pop(client_id, None)
         raise HTTPException(status_code=500, detail=str(e))
 
 PRODUCTS_FILE_PATH = os.path.join(os.path.dirname(__file__), "product_names.json")
@@ -2292,42 +2205,20 @@ async def process_confluence_page(page: dict) -> str:
         logger.error(f"Error processing page {page.get('title', 'Unknown')}: {str(e)}")
         return ""
 
-# WebSocket connection manager
-class ConnectionManager:
-    def __init__(self):
-        self.active_connections = {}
-
-    async def connect(self, websocket: WebSocket, client_id: str):
-        await websocket.accept()
-        self.active_connections[client_id] = websocket
-
-    def disconnect(self, client_id: str):
-        if client_id in self.active_connections:
-            del self.active_connections[client_id]
-
-    async def send_progress(self, client_id: str, message: str, percentage: int):
-        if client_id in self.active_connections:
-            await self.active_connections[client_id].send_json({
-                "message": message,
-                "percentage": percentage
-            })
-
-manager = ConnectionManager()
-
-# WebSocket endpoint
-@app.websocket("/api/motor/wsusecase2/progress/{client_id}")
-async def websocket_endpoint(websocket: WebSocket, client_id: str):
-    try:
-        await manager.connect(websocket, client_id)
+@app.get("/api/motor/sseusecase2/progress/{client_id}")
+async def sse_progress(client_id: str):
+    logger.info(f"Starting SSE for client_id: {client_id}")
+    async def event_generator():
         while True:
-            # Keep the connection alive
-            await websocket.receive_text()
-    except WebSocketDisconnect:
-        manager.disconnect(client_id)
-    except Exception as e:
-        logger.error(f"WebSocket error: {str(e)}")
-        if client_id in manager.active_connections:
-            manager.disconnect(client_id)
+            if client_id not in active_tasks:
+                logger.info(f"Client {client_id} not in active_tasks, sending complete")
+                yield {"event": "complete", "data": json.dumps({"message": "Task completed or disconnected", "percentage": 100})}
+                break
+            progress = active_tasks.get(client_id, {"message": "Waiting...", "percentage": 0})
+            logger.info(f"Sending progress for {client_id}: {progress}")
+            yield {"event": "progress", "data": json.dumps(progress)}
+            await asyncio.sleep(1)
+    return EventSourceResponse(event_generator())
 
 # UseCase 3
 
