@@ -1722,9 +1722,6 @@ async def generate_manual(
 ):
     try:
         logger.info(f"Starting generation for client_id: {client_id}")
-        import tracemalloc
-        tracemalloc.start()
-
         await update_progress(client_id, "Initializing document generation...", 5)
 
         async with aiohttp.ClientSession() as session:
@@ -1738,26 +1735,34 @@ async def generate_manual(
                 async_scrape_product_data(product_link, session),
                 async_search_confluence(product_category, session)
             ]
-            scraped_data, confluence_content = await asyncio.gather(*tasks)
+            scraped_data, confluence_content = await asyncio.gather(*tasks, return_exceptions=True)
+            
+            # Handle potential exceptions in tasks
+            if isinstance(scraped_data, Exception):
+                logger.error(f"Scraping failed: {str(scraped_data)}")
+                scraped_data = {
+                    "product_name": "Unknown Product",
+                    "key_features": [],
+                    "technical_specifications": {},
+                    "general_specifications": {}
+                }
+            if isinstance(confluence_content, Exception):
+                logger.error(f"Confluence search failed: {str(confluence_content)}")
+                confluence_content = ""
+
             cleaned_product_name = clean_product_query(scraped_data["product_name"])
 
             if rag_source:
                 await update_progress(client_id, "Processing uploaded file...", 30)
-                upload_task = asyncio.create_task(upload_to_azure_blob(rag_source))
                 try:
-                    await upload_task
+                    await upload_to_azure_blob(rag_source)
                 except Exception as e:
                     logger.error(f"Failed to upload PDF: {str(e)}")
 
             await update_progress(client_id, "Retrieving additional content...", 40)
             with concurrent.futures.ThreadPoolExecutor() as executor:
-                future_tasks = []
-                if confluence_content:
-                    future_tasks.append(executor.submit(get_confluence_vector_store, confluence_content))
-                future_tasks.append(executor.submit(retrieve_azure_blob_content, cleaned_product_name))
-                results = await asyncio.get_event_loop().run_in_executor(None, concurrent.futures.wait, future_tasks)
-                confluence_vector_store = results.done.pop().result() if confluence_content else None
-                azure_blob_content = results.done.pop().result()
+                future = executor.submit(retrieve_azure_blob_content, cleaned_product_name)
+                azure_blob_content = await asyncio.get_event_loop().run_in_executor(None, lambda: future.result())
 
             await update_progress(client_id, "Analyzing content...", 50)
             combined_content = combine_all_content(scraped_data, "", confluence_content, azure_blob_content)
@@ -1795,19 +1800,20 @@ async def generate_manual(
             response = StreamingResponse(pdf_buffer, media_type="application/pdf")
             response.headers["Content-Disposition"] = f"attachment; filename*=UTF-8''{encoded_filename}"
 
-            tracemalloc.stop()
             await update_progress(client_id, "Document ready!", 100)
-
             return response
 
     except HTTPException as he:
-        active_tasks.pop(client_id, None)
+        logger.error(f"HTTP exception in manual generation: {str(he)}")
+        await update_progress(client_id, "Error occurred", 100)
         raise he
     except Exception as e:
         logger.error(f"Error in manual generation: {str(e)}")
         logger.error(f"Traceback: {traceback.format_exc()}")
-        active_tasks.pop(client_id, None)
+        await update_progress(client_id, "Error occurred", 100)
         raise HTTPException(status_code=500, detail=f"Manual generation failed: {str(e)}")
+    finally:
+        active_tasks.pop(client_id, None)
 
 @app.post("/api/motor/generate-faq")
 async def generate_faq(
@@ -1831,11 +1837,27 @@ async def generate_faq(
                 async_scrape_product_data(product_link, session),
                 async_search_confluence(product_category, session)
             ]
-            scraped_data, confluence_content = await asyncio.gather(*tasks)
+            scraped_data, confluence_content = await asyncio.gather(*tasks, return_exceptions=True)
+            
+            # Handle potential exceptions in tasks
+            if isinstance(scraped_data, Exception):
+                logger.error(f"Scraping failed: {str(scraped_data)}")
+                scraped_data = {
+                    "product_name": "Unknown Product",
+                    "key_features": [],
+                    "technical_specifications": {},
+                    "general_specifications": {}
+                }
+            if isinstance(confluence_content, Exception):
+                logger.error(f"Confluence search failed: {str(confluence_content)}")
+                confluence_content = ""
+
             cleaned_product_name = clean_product_query(scraped_data["product_name"])
 
             await update_progress(client_id, "Retrieving additional content...", 30)
-            azure_blob_content = await asyncio.get_event_loop().run_in_executor(None, retrieve_azure_blob_content, cleaned_product_name)
+            azure_blob_content = await asyncio.get_event_loop().run_in_executor(
+                None, retrieve_azure_blob_content, cleaned_product_name
+            )
 
             language_texts = get_language_texts(language)
 
@@ -1866,6 +1888,7 @@ async def generate_faq(
                 await update_progress(client_id, "Generating FAQ content...", 60)
                 result = await asyncio.to_thread(lambda: predictor(**input_data))
                 if not result or not hasattr(result, 'output'):
+                    logger.error("No FAQ content was generated")
                     raise HTTPException(status_code=500, detail="No FAQ content was generated")
                 logger.info("FAQ content generated successfully")
             except Exception as e:
@@ -1901,11 +1924,17 @@ async def generate_faq(
                 await update_progress(client_id, "Document ready!", 100)
                 return response
 
+    except HTTPException as he:
+        logger.error(f"HTTP exception in FAQ generation: {str(he)}")
+        await update_progress(client_id, "Error occurred", 100)
+        raise he
     except Exception as e:
         logger.error(f"Error in FAQ generation: {str(e)}")
         logger.error(f"Traceback: {traceback.format_exc()}")
+        await update_progress(client_id, "Error occurred", 100)
+        raise HTTPException(status_code=500, detail=f"FAQ generation failed: {str(e)}")
+    finally:
         active_tasks.pop(client_id, None)
-        raise HTTPException(status_code=500, detail=str(e))
 
 PRODUCTS_FILE_PATH = os.path.join(os.path.dirname(__file__), "product_names.json")
 with open(PRODUCTS_FILE_PATH, "r") as file:
@@ -1915,21 +1944,42 @@ with open(PRODUCTS_FILE_PATH, "r") as file:
 async def get_products():
     return JSONResponse(content={"products": products_data.get("products", [])})
 
-# Add these async functions
 async def async_scrape_product_data(url: str, session: aiohttp.ClientSession) -> Dict[str, Any]:
     """Async version of scrape_product_data with explicit tab label mapping and robust tab detection"""
     try:
         headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
-            "Accept-Language": "en-US,en;q=0.9",
-            "Referer": "https://www.google.com/"
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.5",
+            "Accept-Encoding": "gzip, deflate, br",
+            "Connection": "keep-alive",
+            "Upgrade-Insecure-Requests": "1",
+            "Referer": "https://www.google.com/",
         }
         
-        timeout = ClientTimeout(total=30)
-        async with session.get(url, headers=headers, verify_ssl=False, timeout=timeout) as response:
-            response.raise_for_status()
-            content = await response.text()
-            
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                timeout = aiohttp.ClientTimeout(total=30)
+                async with session.get(url, headers=headers, verify_ssl=False, timeout=timeout) as response:
+                    if response.status == 403 or response.status == 429:
+                        retry_after = int(response.headers.get('Retry-After', 2 ** attempt))
+                        logger.warning(f"Received {response.status} for {url}, retrying after {retry_after}s (attempt {attempt + 1}/{max_retries})")
+                        await asyncio.sleep(retry_after)
+                        continue
+                    response.raise_for_status()
+                    content = await response.text()
+                    break
+            except aiohttp.ClientResponseError as e:
+                if attempt == max_retries - 1:
+                    logger.error(f"Scraping failed after {max_retries} attempts: {str(e)}")
+                    return {
+                        "product_name": "Unknown Product",
+                        "key_features": [],
+                        "technical_specifications": {},
+                        "general_specifications": {}
+                    }
+        
         soup = BeautifulSoup(content, 'html.parser')
         
         # Extract product name
@@ -2053,7 +2103,12 @@ async def async_scrape_product_data(url: str, session: aiohttp.ClientSession) ->
         }
     except Exception as e:
         logger.error(f"Error in async scraping: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to scrape product data: {str(e)}")
+        return {
+            "product_name": "Unknown Product",
+            "key_features": [],
+            "technical_specifications": {},
+            "general_specifications": {}
+        }
 
 async def async_search_confluence(query: str, session: aiohttp.ClientSession) -> str:
     """
@@ -2065,10 +2120,11 @@ async def async_search_confluence(query: str, session: aiohttp.ClientSession) ->
         
     Returns:
         str: Combined content from matching Confluence pages
-        
-    Raises:
-        HTTPException: If API request fails or content processing fails
     """
+    if not session or session.closed:
+        logger.error("Session is invalid or closed")
+        return ""
+        
     try:
         logger.info(f"Starting async Confluence search for query: '{query}'")
         
@@ -2102,27 +2158,22 @@ async def async_search_confluence(query: str, session: aiohttp.ClientSession) ->
                         logger.warning(f"Rate limited, waiting {retry_after} seconds")
                         await asyncio.sleep(retry_after)
                         continue
-                        
                     response.raise_for_status()
                     results = await response.json()
                     break  # Success, exit retry loop
                     
             except asyncio.TimeoutError:
                 if attempt == max_retries - 1:
-                    raise HTTPException(
-                        status_code=504,
-                        detail="Confluence API request timed out"
-                    )
+                    logger.warning(f"Confluence API request timed out after {max_retries} attempts")
+                    return ""
                 logger.warning(f"Request timeout, attempt {attempt + 1}/{max_retries}")
                 await asyncio.sleep(retry_delay)
                 continue
                 
             except aiohttp.ClientError as e:
                 if attempt == max_retries - 1:
-                    raise HTTPException(
-                        status_code=502,
-                        detail=f"Confluence API request failed: {str(e)}"
-                    )
+                    logger.warning(f"Confluence API request failed after {max_retries} attempts: {str(e)}")
+                    return ""
                 logger.warning(f"Request failed, attempt {attempt + 1}/{max_retries}: {str(e)}")
                 await asyncio.sleep(retry_delay)
                 continue
@@ -2158,11 +2209,7 @@ async def async_search_confluence(query: str, session: aiohttp.ClientSession) ->
         
     except Exception as e:
         logger.error(f"Error in Confluence search: {str(e)}")
-        logger.error(f"Traceback: {traceback.format_exc()}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Confluence search failed: {str(e)}"
-        )
+        return ""
 
 async def process_confluence_page(page: dict) -> str:
     """Process a single Confluence page and extract relevant content."""
