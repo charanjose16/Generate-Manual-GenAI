@@ -24,7 +24,6 @@ from concurrent.futures import ThreadPoolExecutor
 import concurrent.futures
 import win32com.client  # For handling .doc files
 import pythoncom  # For COM initialization
-from sse_starlette.sse import EventSourceResponse
 
 # ---------------------------
 # Third-Party Libraries
@@ -47,10 +46,13 @@ from fastapi import (
     File,
     UploadFile,
     Form,
-    BackgroundTasks
+    BackgroundTasks,
+    WebSocket,
+    WebSocketDisconnect
 )
 from fastapi.responses import StreamingResponse, JSONResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
+from sse_starlette.sse import EventSourceResponse  # Added import for SSE
 
 # ---------------------------
 # Data Processing
@@ -147,8 +149,8 @@ class SpecInput(BaseModel):
     specs: dict
 
 # Path to the CSV file
-file_path = r"C:\Users\231852\Desktop\03-03-2025\New folder\Backend\dataset.csv"
- 
+file_path = r".\dataset.csv"
+
 #############################################
 # DSPy Setup for Extended Maintenance Insight Module
 #############################################
