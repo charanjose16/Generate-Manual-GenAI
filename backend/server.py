@@ -2604,26 +2604,6 @@ async def extract_text_from_pdf(file_content: bytes) -> str:
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to extract text from PDF: {str(e)}")
 
-async def convert_docx_to_pdf(file_content: bytes, is_docx: bool = True) -> bytes:
-    # Save document content to a temporary file
-    suffix = '.docx' if is_docx else '.doc'
-    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_doc:
-        temp_doc.write(file_content)
-        temp_doc_path = temp_doc.name
-        
-    # Convert to PDF
-    temp_pdf_path = temp_doc_path.replace(suffix, '.pdf')
-    convert(temp_doc_path, temp_pdf_path)
-    
-    # Read PDF content
-    with open(temp_pdf_path, 'rb') as pdf_file:
-        pdf_content = pdf_file.read()
-    
-    # Clean up temporary files
-    os.unlink(temp_doc_path)
-    os.unlink(temp_pdf_path)
-    
-    return pdf_content
 ###########################################
 # Endpoint: Initiate PDF Generation
 ###########################################
@@ -2720,20 +2700,18 @@ async def download_pdf(job_id: str):
 
 ###########################################
 # Endpoint: Extract Text from Document Files
-###########################################
 @app.post("/api/motor/extract-pdf-text")
 async def extract_text(template_file: UploadFile = File(...)) -> Dict[str, Any]:
     """
     Accepts a file (PDF, DOCX/DOC, or TXT) via multipart/form-data and extracts text.
-    For DOCX/DOC files, text is extracted directly using python-docx.
-    For PDFs, if the extracted text has very short lines (e.g. one word per line),
-    newlines are removed and then re-inserted after sentence-ending punctuation.
-    Each non-empty line (or paragraph) is returned as an individual entity.
+    For DOCX/DOC files, converts to PDF first, then extracts text.
+    For PDFs, processes newlines and punctuation to form paragraphs.
+    Each non-empty line (or paragraph) is returned as an entity.
     """
     content_type = template_file.content_type
-    file_content = await template_file.read()
     try:
         if content_type == "application/pdf":
+            file_content = await template_file.read()
             extracted_text = await extract_text_from_pdf(file_content)
             # Replace multiple newlines with a space
             extracted_text = re.sub(r'\n+', ' ', extracted_text)
@@ -2744,14 +2722,21 @@ async def extract_text(template_file: UploadFile = File(...)) -> Dict[str, Any]:
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             "application/msword"
         ]:
-            text = await extract_text_from_pdf(await convert_docx_to_pdf(file_content, is_docx=True))
-            extracted_text=text
+            pdf_content = await convert_to_pdf(template_file)
+            extracted_text = await extract_text_from_pdf(pdf_content)
+            # Apply same processing as PDF for consistency
+            extracted_text = re.sub(r'\n+', ' ', extracted_text)
+            extracted_text = re.sub(r'\.\s+', '.\n', extracted_text)
             entities = [line.strip() for line in extracted_text.splitlines() if line.strip()]
         elif content_type == "text/plain":
+            file_content = await template_file.read()
             extracted_text = file_content.decode("utf-8")
             entities = [line.strip() for line in extracted_text.splitlines() if line.strip()]
         else:
-            raise HTTPException(status_code=400, detail="Unsupported file type. Only PDF, DOCX, DOC, and TXT files are supported.")
+            raise HTTPException(
+                status_code=400,
+                detail="Unsupported file type. Only PDF, DOCX, DOC, and TXT files are supported."
+            )
         
         return {"extractedText": extracted_text, "entities": entities}
     except Exception as e:
