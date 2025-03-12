@@ -647,7 +647,7 @@ export default function UserManualGenerator() {
               gap: "8px",
               cursor: isGenerating ? "not-allowed" : "pointer",
               opacity: isGenerating ? 0.5 : 1,
-              border: "none",
+              border: "1px solid #6b7280",
             }}
           >
             <svg
