@@ -2604,6 +2604,26 @@ async def extract_text_from_pdf(file_content: bytes) -> str:
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to extract text from PDF: {str(e)}")
 
+async def convert_docx_to_pdf(file_content: bytes, is_docx: bool = True) -> bytes:
+    # Save document content to a temporary file
+    suffix = '.docx' if is_docx else '.doc'
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_doc:
+        temp_doc.write(file_content)
+        temp_doc_path = temp_doc.name
+        
+    # Convert to PDF
+    temp_pdf_path = temp_doc_path.replace(suffix, '.pdf')
+    convert(temp_doc_path, temp_pdf_path)
+    
+    # Read PDF content
+    with open(temp_pdf_path, 'rb') as pdf_file:
+        pdf_content = pdf_file.read()
+    
+    # Clean up temporary files
+    os.unlink(temp_doc_path)
+    os.unlink(temp_pdf_path)
+    
+    return pdf_content
 ###########################################
 # Endpoint: Initiate PDF Generation
 ###########################################
@@ -2724,7 +2744,8 @@ async def extract_text(template_file: UploadFile = File(...)) -> Dict[str, Any]:
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             "application/msword"
         ]:
-            extracted_text = "\n".join([para.text for para in Document(BytesIO(file_content)).paragraphs])
+            text = await extract_text_from_pdf(await convert_docx_to_pdf(file_content, is_docx=True))
+            extracted_text=text
             entities = [line.strip() for line in extracted_text.splitlines() if line.strip()]
         elif content_type == "text/plain":
             extracted_text = file_content.decode("utf-8")
