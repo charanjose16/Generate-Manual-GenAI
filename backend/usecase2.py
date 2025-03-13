@@ -667,6 +667,16 @@ def generate_pdf(product_data, content, is_faq=False):
         # Function to add page numbers to ALL pages
         def add_page_number(canvas, doc):
             canvas.saveState()
+            # Draw the black border
+            canvas.setStrokeColor(colors.black)  # Set border color to black
+            canvas.setLineWidth(1)               # Set line thickness to 1 point
+            border_margin = 28
+            canvas.rect(
+                border_margin,                   # x-coordinate (left edge)
+                border_margin,                   # y-coordinate (bottom edge)
+                doc.pagesize[0] - 2 * border_margin,  # Width of the rectangle
+                doc.pagesize[1] - 2 * border_margin   # Height of the rectangle
+            )
             page_num = canvas.getPageNumber()
             text = f"Page {page_num}"
             canvas.setFont('Helvetica', 10)
