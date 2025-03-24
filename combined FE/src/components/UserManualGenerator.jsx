@@ -245,22 +245,19 @@ export default function UserManualGenerator() {
 
   useEffect(() => {
     if (isGenerating) {
-      const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
-      const sseUrl = `${protocol}//${baseUrl.replace(/^https?:\/\//, '')}/sseusecase2/progress/${clientId}`;
+      const sseUrl = `${baseUrl}/sseusecase2/progress/${clientId}`;
       console.log(`Connecting to SSE: ${sseUrl}`);
       const eventSource = new EventSource(sseUrl);
   
-      // Listen for "progress" events
       eventSource.addEventListener("progress", (event) => {
-        console.log("Received progress event:", event.data);
+        console.log("Progress event:", event.data);
         const data = JSON.parse(event.data);
         setProgressMessage(data.message);
         setProgressPercentage(data.percentage);
       });
   
-      // Listen for "complete" events
       eventSource.addEventListener("complete", (event) => {
-        console.log("Received complete event:", event.data);
+        console.log("Complete event:", event.data);
         const data = JSON.parse(event.data);
         setProgressMessage(data.message);
         setProgressPercentage(data.percentage);
@@ -268,16 +265,15 @@ export default function UserManualGenerator() {
         setIsGenerating(false);
       });
   
-      // Handle connection errors
       eventSource.onerror = (error) => {
-        console.error("SSE connection error:", error);
-        setProgressMessage("Connection issue with progress updates...");
+        console.error("SSE error:", error);
+        setProgressMessage("Failed to get progress updates. Generation may still complete.");
         eventSource.close();
         setIsGenerating(false);
       };
   
-      // Cleanup on unmount
       return () => {
+        console.log("Closing SSE connection");
         eventSource.close();
       };
     }

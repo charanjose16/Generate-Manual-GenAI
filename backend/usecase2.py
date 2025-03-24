@@ -49,6 +49,7 @@ from aiohttp import  BasicAuth,ClientTimeout
 from urllib.parse import quote
 import win32com.client  # For handling .doc files
 import pythoncom  # For COM initialization
+from fake_useragent import UserAgent
 
 # Disable warnings and configure logging
 urllib3.disable_warnings()
@@ -1348,10 +1349,12 @@ async def get_products():
     return JSONResponse(content={"products": products_data.get("products", [])})
 
 async def async_scrape_product_data(url: str, session: aiohttp.ClientSession) -> Dict[str, Any]:
-    """Async version of scrape_product_data with explicit tab label mapping and robust tab detection"""
+    """Async version of scrape_product_data with dynamic headers and robust error handling"""
     try:
+        # Initialize UserAgent for dynamic rotation
+        ua = UserAgent()
         headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "User-Agent": ua.random,  # Start with a random User-Agent
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
             "Accept-Language": "en-US,en;q=0.5",
             "Accept-Encoding": "gzip, deflate, br",
@@ -1361,9 +1364,13 @@ async def async_scrape_product_data(url: str, session: aiohttp.ClientSession) ->
         }
         
         max_retries = 3
+        content = None
         for attempt in range(max_retries):
             try:
                 timeout = aiohttp.ClientTimeout(total=30)
+                # Rotate User-Agent for each retry
+                headers["User-Agent"] = ua.random
+                logger.info(f"Attempt {attempt + 1}/{max_retries} to scrape {url} with User-Agent: {headers['User-Agent']}")
                 async with session.get(url, headers=headers, verify_ssl=False, timeout=timeout) as response:
                     if response.status == 403 or response.status == 429:
                         retry_after = int(response.headers.get('Retry-After', 2 ** attempt))
@@ -1372,6 +1379,7 @@ async def async_scrape_product_data(url: str, session: aiohttp.ClientSession) ->
                         continue
                     response.raise_for_status()
                     content = await response.text()
+                    logger.info(f"Successfully retrieved content from {url}")
                     break
             except aiohttp.ClientResponseError as e:
                 if attempt == max_retries - 1:
@@ -1382,7 +1390,27 @@ async def async_scrape_product_data(url: str, session: aiohttp.ClientSession) ->
                         "technical_specifications": {},
                         "general_specifications": {}
                     }
+            except Exception as e:
+                logger.error(f"Unexpected error on attempt {attempt + 1}: {str(e)}")
+                if attempt == max_retries - 1:
+                    return {
+                        "product_name": "Unknown Product",
+                        "key_features": [],
+                        "technical_specifications": {},
+                        "general_specifications": {}
+                    }
         
+        # If no content was retrieved after retries, return fallback
+        if content is None:
+            logger.error(f"No content retrieved from {url} after {max_retries} attempts")
+            return {
+                "product_name": "Unknown Product",
+                "key_features": [],
+                "technical_specifications": {},
+                "general_specifications": {}
+            }
+        
+        # Parse the content with BeautifulSoup
         soup = BeautifulSoup(content, 'html.parser')
         
         # Extract product name
@@ -1504,6 +1532,7 @@ async def async_scrape_product_data(url: str, session: aiohttp.ClientSession) ->
             "technical_specifications": technical_specs,
             "general_specifications": general_specs
         }
+    
     except Exception as e:
         logger.error(f"Error in async scraping: {str(e)}")
         return {

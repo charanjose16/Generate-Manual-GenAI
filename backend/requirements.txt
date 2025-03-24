@@ -36,6 +36,7 @@ docx2pdf==0.1.8
 dspy==2.6.2
 email_validator==2.2.0
 faiss-cpu==1.10.0
+fake-useragent==2.1.0
 fastapi==0.115.8
 fastapi-sso==0.16.0
 filelock==3.17.0
