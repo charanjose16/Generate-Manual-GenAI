@@ -1,15 +1,28 @@
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import logo from "../assets/ust-logo.png";
-import { User } from "lucide-react";
+import { User, LogOut } from "lucide-react";
 
 const NavBar = () => {
   const location = useLocation();
+  const navigate = useNavigate();
+  const isAuthenticated = sessionStorage.getItem("isAuthenticated") === "true";
+
   const title =
     location.pathname === "/user-manual-generator"
       ? "User Manual Generator"
       : location.pathname === "/product-configurator"
       ? "Product Configurator"
       : "Analytics Dashboard";
+
+  const handleLogout = () => {
+    sessionStorage.removeItem("isAuthenticated");
+    navigate("/login");
+  };
+
+  // Only render the full navbar if authenticated
+  if (!isAuthenticated) {
+    return null;
+  }
 
   return (
     <nav className="w-full bg-teal-500 p-4 shadow-md flex items-center justify-between">
@@ -58,8 +71,18 @@ const NavBar = () => {
           Product Configurator
         </NavLink>
         <div className="flex items-center gap-2">
-          <User className="w-6 h-6 text-white" />
-          <span className="text-white">Admin</span>
+          {/* <User className="w-6 h-6 text-white" /> */}
+          {/* <span className="text-white">Admin</span> */}
+          <NavLink
+            to="/login"
+            onClick={handleLogout}
+            className="flex items-center gap-1 bg-teal-500 text-white no-underline px-4 py-2 rounded hover:bg-teal-600 transition-colors"
+            title="Logout"
+          >
+            {/* Ensure logout icon is white */}
+            <LogOut className="w-5 h-5 mr-1 text-white" />
+            <span className="text-white">Logout</span>
+          </NavLink>
         </div>
       </div>
     </nav>
