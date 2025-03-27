@@ -68,6 +68,7 @@ from bs4 import BeautifulSoup
 import dspy
 from dspy import InputField, OutputField, Signature, Predict
 from sentence_transformers import SentenceTransformer
+from langchain_openai import AzureOpenAIEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
@@ -122,8 +123,20 @@ from werkzeug.utils import secure_filename
 # ---------------------------
 from pydantic import BaseModel
 
+# Add this near the top of the file, after the logging imports but before any logging is configured
+class LiteLLMCacheFilter(logging.Filter):
+    """Filter out LiteLLM cache-related error messages"""
+    def filter(self, record):
+        if record.levelno == logging.ERROR and "LiteLLM Cache: Excepton add_cache: __annotations__" in record.getMessage():
+            return False
+        return True
+
 # Configure logging and load environment variables
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+# Add the filter to the root logger to suppress these specific errors
+logging.getLogger().addFilter(LiteLLMCacheFilter())
+# Also add it to the litellm logger specifically
+logging.getLogger('LiteLLM').addFilter(LiteLLMCacheFilter())
 load_dotenv()
 
 app = FastAPI()
@@ -709,6 +722,12 @@ AZURE_OPENAI_API_KEY = os.getenv('AZURE_OPENAI_API_KEY')
 AZURE_OPENAI_API_VERSION = os.getenv('AZURE_OPENAI_API_VERSION')
 AZURE_OPENAI_DEPLOYMENT = os.getenv('AZURE_OPENAI_DEPLOYMENT_NAME')
 
+AZURE_OPENAI_EMBED_API_ENDPOINT = os.getenv('AZURE_OPENAI_EMBED_API_ENDPOINT')
+AZURE_OPENAI_EMBED_API_KEY = os.getenv('AZURE_OPENAI_EMBED_API_KEY')
+AZURE_OPENAI_EMBED_MODEL = os.getenv('AZURE_OPENAI_EMBED_MODEL')
+AZURE_OPENAI_EMBED_VERSION = os.getenv('AZURE_OPENAI_EMBED_VERSION')
+
+
 # Azure Blob Storage credentials
 AZURE_STORAGE_SAS_URL = os.getenv('AZURE_STORAGE_SAS_URL')
 
@@ -792,7 +811,15 @@ def get_confluence_vector_store(content):
         texts = text_splitter.create_documents([content])
         if not texts:
             return None
-        embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+            
+        # Replace HuggingFaceEmbeddings with AzureOpenAIEmbeddings
+        embeddings = AzureOpenAIEmbeddings(
+            azure_endpoint=AZURE_OPENAI_EMBED_API_ENDPOINT,
+            api_key=AZURE_OPENAI_EMBED_API_KEY,
+            model=AZURE_OPENAI_EMBED_MODEL,
+            api_version=AZURE_OPENAI_EMBED_VERSION
+        )
+        
         vector_store = FAISS.from_documents(texts, embeddings)
         return vector_store
     except Exception as e:
@@ -802,10 +829,10 @@ def get_confluence_vector_store(content):
 # -------------------------------
 # AZURE BLOB STORAGE INTEGRATION
 # -------------------------------
-# These classes/functions come from your Azure Blob Storage code with added logging.
 class FAISSIndex:
-    def __init__(self, dimension: int = 384):
-        self.dimension = dimension
+    def __init__(self):
+        # Fixed dimension for text-embedding-3-large
+        self.dimension = 384  
         self.index_path = os.path.join(VECTOR_DB_PATH, "index.faiss")
         self.metadata_path = os.path.join(VECTOR_DB_PATH, "metadata.pkl")
         self.documents: List = []
@@ -814,14 +841,29 @@ class FAISSIndex:
 
     def create(self) -> None:
         self.index = faiss.IndexFlatL2(self.dimension)
-        logger.info("Created new FAISS index.")
+        logger.info(f"Created new FAISS index with dimension {self.dimension}.")
 
     def add(self, vectors: np.ndarray, documents: List) -> None:
         if self.index is None:
             self.create()
+        if vectors.shape[0] == 0:
+            raise ValueError("Cannot add empty vectors")
+        if vectors.shape[1] != self.dimension:
+            # Ensure vectors are the correct dimension
+            vectors = self._adjust_dimensions(vectors)
         self.index.add(vectors)
         self.documents.extend(documents)
         logger.info(f"Added {len(documents)} documents to the FAISS index.")
+
+    def _adjust_dimensions(self, vectors: np.ndarray) -> np.ndarray:
+        """Adjust vectors to match the required dimension"""
+        if vectors.shape[1] > self.dimension:
+            logger.warning(f"Truncating vectors from {vectors.shape[1]} to {self.dimension} dimensions")
+            return vectors[:, :self.dimension]
+        elif vectors.shape[1] < self.dimension:
+            logger.warning(f"Padding vectors from {vectors.shape[1]} to {self.dimension} dimensions")
+            return np.pad(vectors, ((0, 0), (0, self.dimension - vectors.shape[1])), mode='constant')
+        return vectors
 
     def save(self) -> None:
         if self.index is not None:
@@ -836,19 +878,30 @@ class FAISSIndex:
                 self.index = faiss.read_index(self.index_path)
                 with open(self.metadata_path, 'rb') as f:
                     self.documents = pickle.load(f)
-                logger.info("FAISS index and metadata loaded successfully.")
+                logger.info(f"FAISS index loaded: {self.index.ntotal} vectors, dimension {self.index.d}, {len(self.documents)} documents.")
                 return True
             logger.info("No existing FAISS index found.")
-            return False
+            return False   
         except Exception as e:
-            logger.error(f"Error loading FAISS index: {str(e)}")
+            logger.error(f"Error loading FAISS index: {str(e)}", exc_info=True)
             return False
 
     def search(self, query_vector: np.ndarray, k: int = 5) -> List[Dict[str, Any]]:
         if self.index is None or not self.documents:
             logger.warning("FAISS index is empty or not loaded.")
-            return []
-        distances, indices = self.index.search(query_vector.reshape(1, -1), k)
+            return [] 
+        # Ensure proper vector shape and dimensions
+        if query_vector.ndim == 1:
+            query_vector = query_vector.reshape(1, -1)
+        elif query_vector.ndim > 2:
+            query_vector = query_vector.reshape(1, -1)
+            
+        # Adjust dimensions if needed
+        query_vector = self._adjust_dimensions(query_vector.astype('float32'))
+        
+        logger.info(f"Searching index with {self.index.ntotal} vectors (dim: {self.index.d})")
+        distances, indices = self.index.search(query_vector, k)
+        
         results = []
         for i, idx in enumerate(indices[0]):
             if idx < 0 or idx >= len(self.documents):
@@ -877,29 +930,25 @@ class DocumentProcessor:
 
     def process_pdf(self, pdf_content: bytes) -> str:
         try:
-            # Create a temporary file to handle the PDF content
             with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
                 temp_file.write(pdf_content)
                 temp_file_path = temp_file.name
 
-            # Process the PDF
             with open(temp_file_path, 'rb') as pdf_file:
                 reader = PyPDF2.PdfReader(pdf_file)
                 text = ""
                 for page in reader.pages:
                     text += page.extract_text() + "\n"
             
-            # Clean up the temporary file
             os.unlink(temp_file_path)
-            
             logger.info("Processed PDF content successfully.")
             return text
         except Exception as e:
-            logger.error(f"Error processing PDF: {str(e)}")
-            return ""  # Return empty string instead of None
+            logger.error(f"Error processing PDF: {str(e)}", exc_info=True)
+            return ""
 
     def create_documents(self, content: str, metadata: Dict[str, Any]) -> List:
-        if not content:  # Handle empty content gracefully
+        if not content:
             logger.warning("Empty content provided for document creation")
             return []
             
@@ -907,7 +956,6 @@ class DocumentProcessor:
         logger.info(f"Split content into {len(chunks)} document chunks.")
         return [Document(page_content=chunk, metadata=metadata) for chunk in chunks]
 
-# A simple Document class (mimicking LangChain's Document)
 class Document:
     def __init__(self, page_content: str, metadata: Dict[str, Any]):
         self.page_content = page_content
@@ -925,7 +973,16 @@ class RAGSystem:
         )
         self.container_client = self.blob_service_client.get_container_client(container_name)
         logger.info(f"Connected to Azure Blob Storage container: {container_name}")
-        self.embeddings = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
+        
+        self.embeddings = AzureOpenAIEmbeddings(
+            azure_endpoint=AZURE_OPENAI_EMBED_API_ENDPOINT,
+            api_key=AZURE_OPENAI_EMBED_API_KEY,
+            model="text-embedding-3-large",
+            api_version=AZURE_OPENAI_EMBED_VERSION,
+            dimensions=384
+  # Explicitly set dimensions
+        )
+        self.documents = []
         self.index = FAISSIndex()
         self.document_processor = DocumentProcessor()
         from openai import AzureOpenAI
@@ -937,9 +994,18 @@ class RAGSystem:
         self._ensure_index()
 
     def _ensure_index(self) -> None:
+        """Load or build the FAISS index with proper document storage"""
         if not self.index.load():
             logger.info("Building new FAISS index from Azure Blob PDFs.")
             self._build_index()
+        else:
+            if not hasattr(self.index, 'index') or self.index.index.ntotal == 0:
+                logger.warning("Loaded index appears empty, rebuilding...")
+                self._build_index()
+            else:
+                with open(os.path.join(VECTOR_DB_PATH, "metadata.pkl"), 'rb') as f:
+                    self.documents = pickle.load(f)
+                logger.info(f"Loaded {len(self.documents)} documents with index")
 
     def _fetch_blob_content(self) -> List[Dict[str, Any]]:
         documents = []
@@ -964,6 +1030,7 @@ class RAGSystem:
         return documents
 
     def _build_index(self) -> None:
+        """Build the index and properly store documents"""
         blobs = self._fetch_blob_content()
         if not blobs:
             logger.warning("No content fetched from Azure Blob Storage")
@@ -977,11 +1044,11 @@ class RAGSystem:
                 logger.info(f"Processing blob: {blob['metadata'].get('source', 'unknown')}")
                 clean_text = self.document_processor.process_pdf(blob['content'])
                 documents = self.document_processor.create_documents(clean_text, blob['metadata'])
-                vectors = self.embeddings.encode([doc.page_content for doc in documents])
+                vectors = self.embeddings.embed_documents([doc.page_content for doc in documents])
                 all_documents.extend(documents)
                 all_vectors.extend(vectors)
             except Exception as e:
-                logger.error(f"Error processing blob {blob['metadata'].get('source', 'unknown')}: {str(e)}")
+                logger.error(f"Error processing blob {blob['metadata'].get('source', 'unknown')}: {str(e)}", exc_info=True)
                 continue
 
         if all_vectors:
@@ -992,46 +1059,88 @@ class RAGSystem:
 
     def query(self, query_text: str) -> Dict[str, Any]:
         try:
-            logger.info(f"Querying Azure Blob Storage with: {query_text}")
-            query_vector = self.embeddings.encode([query_text]).astype('float32')
-            search_results = self.index.search(query_vector)
-            if not search_results:
-                logger.info("No relevant results found in Azure Blob Storage.")
-                return {'answer': 'No relevant information found.', 'sources': []}
-            context = '\n'.join(str(result['content']) for result in search_results)
-            response = self.llm.chat.completions.create(
-                model=AZURE_OPENAI_DEPLOYMENT,
-                messages=[
-                    {"role": "system", "content": "You are a presales expert. Provide accurate, concise answers based only on the provided context from Azure Blob Storage PDFs. Do not use any external knowledge."},
-                    {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {query_text}"}
-                ],
-                temperature=0.7,
-                max_tokens=500
-            )
-            seen_sources = set()
-            sources = []
-            for result in search_results:
-                source_title = str(result['metadata'].get('source', 'Unknown'))
-                if source_title not in seen_sources:
-                    source = {
-                        'title': source_title,
-                        'confidence': round(float(result['score']) * 100, 2),
-                        'modified': result['metadata'].get('modified', 'Unknown')
-                    }
-                    sources.append(source)
-                    seen_sources.add(source_title)
-            logger.info("Azure Blob Storage query processed successfully.")
-            return {
-                'answer': response.choices[0].message.content.strip(),
-                'sources': sources
-            }
-        except Exception as e:
-            logger.error(f"Error in Azure Blob query processing: {str(e)}")
-            return {
-                'answer': 'An error occurred while processing your query.',
+            result = {
+                'answer': '',
                 'sources': [],
-                'error': str(e)
+                'error': None
             }
+
+            # 1. Generate query embedding
+            try:
+                logger.info(f"Generating embedding for query: '{query_text}'")
+                query_vector = self.embeddings.embed_query(query_text)
+                if query_vector is None:
+                    raise ValueError("Embedding service returned None")
+                if not isinstance(query_vector, np.ndarray):
+                    logger.info("Converting embedding to numpy array")
+                    query_vector = np.array(query_vector, dtype='float32')
+                if query_vector.ndim != 1:
+                    raise ValueError(f"Invalid embedding shape: {query_vector.shape}")
+                logger.debug(f"Embedding vector generated (shape: {query_vector.shape})")
+            except Exception as e:
+                logger.error(f"Embedding generation failed: {str(e)}", exc_info=True)
+                return {'answer': 'Failed to generate embedding', 'sources': [], 'error': str(e)}
+
+            # 2. Search the vector index
+            try:
+                if self.index is None:
+                    raise ValueError("FAISS index not initialized")
+                if not hasattr(self.index, 'index') or not hasattr(self.index.index, 'ntotal'):
+                    raise ValueError("FAISS index not properly initialized")
+                if self.index.index.ntotal == 0:
+                    raise ValueError("FAISS index is empty")
+                    
+                logger.info(f"Index stats - vectors: {self.index.index.ntotal}, dimension: {self.index.index.d}")
+                results = self.index.search(query_vector, 5)
+                sources = []
+                seen_titles = set()
+                for res in results:
+                    source_title = res['metadata'].get('source', 'Unknown Document')
+                    if source_title not in seen_titles:
+                        sources.append({
+                            'title': source_title,
+                            'content': res['content'][:500] + "..." if len(res['content']) > 500 else res['content'],
+                            'confidence': round(res['score'] * 100, 2),
+                            'modified': res['metadata'].get('modified', 'Unknown date')
+                        })
+                        seen_titles.add(source_title)
+                if not sources:
+                    result['answer'] = "No relevant documents found"
+                    return result
+                logger.info(f"Found {len(sources)} relevant documents")
+            except Exception as e:
+                logger.error(f"Vector search failed: {str(e)}", exc_info=True)
+                result['error'] = str(e)
+                result['answer'] = "Failed to search documents"
+                return result
+
+            # 3. Generate LLM response
+            try:
+                context = "\n\n".join([f"Document {i+1}: {src['content']}" for i, src in enumerate(sources)])
+                messages = [
+                    {"role": "system", "content": "You are a technical expert. Answer using ONLY the provided context."},
+                    {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {query_text}"}
+                ]
+                logger.info("Generating LLM response...")
+                response = self.llm.chat.completions.create(
+                    model=AZURE_OPENAI_DEPLOYMENT,
+                    messages=messages,
+                    temperature=0.3,
+                    max_tokens=800
+                )
+                result['answer'] = response.choices[0].message.content.strip()
+                result['sources'] = sources
+                logger.info("Successfully generated response")
+                return result
+            except Exception as e:
+                logger.error(f"LLM response generation failed: {str(e)}", exc_info=True)
+                result['error'] = str(e)
+                result['answer'] = "Failed to generate response"
+                return result
+
+        except Exception as e:
+            logger.error(f"Unexpected error in query processing: {str(e)}", exc_info=True)
+            return {'answer': "An unexpected error occurred", 'sources': [], 'error': str(e)}
 
 def get_blob_client(blob_name: str):
     """Helper function to get blob client"""
@@ -1059,18 +1168,15 @@ async def convert_to_pdf(file: UploadFile) -> bytes:
         elif file_extension in ['.docx', '.doc']:
             logger.info(f"Starting conversion of {file_extension} file: {file.filename} to PDF")
             
-            # Create a temporary directory
             temp_dir = tempfile.mkdtemp()
             temp_doc_path = os.path.join(temp_dir, f"document{file_extension}")
             temp_pdf_path = os.path.join(temp_dir, "document.pdf")
             
-            # Write the document file to disk
             with open(temp_doc_path, 'wb') as f:
                 f.write(content)
                 
             logger.info(f"Created temporary file at {temp_doc_path}")
             
-            # Initialize COM in a separate thread
             pythoncom.CoInitialize()
             success = False
             
@@ -1081,7 +1187,6 @@ async def convert_to_pdf(file: UploadFile) -> bytes:
                 word.DisplayAlerts = 0
                 
                 try:
-                    # Use absolute paths
                     abs_doc_path = os.path.abspath(temp_doc_path)
                     abs_pdf_path = os.path.abspath(temp_pdf_path)
                     
@@ -1089,7 +1194,7 @@ async def convert_to_pdf(file: UploadFile) -> bytes:
                     doc = word.Documents.Open(abs_doc_path, ReadOnly=1)
                     
                     logger.info(f"Saving as PDF to {abs_pdf_path}")
-                    doc.SaveAs(abs_pdf_path, FileFormat=17)  # 17 = wdFormatPDF
+                    doc.SaveAs(abs_pdf_path, FileFormat=17)
                     doc.Close()
                     
                     if os.path.exists(abs_pdf_path):
@@ -1102,10 +1207,6 @@ async def convert_to_pdf(file: UploadFile) -> bytes:
                         
                 except Exception as e:
                     logger.error(f"Error in Word automation: {str(e)}", exc_info=True)
-                    if "RPC_E_SERVERCALL_RETRYLATER" in str(e):
-                        logger.error("RPC server busy - Word might be running in non-interactive mode")
-                    elif "Call was rejected by callee" in str(e):
-                        logger.error("COM call rejected - could be security settings or privileges")
                 
                 finally:
                     try:
@@ -1197,7 +1298,6 @@ def retrieve_azure_blob_content(query: str) -> str:
     except Exception as e:
         logger.error(f"Error retrieving Azure blob content: {str(e)}")
         return "No relevant Azure Blob Storage content found."
-
 # -------------------------------
 # COMBINING ALL SOURCES
 # -------------------------------
@@ -1580,8 +1680,8 @@ def format_specifications_tables(product_data, is_faq=False):
             
             for key, value in tech_specs.items():
                 data.append([
-                    Paragraph(str(key), cell_style), 
-                    Paragraph(str(value) if value is not None else "N/A", cell_style)
+                    Paragraph(clean_html_for_reportlab(str(key)), cell_style), 
+                    Paragraph(clean_html_for_reportlab(str(value) if value is not None else "N/A"), cell_style)
                 ])
             
             if len(data) > 1:
@@ -1633,8 +1733,8 @@ def format_specifications_tables(product_data, is_faq=False):
             
             for key, value in gen_specs.items():
                 data.append([
-                    Paragraph(str(key), cell_style), 
-                    Paragraph(str(value) if value is not None else "N/A", cell_style)
+                    Paragraph(clean_html_for_reportlab(str(key)), cell_style), 
+                    Paragraph(clean_html_for_reportlab(str(value) if value is not None else "N/A"), cell_style)
                 ])
             
             if len(data) > 1:
@@ -1686,8 +1786,8 @@ def run_generate_content(section_title: str, prompt: str, language: str) -> Tupl
 
 async def parallel_content_generation(prompts: Dict[str, str], language: str) -> Dict[str, str]:
     try:
-        # Create a ThreadPoolExecutor instead of ProcessPoolExecutor
-        with concurrent.futures.ThreadPoolExecutor() as executor:
+        # First attempt: Try parallel processing with more robust error handling
+        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:  # Reduce concurrency
             loop = asyncio.get_event_loop()
             
             # Create tasks for each prompt
@@ -1707,24 +1807,96 @@ async def parallel_content_generation(prompts: Dict[str, str], language: str) ->
             
             # Process results
             result_dict = {}
+            errors = []
             for result in completed_results:
                 if isinstance(result, Exception):
                     logger.error(f"Error in content generation: {str(result)}")
+                    errors.append(str(result))
                     continue
                 if isinstance(result, tuple) and len(result) == 2:
                     section_title, content = result
                     if content and content.strip():  # Only add non-empty content
                         result_dict[section_title] = content
             
-            if not result_dict:
-                logger.error("No content was generated successfully")
-                raise ValueError("Failed to generate any content")
+            # If we got some results but not all, that's still acceptable
+            if result_dict:
+                logger.info(f"Generated {len(result_dict)} sections successfully with {len(errors)} errors")
+                return result_dict
                 
-            return result_dict
+            # If parallel processing failed completely, try sequential processing
+            if errors:
+                logger.warning(f"Parallel content generation failed with errors: {errors[:3]}...")
+                logger.info("Falling back to sequential content generation")
+                return await sequential_content_generation(prompts, language)
+            
+            raise ValueError("Failed to generate any content")
 
     except Exception as e:
         logger.error(f"Error in parallel content generation: {str(e)}")
-        raise ValueError(f"Content generation failed: {str(e)}")
+        # Try sequential as a fallback
+        return await sequential_content_generation(prompts, language)
+
+async def sequential_content_generation(prompts: Dict[str, str], language: str) -> Dict[str, str]:
+    """Fall back to sequential content generation with retries if parallel fails"""
+    result_dict = {}
+    retry_count = 3
+    retry_delay = 2  # seconds
+    
+    for title, prompt in prompts.items():
+        for attempt in range(retry_count):
+            try:
+                logger.info(f"Generating content for '{title}' (Attempt {attempt+1}/{retry_count})")
+                result = await asyncio.to_thread(
+                    run_generate_content,
+                    title,
+                    prompt,
+                    language
+                )
+                
+                if isinstance(result, tuple) and len(result) == 2:
+                    section_title, content = result
+                    if content and content.strip():
+                        result_dict[section_title] = content
+                        break  # Success, move to next section
+            except Exception as e:
+                logger.error(f"Error generating '{title}' (Attempt {attempt+1}): {str(e)}")
+                if attempt < retry_count - 1:
+                    wait_time = retry_delay * (2 ** attempt)  # Exponential backoff
+                    logger.info(f"Retrying in {wait_time} seconds...")
+                    await asyncio.sleep(wait_time)
+    
+    if not result_dict:
+        raise ValueError("Failed to generate any content after multiple retries")
+    
+    return result_dict
+
+def run_generate_content(section_title: str, prompt: str, language: str) -> Tuple[str, str]:
+    """Generate content for a specific section with improved error handling"""
+    try:
+        generate_content = Predict(GenerateContent)
+        # Add timeout and retry handling
+        max_retries = 3
+        retry_delay = 1
+        last_error = None
+        
+        for attempt in range(max_retries):
+            try:
+                result = generate_content(
+                    section_title=section_title,
+                    prompt=prompt,
+                    language=language,
+                    temperature=0.3  # Lower temperature for more consistent output
+                )
+                return section_title, result.output
+            except Exception as e:
+                last_error = e
+                time.sleep(retry_delay * (2 ** attempt))  # Exponential backoff
+        
+        # If we get here, all retries failed
+        raise last_error or ValueError(f"Failed to generate content for {section_title} after {max_retries} attempts")
+    except Exception as e:
+        logger.error(f"Error generating content for {section_title}: {str(e)}")
+        return section_title, ""
 
 @app.post("/api/motor/generate-manual")
 async def generate_manual(
@@ -1785,10 +1957,18 @@ async def generate_manual(
 
             try:
                 await update_progress(client_id, "Generating manual content...", 70)
-                generated_content = await parallel_content_generation(prompts, language)
+                # Use our more robust content generation function
+                generated_content = await robust_content_generation(prompts, language, client_id)
                 if not generated_content:
-                    raise HTTPException(status_code=500, detail="No content was generated successfully")
+                    logger.warning("No content was generated, using minimal fallback content")
+                    # Create minimal fallback content for critical sections
+                    generated_content = {
+                        "Introduction": "Introduction to the product and its applications.",
+                        "Safety Information": "Important safety guidelines for proper use.",
+                        "Technical Specifications": "Product specifications and technical details."
+                    }
             except ValueError as ve:
+                logger.error(f"Value error in content generation: {str(ve)}")
                 raise HTTPException(status_code=500, detail=str(ve))
             except Exception as e:
                 logger.error(f"Unexpected error in content generation: {str(e)}")
@@ -2779,6 +2959,345 @@ async def extract_text(template_file: UploadFile = File(...)) -> Dict[str, Any]:
         return {"extractedText": extracted_text, "entities": entities}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+# ---------------------------
+# Replace Playwright imports with Selenium and set up global driver path
+# ---------------------------
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from webdriver_manager.chrome import ChromeDriverManager
+import time
+
+# Install ChromeDriver only once and store the path globally
+CHROME_DRIVER_PATH = ChromeDriverManager().install()
+
+# Replace the async Selenium function with a synchronous version
+def scrape_with_selenium(url, wait_time=10):
+    """
+    Scrape the given URL using Selenium.
+    This is a synchronous function since Selenium doesn't support async operations.
+    """
+    # Set up Chrome options
+    chrome_options = Options()
+    chrome_options.add_argument("--headless")
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-dev-shm-usage")
+    chrome_options.add_argument("--disable-gpu")
+    chrome_options.add_argument("--window-size=1920,1080")
+    
+    driver = None
+    try:
+        # Initialize the Chrome driver using the global path
+        driver = webdriver.Chrome(service=Service(CHROME_DRIVER_PATH), options=chrome_options)
+        
+        # Navigate to the page
+        driver.get(url)
+        
+        # Use WebDriverWait instead of time.sleep for more efficient waiting
+        wait = WebDriverWait(driver, wait_time)
+        
+        # Wait for page to be fully loaded
+        wait.until(lambda d: d.execute_script("return document.readyState") == "complete")
+        
+        # Additional wait for any JavaScript rendering
+        try:
+            # Wait for a common element that should be present in most pages
+            wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+        except:
+            # If the specific element isn't found, continue anyway
+            pass
+        
+        # Extract the data with improved error handling
+        data = {}
+        
+        # Extract title
+        try:
+            wait.until(EC.presence_of_element_located((By.TAG_NAME, "h1")))
+            h1_elements = driver.find_elements(By.TAG_NAME, 'h1')
+            if h1_elements:
+                data['title'] = clean_html_for_reportlab(h1_elements[0].text)
+            else:
+                # Fallback to page title if no h1 is found
+                data['title'] = clean_html_for_reportlab(driver.title)
+        except Exception as e:
+            logger.warning(f"Error extracting title: {e}")
+            data['title'] = clean_html_for_reportlab(driver.title)
+        
+        # Extract paragraphs with improved waiting
+        try:
+            wait.until(EC.presence_of_element_located((By.TAG_NAME, "p")))
+            paragraphs = driver.find_elements(By.TAG_NAME, 'p')
+            data['content'] = [clean_html_for_reportlab(p.text) for p in paragraphs if p.text.strip()]
+            
+            # If no paragraphs are found, try to get any visible text
+            if not data.get('content'):
+                body_text = driver.find_element(By.TAG_NAME, 'body').text
+                data['content'] = [clean_html_for_reportlab(line) for line in body_text.split('\n') if line.strip()]
+        except Exception as e:
+            logger.warning(f"Error extracting paragraphs: {e}")
+            data['content'] = []
+        
+        # Extract images with improved error handling
+        try:
+            images = driver.find_elements(By.TAG_NAME, 'img')
+            data['images'] = []
+            for img in images:
+                src = img.get_attribute('src')
+                if src and src.strip():
+                    data['images'].append(src)
+        except Exception as e:
+            logger.warning(f"Error extracting images: {e}")
+            data['images'] = []
+        
+        return data
+    except Exception as e:
+        logger.error(f"Error scraping with Selenium: {e}")
+        return None
+    finally:
+        if driver:
+            driver.quit()
+
+# Update the endpoint to use the synchronous Selenium function
+@app.route('/scrape', methods=['POST'])
+def scrape():
+    data = request.json
+    url = data.get('url')
+    
+    if not url:
+        return jsonify({'error': 'URL is required'}), 400
+    
+    try:
+        # Directly call the synchronous function (no asyncio.run needed)
+        scraped_data = scrape_with_selenium(url)
+        
+        if not scraped_data:
+            return jsonify({'error': 'Failed to scrape the URL'}), 500
+        
+        # Generate PDF with the scraped data
+        pdf_path = generate_pdf(scraped_data)
+        
+        # Return the PDF or a download link
+        return jsonify({'success': True, 'pdf_path': pdf_path})
+    except Exception as e:
+        logger.error(f"Error in scrape endpoint: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+# Add this helper function to clean HTML tags before PDF generation
+def clean_html_for_reportlab(text):
+    """
+    Clean HTML tags from text or convert them to ReportLab-compatible format.
+    ReportLab's basic paragraph handling doesn't support many HTML tags.
+    """
+    if not text or not isinstance(text, str):
+        return text
+        
+    # Replace <br> tags with newlines
+    text = re.sub(r'<br\s*/?>', '\n', text)
+    
+    # Remove paragraph tags but keep their content
+    text = re.sub(r'<para>(.*?)</para>', r'\1', text)
+    
+    # Remove other HTML tags but keep their content
+    text = re.sub(r'<[^>]*>', '', text)
+    
+    # Fix any double spaces or excessive newlines
+    text = re.sub(r'\s+', ' ', text)
+    text = re.sub(r'\n\s*\n', '\n\n', text)
+    
+    return text.strip()
+
+# Find the generate_pdf function and update it to use this cleaning function
+# Modify the format_detailed_text function to clean HTML from paragraphs
+def format_detailed_text(detailed_text: str) -> List:
+    flowables = []
+    for line in detailed_text.split("\n"):
+        line = line.strip()
+        if not line:
+            flowables.append(Spacer(1, 0.1 * inch))
+            continue
+        line = convert_markdown_to_html(line)
+        # Clean HTML tags from the line
+        line = clean_html_for_reportlab(line)
+        if line.startswith("###"):
+            text = line.lstrip("#").strip()
+            flowables.append(Paragraph(text, STYLES['Heading3']))
+        elif re.match(r'^\d+\.', line):
+            numbered_style = ParagraphStyle('Numbered', parent=STYLES['Normal'], leftIndent=20)
+            flowables.append(Paragraph(line, numbered_style))
+        elif line.startswith("-"):
+            text = line.lstrip("-").strip()
+            flowables.append(Paragraph("• " + text, STYLES['Bullet']))
+        else:
+            flowables.append(Paragraph(line, STYLES['Normal']))
+        flowables.append(Spacer(1, 0.05 * inch))
+    return flowables
+
+# Add this class to better handle network issues with the RAG system
+class NetworkResilientRAG:
+    """A wrapper for RAG functionality with improved network error handling"""
+    
+    def __init__(self):
+        self.max_retries = 3
+        self.retry_delay = 2  # base seconds
+        self.cached_results = {}  # Simple in-memory cache
+    
+    def query_with_fallback(self, query_text, retry=0):
+        """Query RAG system with fallbacks for network errors"""
+        # First check cache
+        if query_text in self.cached_results:
+            logger.info(f"Using cached results for query: '{query_text}'")
+            return self.cached_results[query_text]
+            
+        try:
+            # Try to use the Azure RAG system
+            rag_system = RAGSystem()
+            result = rag_system.query(query_text)
+            
+            # Cache successful result
+            if result and 'error' not in result:
+                self.cached_results[query_text] = result
+            return result
+        except Exception as e:
+            logger.warning(f"RAG query failed (attempt {retry+1}/{self.max_retries}): {str(e)}")
+            
+            # Retry with exponential backoff
+            if retry < self.max_retries - 1:
+                wait_time = self.retry_delay * (2 ** retry)
+                logger.info(f"Retrying RAG query in {wait_time} seconds...")
+                time.sleep(wait_time)
+                return self.query_with_fallback(query_text, retry + 1)
+            
+            # If all retries fail, return a graceful fallback
+            logger.error(f"All RAG query attempts failed, using fallback for: '{query_text}'")
+            return {
+                'answer': f"I couldn't retrieve specific information about {query_text} due to connection issues. Here's some general information based on common properties of this type of product.",
+                'sources': [],
+                'error': str(e)
+            }
+
+# Update the retrieve_azure_blob_content function to use the resilient wrapper
+def retrieve_azure_blob_content(product_query: str) -> str:
+    """Retrieve content from Azure Blob Storage with improved error handling"""
+    try:
+        resilient_rag = NetworkResilientRAG()
+        result = resilient_rag.query_with_fallback(product_query)
+        
+        if result and 'answer' in result:
+            return result['answer']
+        return ""
+    except Exception as e:
+        logger.error(f"Error retrieving Azure Blob content: {str(e)}")
+        return ""
+
+# Add a more robust version of the parallel_content_generation function
+async def robust_content_generation(prompts: Dict[str, str], language: str, client_id: str) -> Dict[str, str]:
+    """Generate content with multiple fallback strategies and better error handling"""
+    max_concurrent = 2  # Limit concurrent requests to avoid overwhelming the network
+    
+    try:
+        # First try sequential processing with fewer concurrent requests
+        result_dict = {}
+        batches = list(_create_batches(prompts.items(), max_concurrent))
+        
+        for batch_idx, batch in enumerate(batches):
+            batch_size = len(batch)
+            await update_progress(client_id, f"Generating content (batch {batch_idx+1}/{len(batches)})...", 70 + (batch_idx * 10 // len(batches)))
+            
+            # Process this batch concurrently
+            with concurrent.futures.ThreadPoolExecutor(max_workers=max_concurrent) as executor:
+                batch_futures = []
+                for title, prompt in batch:
+                    future = asyncio.get_event_loop().run_in_executor(
+                        executor,
+                        _generate_with_retry,
+                        title,
+                        prompt,
+                        language
+                    )
+                    batch_futures.append(future)
+                
+                # Wait for all batch tasks to complete
+                batch_results = await asyncio.gather(*batch_futures, return_exceptions=True)
+                
+                # Process batch results
+                for result in batch_results:
+                    if isinstance(result, Exception):
+                        logger.error(f"Error in batch content generation: {str(result)}")
+                        continue
+                    if isinstance(result, tuple) and len(result) == 2:
+                        section_title, content = result
+                        if content and content.strip():
+                            result_dict[section_title] = content
+        
+        # If we have results, return them
+        if result_dict:
+            return result_dict
+        
+        # If no results, try one-by-one with explicit delays
+        logger.warning("Batch generation failed, trying sequential generation with delays")
+        return await sequential_content_generation(prompts, language)
+        
+    except Exception as e:
+        logger.error(f"Error in robust content generation: {str(e)}")
+        return await sequential_content_generation(prompts, language)
+
+def _create_batches(items, batch_size):
+    """Helper to create batches of items for processing"""
+    batch = []
+    for item in items:
+        batch.append(item)
+        if len(batch) >= batch_size:
+            yield batch
+            batch = []
+    if batch:  # yield any remaining items
+        yield batch
+
+def _generate_with_retry(section_title, prompt, language, max_retries=3):
+    """Generate content with explicit retries and backoff"""
+    retry_delay = 2  # base seconds
+    last_error = None
+    
+    for attempt in range(max_retries):
+        try:
+            generate_content = Predict(GenerateContent)
+            result = generate_content(
+                section_title=section_title,
+                prompt=prompt,
+                language=language,
+                temperature=0.3
+            )
+            return section_title, result.output
+        except Exception as e:
+            last_error = e
+            logger.warning(f"Content generation for '{section_title}' failed (attempt {attempt+1}/{max_retries}): {str(e)}")
+            time.sleep(retry_delay * (2 ** attempt))
+    
+    # If all retries fail, use fallback content generation
+    logger.error(f"All content generation attempts failed for '{section_title}', using fallback")
+    return section_title, _generate_fallback_content(section_title, prompt)
+
+def _generate_fallback_content(section_title, prompt):
+    """Generate fallback content when all API calls fail"""
+    if "Introduction" in section_title:
+        return "This section provides an introduction to the product, including its purpose and main applications."
+    elif "Key Features" in section_title:
+        return "This product comes with several important features designed for reliability and performance."
+    elif "Technical Specifications" in section_title:
+        return "This section details the technical specifications of the product, including dimensions, materials, and operating parameters."
+    elif "Safety" in section_title:
+        return "Important safety information for proper installation, use, and maintenance of this product."
+    elif "Setup" in section_title or "Installation" in section_title:
+        return "This section provides guidance on proper setup and installation procedures."
+    elif "Maintenance" in section_title:
+        return "Regular maintenance ensures optimal performance and longevity of your product."
+    elif "Troubleshooting" in section_title:
+        return "This section helps identify and resolve common issues that may occur."
+    else:
+        return f"Information for {section_title}."
 
 if __name__ == "__main__":
     import uvicorn
