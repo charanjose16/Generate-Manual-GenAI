@@ -46,8 +46,8 @@ const Login = () => {
       <main className="flex-grow flex items-center justify-center px-4">
         <div className="bg-white text-gray-900 rounded-xl shadow-2xl p-8 w-full max-w-md border border-gray-100/20 transform transition-all duration-300 hover:scale-[1.02]">
           <div className="text-center mb-6">
-            <h2 className="text-2xl font-bold text-teal-700 mb-2">LOGIN</h2>
-            <p className="text-gray-500 text-sm">Sign in to continue to your dashboard</p>
+            <h2 className="text-2xl font-bold text-teal-700 mb-2">Regal Product Services Portal</h2>
+            <p className="text-gray-500 text-sm">Enter Credentials to access your Account</p>
           </div>
           
           {/* User ID Input */}
