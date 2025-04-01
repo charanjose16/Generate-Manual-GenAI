@@ -15,6 +15,7 @@ import base64
 import urllib.parse
 from urllib.parse import quote
 import urllib3
+import time
 import uuid
 import io
 from io import BytesIO
@@ -36,6 +37,7 @@ from typing import Any, Dict, List, Optional, Tuple, AsyncGenerator
 import requests
 from requests.auth import HTTPBasicAuth
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
+from playwright.async_api import async_playwright
 
 # ---------------------------
 # FastAPI Imports
@@ -726,7 +728,6 @@ AZURE_OPENAI_EMBED_API_ENDPOINT = os.getenv('AZURE_OPENAI_EMBED_API_ENDPOINT')
 AZURE_OPENAI_EMBED_API_KEY = os.getenv('AZURE_OPENAI_EMBED_API_KEY')
 AZURE_OPENAI_EMBED_MODEL = os.getenv('AZURE_OPENAI_EMBED_MODEL')
 AZURE_OPENAI_EMBED_VERSION = os.getenv('AZURE_OPENAI_EMBED_VERSION')
-
 
 # Azure Blob Storage credentials
 AZURE_STORAGE_SAS_URL = os.getenv('AZURE_STORAGE_SAS_URL')
@@ -1898,245 +1899,6 @@ def run_generate_content(section_title: str, prompt: str, language: str) -> Tupl
         logger.error(f"Error generating content for {section_title}: {str(e)}")
         return section_title, ""
 
-@app.post("/api/motor/generate-manual")
-async def generate_manual(
-    product_category: str = Form(...),
-    rag_source: Optional[UploadFile] = File(None),
-    language: str = Form(...),
-    client_id: str = Form(...)
-):
-    try:
-        logger.info(f"Starting generation for client_id: {client_id}")
-        await update_progress(client_id, "Initializing document generation...", 5)
-
-        async with aiohttp.ClientSession() as session:
-            await update_progress(client_id, "Retrieving product information...", 10)
-            product_link = get_product_link(product_category)
-            if not product_link:
-                raise HTTPException(status_code=400, detail="Product link not found")
-
-            await update_progress(client_id, "Gathering information from sources...", 20)
-            tasks = [
-                async_scrape_product_data(product_link, session),
-                async_search_confluence(product_category, session)
-            ]
-            scraped_data, confluence_content = await asyncio.gather(*tasks, return_exceptions=True)
-            
-            # Handle potential exceptions in tasks
-            if isinstance(scraped_data, Exception):
-                logger.error(f"Scraping failed: {str(scraped_data)}")
-                scraped_data = {
-                    "product_name": "Unknown Product",
-                    "key_features": [],
-                    "technical_specifications": {},
-                    "general_specifications": {}
-                }
-            if isinstance(confluence_content, Exception):
-                logger.error(f"Confluence search failed: {str(confluence_content)}")
-                confluence_content = ""
-
-            cleaned_product_name = clean_product_query(scraped_data["product_name"])
-
-            if rag_source:
-                await update_progress(client_id, "Processing uploaded file...", 30)
-                try:
-                    await upload_to_azure_blob(rag_source)
-                except Exception as e:
-                    logger.error(f"Failed to upload PDF: {str(e)}")
-
-            await update_progress(client_id, "Retrieving additional content...", 40)
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                future = executor.submit(retrieve_azure_blob_content, cleaned_product_name)
-                azure_blob_content = await asyncio.get_event_loop().run_in_executor(None, lambda: future.result())
-
-            await update_progress(client_id, "Analyzing content...", 50)
-            combined_content = combine_all_content(scraped_data, "", confluence_content, azure_blob_content)
-
-            await update_progress(client_id, "Preparing content generation...", 60)
-            prompts = generate_content_prompts(cleaned_product_name, combined_content, language)
-
-            try:
-                await update_progress(client_id, "Generating manual content...", 70)
-                # Use our more robust content generation function
-                generated_content = await robust_content_generation(prompts, language, client_id)
-                if not generated_content:
-                    logger.warning("No content was generated, using minimal fallback content")
-                    # Create minimal fallback content for critical sections
-                    generated_content = {
-                        "Introduction": "Introduction to the product and its applications.",
-                        "Safety Information": "Important safety guidelines for proper use.",
-                        "Technical Specifications": "Product specifications and technical details."
-                    }
-            except ValueError as ve:
-                logger.error(f"Value error in content generation: {str(ve)}")
-                raise HTTPException(status_code=500, detail=str(ve))
-            except Exception as e:
-                logger.error(f"Unexpected error in content generation: {str(e)}")
-                raise HTTPException(status_code=500, detail=f"Content generation failed: {str(e)}")
-
-            try:
-                await update_progress(client_id, "Creating PDF document...", 85)
-                with concurrent.futures.ThreadPoolExecutor() as executor:
-                    pdf_buffer = await asyncio.get_event_loop().run_in_executor(
-                        executor,
-                        generate_pdf,
-                        {"product_category": product_category, "product_name": scraped_data["product_name"], "language": language, "scraped_data": scraped_data},
-                        generated_content
-                    )
-            except Exception as e:
-                logger.error(f"Error generating PDF: {str(e)}")
-                raise HTTPException(status_code=500, detail=f"Failed to generate PDF: {str(e)}")
-
-            await update_progress(client_id, "Finalizing document...", 95)
-            filename = f"user_manual_{scraped_data['product_name']}_{language}.pdf"
-            encoded_filename = quote(filename)
-            response = StreamingResponse(pdf_buffer, media_type="application/pdf")
-            response.headers["Content-Disposition"] = f"attachment; filename*=UTF-8''{encoded_filename}"
-
-            await update_progress(client_id, "Document ready!", 100)
-            return response
-
-    except HTTPException as he:
-        logger.error(f"HTTP exception in manual generation: {str(he)}")
-        await update_progress(client_id, "Error occurred", 100)
-        raise he
-    except Exception as e:
-        logger.error(f"Error in manual generation: {str(e)}")
-        logger.error(f"Traceback: {traceback.format_exc()}")
-        await update_progress(client_id, "Error occurred", 100)
-        raise HTTPException(status_code=500, detail=f"Manual generation failed: {str(e)}")
-    finally:
-        active_tasks.pop(client_id, None)
-
-@app.post("/api/motor/generate-faq")
-async def generate_faq(
-    product_category: str = Form(...),
-    language: str = Form(...),
-    preview: bool = Form(True),
-    client_id: str = Form(...)
-):
-    try:
-        logger.info(f"Starting FAQ generation for client_id: {client_id}")
-        await update_progress(client_id, "Initializing FAQ generation...", 5)
-
-        async with aiohttp.ClientSession() as session:
-            await update_progress(client_id, "Retrieving product information...", 10)
-            product_link = get_product_link(product_category)
-            if not product_link:
-                raise HTTPException(status_code=400, detail="Product link not found")
-
-            await update_progress(client_id, "Gathering information from sources...", 20)
-            tasks = [
-                async_scrape_product_data(product_link, session),
-                async_search_confluence(product_category, session)
-            ]
-            scraped_data, confluence_content = await asyncio.gather(*tasks, return_exceptions=True)
-            
-            # Handle potential exceptions in tasks
-            if isinstance(scraped_data, Exception):
-                logger.error(f"Scraping failed: {str(scraped_data)}")
-                scraped_data = {
-                    "product_name": "Unknown Product",
-                    "key_features": [],
-                    "technical_specifications": {},
-                    "general_specifications": {}
-                }
-            if isinstance(confluence_content, Exception):
-                logger.error(f"Confluence search failed: {str(confluence_content)}")
-                confluence_content = ""
-
-            cleaned_product_name = clean_product_query(scraped_data["product_name"])
-
-            await update_progress(client_id, "Retrieving additional content...", 30)
-            azure_blob_content = await asyncio.get_event_loop().run_in_executor(
-                None, retrieve_azure_blob_content, cleaned_product_name
-            )
-
-            language_texts = get_language_texts(language)
-
-            try:
-                await update_progress(client_id, "Analyzing data and preparing FAQ content...", 40)
-                predictor = Predict(GenerateContent)
-                input_data = {
-                    "section_title": language_texts["faq"],
-                    "prompt": f"""Generate a comprehensive FAQ section for {cleaned_product_name}.
-                    Include questions and answers about:
-                    - Product features and specifications
-                    - Installation and setup
-                    - Common usage scenarios
-                    - Troubleshooting
-                    - Maintenance and care
-                    
-                    Product Information:
-                    {json.dumps(scraped_data, indent=2)}
-                    
-                    Additional Context:
-                    {confluence_content}
-                    
-                    Azure Blob Storage Content:
-                    {azure_blob_content}
-                    """,
-                    "language": language
-                }
-                await update_progress(client_id, "Generating FAQ content...", 60)
-                result = await asyncio.to_thread(lambda: predictor(**input_data))
-                if not result or not hasattr(result, 'output'):
-                    logger.error("No FAQ content was generated")
-                    raise HTTPException(status_code=500, detail="No FAQ content was generated")
-                logger.info("FAQ content generated successfully")
-            except Exception as e:
-                logger.error(f"Error generating FAQ content: {str(e)}")
-                raise HTTPException(status_code=500, detail=f"FAQ generation failed: {str(e)}")
-
-            try:
-                await update_progress(client_id, "Creating PDF document...", 80)
-                with concurrent.futures.ThreadPoolExecutor() as executor:
-                    pdf_buffer = await asyncio.get_event_loop().run_in_executor(
-                        executor,
-                        generate_pdf,
-                        {"product_category": product_category, "product_name": scraped_data["product_name"], "language": language, "scraped_data": scraped_data},
-                        {language_texts["faq"]: result.output},
-                        True
-                    )
-                logger.info("PDF generated successfully")
-                await update_progress(client_id, "Finalizing document...", 95)
-            except Exception as e:
-                logger.error(f"Error generating PDF: {str(e)}")
-                raise HTTPException(status_code=500, detail=f"Failed to generate PDF: {str(e)}")
-
-            if preview:
-                import base64
-                pdf_bytes = pdf_buffer.getvalue()
-                pdf_base64 = base64.b64encode(pdf_bytes).decode('utf-8')
-                await update_progress(client_id, "Document ready!", 100)
-                return JSONResponse({"pdf_base64": pdf_base64, "filename": f"faq_{scraped_data['product_name']}_{language}.pdf"})
-            else:
-                filename = f"faq_{scraped_data['product_name']}_{language}.pdf"
-                response = StreamingResponse(pdf_buffer, media_type="application/pdf")
-                response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
-                await update_progress(client_id, "Document ready!", 100)
-                return response
-
-    except HTTPException as he:
-        logger.error(f"HTTP exception in FAQ generation: {str(he)}")
-        await update_progress(client_id, "Error occurred", 100)
-        raise he
-    except Exception as e:
-        logger.error(f"Error in FAQ generation: {str(e)}")
-        logger.error(f"Traceback: {traceback.format_exc()}")
-        await update_progress(client_id, "Error occurred", 100)
-        raise HTTPException(status_code=500, detail=f"FAQ generation failed: {str(e)}")
-    finally:
-        active_tasks.pop(client_id, None)
-
-PRODUCTS_FILE_PATH = os.path.join(os.path.dirname(__file__), "product_names.json")
-with open(PRODUCTS_FILE_PATH, "r") as file:
-    products_data = json.load(file)
-
-@app.get("/api/motor/products")
-async def get_products():
-    return JSONResponse(content={"products": products_data.get("products", [])})
-
 async def async_scrape_product_data(url: str, session: aiohttp.ClientSession) -> Dict[str, Any]:
     """Async version of scrape_product_data with dynamic headers and robust error handling"""
     try:
@@ -2466,6 +2228,529 @@ async def process_confluence_page(page: dict) -> str:
         logger.error(f"Error processing page {page.get('title', 'Unknown')}: {str(e)}")
         return ""
 
+# Add this helper function to clean HTML tags before PDF generation
+def clean_html_for_reportlab(text):
+    """
+    Clean HTML tags from text or convert them to ReportLab-compatible format.
+    ReportLab's basic paragraph handling doesn't support many HTML tags.
+    """
+    if not text or not isinstance(text, str):
+        return text
+        
+    # Replace <br> tags with newlines
+    text = re.sub(r'<br\s*/?>', '\n', text)
+    
+    # Remove paragraph tags but keep their content
+    text = re.sub(r'<para>(.*?)</para>', r'\1', text)
+    
+    # Remove other HTML tags but keep their content
+    text = re.sub(r'<[^>]*>', '', text)
+    
+    # Fix any double spaces or excessive newlines
+    text = re.sub(r'\s+', ' ', text)
+    text = re.sub(r'\n\s*\n', '\n\n', text)
+    
+    return text.strip()
+
+# Find the generate_pdf function and update it to use this cleaning function
+# Modify the format_detailed_text function to clean HTML from paragraphs
+def format_detailed_text(detailed_text: str) -> List:
+    flowables = []
+    for line in detailed_text.split("\n"):
+        line = line.strip()
+        if not line:
+            flowables.append(Spacer(1, 0.1 * inch))
+            continue
+        line = convert_markdown_to_html(line)
+        # Clean HTML tags from the line
+        line = clean_html_for_reportlab(line)
+        if line.startswith("###"):
+            text = line.lstrip("#").strip()
+            flowables.append(Paragraph(text, STYLES['Heading3']))
+        elif re.match(r'^\d+\.', line):
+            numbered_style = ParagraphStyle('Numbered', parent=STYLES['Normal'], leftIndent=20)
+            flowables.append(Paragraph(line, numbered_style))
+        elif line.startswith("-"):
+            text = line.lstrip("-").strip()
+            flowables.append(Paragraph("• " + text, STYLES['Bullet']))
+        else:
+            flowables.append(Paragraph(line, STYLES['Normal']))
+        flowables.append(Spacer(1, 0.05 * inch))
+    return flowables
+
+# Add this class to better handle network issues with the RAG system
+class NetworkResilientRAG:
+    """A wrapper for RAG functionality with improved network error handling"""
+    
+    def __init__(self):
+        self.max_retries = 3
+        self.retry_delay = 2  # base seconds
+        self.cached_results = {}  # Simple in-memory cache
+    
+    def query_with_fallback(self, query_text, retry=0):
+        """Query RAG system with fallbacks for network errors"""
+        # First check cache
+        if query_text in self.cached_results:
+            logger.info(f"Using cached results for query: '{query_text}'")
+            return self.cached_results[query_text]
+            
+        try:
+            # Try to use the Azure RAG system
+            rag_system = RAGSystem()
+            result = rag_system.query(query_text)
+            
+            # Cache successful result
+            if result and 'error' not in result:
+                self.cached_results[query_text] = result
+            return result
+        except Exception as e:
+            logger.warning(f"RAG query failed (attempt {retry+1}/{self.max_retries}): {str(e)}")
+            
+            # Retry with exponential backoff
+            if retry < self.max_retries - 1:
+                wait_time = self.retry_delay * (2 ** retry)
+                logger.info(f"Retrying RAG query in {wait_time} seconds...")
+                time.sleep(wait_time)
+                return self.query_with_fallback(query_text, retry + 1)
+            
+            # If all retries fail, return a graceful fallback
+            logger.error(f"All RAG query attempts failed, using fallback for: '{query_text}'")
+            return {
+                'answer': f"I couldn't retrieve specific information about {query_text} due to connection issues. Here's some general information based on common properties of this type of product.",
+                'sources': [],
+                'error': str(e)
+            }
+
+# Update the retrieve_azure_blob_content function to use the resilient wrapper
+def retrieve_azure_blob_content(product_query: str) -> str:
+    """Retrieve content from Azure Blob Storage with improved error handling"""
+    try:
+        resilient_rag = NetworkResilientRAG()
+        result = resilient_rag.query_with_fallback(product_query)
+        
+        if result and 'answer' in result:
+            return result['answer']
+        return ""
+    except Exception as e:
+        logger.error(f"Error retrieving Azure Blob content: {str(e)}")
+        return ""
+
+# Add a more robust version of the parallel_content_generation function
+async def robust_content_generation(prompts: Dict[str, str], language: str, client_id: str) -> Dict[str, str]:
+    """Generate content with multiple fallback strategies and better error handling"""
+    max_concurrent = 2  # Limit concurrent requests to avoid overwhelming the network
+    
+    try:
+        # First try sequential processing with fewer concurrent requests
+        result_dict = {}
+        batches = list(_create_batches(prompts.items(), max_concurrent))
+        
+        for batch_idx, batch in enumerate(batches):
+            batch_size = len(batch)
+            await update_progress(client_id, f"Generating content (batch {batch_idx+1}/{len(batches)})...", 70 + (batch_idx * 10 // len(batches)))
+            
+            # Process this batch concurrently
+            with concurrent.futures.ThreadPoolExecutor(max_workers=max_concurrent) as executor:
+                batch_futures = []
+                for title, prompt in batch:
+                    future = asyncio.get_event_loop().run_in_executor(
+                        executor,
+                        _generate_with_retry,
+                        title,
+                        prompt,
+                        language
+                    )
+                    batch_futures.append(future)
+                
+                # Wait for all batch tasks to complete
+                batch_results = await asyncio.gather(*batch_futures, return_exceptions=True)
+                
+                # Process batch results
+                for result in batch_results:
+                    if isinstance(result, Exception):
+                        logger.error(f"Error in batch content generation: {str(result)}")
+                        continue
+                    if isinstance(result, tuple) and len(result) == 2:
+                        section_title, content = result
+                        if content and content.strip():
+                            result_dict[section_title] = content
+        
+        # If we have results, return them
+        if result_dict:
+            return result_dict
+        
+        # If no results, try one-by-one with explicit delays
+        logger.warning("Batch generation failed, trying sequential generation with delays")
+        return await sequential_content_generation(prompts, language)
+        
+    except Exception as e:
+        logger.error(f"Error in robust content generation: {str(e)}")
+        return await sequential_content_generation(prompts, language)
+
+def _create_batches(items, batch_size):
+    """Helper to create batches of items for processing"""
+    batch = []
+    for item in items:
+        batch.append(item)
+        if len(batch) >= batch_size:
+            yield batch
+            batch = []
+    if batch:  # yield any remaining items
+        yield batch
+
+def _generate_with_retry(section_title, prompt, language, max_retries=3):
+    """Generate content with explicit retries and backoff"""
+    retry_delay = 2  # base seconds
+    last_error = None
+    
+    for attempt in range(max_retries):
+        try:
+            generate_content = Predict(GenerateContent)
+            result = generate_content(
+                section_title=section_title,
+                prompt=prompt,
+                language=language,
+                temperature=0.3
+            )
+            return section_title, result.output
+        except Exception as e:
+            last_error = e
+            logger.warning(f"Content generation for '{section_title}' failed (attempt {attempt+1}/{max_retries}): {str(e)}")
+            time.sleep(retry_delay * (2 ** attempt))
+    
+    # If all retries fail, use fallback content generation
+    logger.error(f"All content generation attempts failed for '{section_title}', using fallback")
+    return section_title, _generate_fallback_content(section_title, prompt)
+
+def _generate_fallback_content(section_title, prompt):
+    """Generate fallback content when all API calls fail"""
+    if "Introduction" in section_title:
+        return "This section provides an introduction to the product, including its purpose and main applications."
+    elif "Key Features" in section_title:
+        return "This product comes with several important features designed for reliability and performance."
+    elif "Technical Specifications" in section_title:
+        return "This section details the technical specifications of the product, including dimensions, materials, and operating parameters."
+    elif "Safety" in section_title:
+        return "Important safety information for proper installation, use, and maintenance of this product."
+    elif "Setup" in section_title or "Installation" in section_title:
+        return "This section provides guidance on proper setup and installation procedures."
+    elif "Maintenance" in section_title:
+        return "Regular maintenance ensures optimal performance and longevity of your product."
+    elif "Troubleshooting" in section_title:
+        return "This section helps identify and resolve common issues that may occur."
+    else:
+        return f"Information for {section_title}."
+
+# ---------------------------
+# Playwright Setup for Web Scraping
+# ---------------------------
+async def scrape_with_playwright(url, wait_time=10):
+    """
+    Scrape the given URL using Playwright asynchronously.
+    """
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        page = await browser.new_page()
+        
+        try:
+            # Navigate to the URL
+            await page.goto(url, wait_until="networkidle", timeout=30000)
+            
+            # Wait for the page to load completely
+            await asyncio.sleep(wait_time)
+            
+            # Extract data
+            data = {}
+            
+            # Extract title
+            try:
+                h1_element = await page.query_selector('h1')
+                if h1_element:
+                    data['title'] = clean_html_for_reportlab(await h1_element.inner_text())
+                else:
+                    data['title'] = clean_html_for_reportlab(await page.title())
+            except Exception as e:
+                logger.warning(f"Error extracting title: {e}")
+                data['title'] = clean_html_for_reportlab(await page.title())
+            
+            # Extract paragraphs
+            try:
+                paragraphs = await page.query_selector_all('p')
+                content = []
+                for p in paragraphs:
+                    text = await p.inner_text()
+                    if text.strip():
+                        content.append(clean_html_for_reportlab(text))
+                
+                data['content'] = content
+                
+                # If no paragraphs found, get all visible text
+                if not data.get('content'):
+                    body_text = await page.evaluate('() => document.body.innerText')
+                    data['content'] = [clean_html_for_reportlab(line) for line in body_text.split('\n') if line.strip()]
+            except Exception as e:
+                logger.warning(f"Error extracting paragraphs: {e}")
+                data['content'] = []
+            
+            # Extract images
+            try:
+                images = await page.query_selector_all('img')
+                image_srcs = []
+                for img in images:
+                    src = await img.get_attribute('src')
+                    if src and src.strip():
+                        image_srcs.append(src)
+                data['images'] = image_srcs
+            except Exception as e:
+                logger.warning(f"Error extracting images: {e}")
+                data['images'] = []
+            
+            return data
+        except Exception as e:
+            logger.error(f"Error scraping with Playwright: {e}")
+            return None
+        finally:
+            await browser.close()
+
+PRODUCTS_FILE_PATH = os.path.join(os.path.dirname(__file__), "product_names.json")
+with open(PRODUCTS_FILE_PATH, "r") as file:
+    products_data = json.load(file)
+
+@app.post("/api/motor/generate-manual")
+async def generate_manual(
+    product_category: str = Form(...),
+    rag_source: Optional[UploadFile] = File(None),
+    language: str = Form(...),
+    client_id: str = Form(...)
+):
+    try:
+        logger.info(f"Starting generation for client_id: {client_id}")
+        await update_progress(client_id, "Initializing document generation...", 5)
+
+        async with aiohttp.ClientSession() as session:
+            await update_progress(client_id, "Retrieving product information...", 10)
+            product_link = get_product_link(product_category)
+            if not product_link:
+                raise HTTPException(status_code=400, detail="Product link not found")
+
+            await update_progress(client_id, "Gathering information from sources...", 20)
+            tasks = [
+                async_scrape_product_data(product_link, session),
+                async_search_confluence(product_category, session)
+            ]
+            scraped_data, confluence_content = await asyncio.gather(*tasks, return_exceptions=True)
+            
+            # Handle potential exceptions in tasks
+            if isinstance(scraped_data, Exception):
+                logger.error(f"Scraping failed: {str(scraped_data)}")
+                scraped_data = {
+                    "product_name": "Unknown Product",
+                    "key_features": [],
+                    "technical_specifications": {},
+                    "general_specifications": {}
+                }
+            if isinstance(confluence_content, Exception):
+                logger.error(f"Confluence search failed: {str(confluence_content)}")
+                confluence_content = ""
+
+            cleaned_product_name = clean_product_query(scraped_data["product_name"])
+
+            if rag_source:
+                await update_progress(client_id, "Processing uploaded file...", 30)
+                try:
+                    await upload_to_azure_blob(rag_source)
+                except Exception as e:
+                    logger.error(f"Failed to upload PDF: {str(e)}")
+
+            await update_progress(client_id, "Retrieving additional content...", 40)
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(retrieve_azure_blob_content, cleaned_product_name)
+                azure_blob_content = await asyncio.get_event_loop().run_in_executor(None, lambda: future.result())
+
+            await update_progress(client_id, "Analyzing content...", 50)
+            combined_content = combine_all_content(scraped_data, "", confluence_content, azure_blob_content)
+
+            await update_progress(client_id, "Preparing content generation...", 60)
+            prompts = generate_content_prompts(cleaned_product_name, combined_content, language)
+
+            try:
+                await update_progress(client_id, "Generating manual content...", 70)
+                # Use our more robust content generation function
+                generated_content = await robust_content_generation(prompts, language, client_id)
+                if not generated_content:
+                    logger.warning("No content was generated, using minimal fallback content")
+                    # Create minimal fallback content for critical sections
+                    generated_content = {
+                        "Introduction": "Introduction to the product and its applications.",
+                        "Safety Information": "Important safety guidelines for proper use.",
+                        "Technical Specifications": "Product specifications and technical details."
+                    }
+            except ValueError as ve:
+                logger.error(f"Value error in content generation: {str(ve)}")
+                raise HTTPException(status_code=500, detail=str(ve))
+            except Exception as e:
+                logger.error(f"Unexpected error in content generation: {str(e)}")
+                raise HTTPException(status_code=500, detail=f"Content generation failed: {str(e)}")
+
+            try:
+                await update_progress(client_id, "Creating PDF document...", 85)
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    pdf_buffer = await asyncio.get_event_loop().run_in_executor(
+                        executor,
+                        generate_pdf,
+                        {"product_category": product_category, "product_name": scraped_data["product_name"], "language": language, "scraped_data": scraped_data},
+                        generated_content
+                    )
+            except Exception as e:
+                logger.error(f"Error generating PDF: {str(e)}")
+                raise HTTPException(status_code=500, detail=f"Failed to generate PDF: {str(e)}")
+
+            await update_progress(client_id, "Finalizing document...", 95)
+            filename = f"user_manual_{scraped_data['product_name']}_{language}.pdf"
+            encoded_filename = quote(filename)
+            response = StreamingResponse(pdf_buffer, media_type="application/pdf")
+            response.headers["Content-Disposition"] = f"attachment; filename*=UTF-8''{encoded_filename}"
+
+            await update_progress(client_id, "Document ready!", 100)
+            return response
+
+    except HTTPException as he:
+        logger.error(f"HTTP exception in manual generation: {str(he)}")
+        await update_progress(client_id, "Error occurred", 100)
+        raise he
+    except Exception as e:
+        logger.error(f"Error in manual generation: {str(e)}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        await update_progress(client_id, "Error occurred", 100)
+        raise HTTPException(status_code=500, detail=f"Manual generation failed: {str(e)}")
+    finally:
+        active_tasks.pop(client_id, None)
+
+@app.post("/api/motor/generate-faq")
+async def generate_faq(
+    product_category: str = Form(...),
+    language: str = Form(...),
+    preview: bool = Form(True),
+    client_id: str = Form(...)
+):
+    try:
+        logger.info(f"Starting FAQ generation for client_id: {client_id}")
+        await update_progress(client_id, "Initializing FAQ generation...", 5)
+
+        async with aiohttp.ClientSession() as session:
+            await update_progress(client_id, "Retrieving product information...", 10)
+            product_link = get_product_link(product_category)
+            if not product_link:
+                raise HTTPException(status_code=400, detail="Product link not found")
+
+            await update_progress(client_id, "Gathering information from sources...", 20)
+            tasks = [
+                async_scrape_product_data(product_link, session),
+                async_search_confluence(product_category, session)
+            ]
+            scraped_data, confluence_content = await asyncio.gather(*tasks, return_exceptions=True)
+            
+            # Handle potential exceptions in tasks
+            if isinstance(scraped_data, Exception):
+                logger.error(f"Scraping failed: {str(scraped_data)}")
+                scraped_data = {
+                    "product_name": "Unknown Product",
+                    "key_features": [],
+                    "technical_specifications": {},
+                    "general_specifications": {}
+                }
+            if isinstance(confluence_content, Exception):
+                logger.error(f"Confluence search failed: {str(confluence_content)}")
+                confluence_content = ""
+
+            cleaned_product_name = clean_product_query(scraped_data["product_name"])
+
+            await update_progress(client_id, "Retrieving additional content...", 30)
+            azure_blob_content = await asyncio.get_event_loop().run_in_executor(
+                None, retrieve_azure_blob_content, cleaned_product_name
+            )
+
+            language_texts = get_language_texts(language)
+
+            try:
+                await update_progress(client_id, "Analyzing data and preparing FAQ content...", 40)
+                predictor = Predict(GenerateContent)
+                input_data = {
+                    "section_title": language_texts["faq"],
+                    "prompt": f"""Generate a comprehensive FAQ section for {cleaned_product_name}.
+                    Include questions and answers about:
+                    - Product features and specifications
+                    - Installation and setup
+                    - Common usage scenarios
+                    - Troubleshooting
+                    - Maintenance and care
+                    
+                    Product Information:
+                    {json.dumps(scraped_data, indent=2)}
+                    
+                    Additional Context:
+                    {confluence_content}
+                    
+                    Azure Blob Storage Content:
+                    {azure_blob_content}
+                    """,
+                    "language": language
+                }
+                await update_progress(client_id, "Generating FAQ content...", 60)
+                result = await asyncio.to_thread(lambda: predictor(**input_data))
+                if not result or not hasattr(result, 'output'):
+                    logger.error("No FAQ content was generated")
+                    raise HTTPException(status_code=500, detail="No FAQ content was generated")
+                logger.info("FAQ content generated successfully")
+            except Exception as e:
+                logger.error(f"Error generating FAQ content: {str(e)}")
+                raise HTTPException(status_code=500, detail=f"FAQ generation failed: {str(e)}")
+
+            try:
+                await update_progress(client_id, "Creating PDF document...", 80)
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    pdf_buffer = await asyncio.get_event_loop().run_in_executor(
+                        executor,
+                        generate_pdf,
+                        {"product_category": product_category, "product_name": scraped_data["product_name"], "language": language, "scraped_data": scraped_data},
+                        {language_texts["faq"]: result.output},
+                        True
+                    )
+                logger.info("PDF generated successfully")
+                await update_progress(client_id, "Finalizing document...", 95)
+            except Exception as e:
+                logger.error(f"Error generating PDF: {str(e)}")
+                raise HTTPException(status_code=500, detail=f"Failed to generate PDF: {str(e)}")
+
+            if preview:
+                import base64
+                pdf_bytes = pdf_buffer.getvalue()
+                pdf_base64 = base64.b64encode(pdf_bytes).decode('utf-8')
+                await update_progress(client_id, "Document ready!", 100)
+                return JSONResponse({"pdf_base64": pdf_base64, "filename": f"faq_{scraped_data['product_name']}_{language}.pdf"})
+            else:
+                filename = f"faq_{scraped_data['product_name']}_{language}.pdf"
+                response = StreamingResponse(pdf_buffer, media_type="application/pdf")
+                response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
+                await update_progress(client_id, "Document ready!", 100)
+                return response
+
+    except HTTPException as he:
+        logger.error(f"HTTP exception in FAQ generation: {str(he)}")
+        await update_progress(client_id, "Error occurred", 100)
+        raise he
+    except Exception as e:
+        logger.error(f"Error in FAQ generation: {str(e)}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        await update_progress(client_id, "Error occurred", 100)
+        raise HTTPException(status_code=500, detail=f"FAQ generation failed: {str(e)}")
+    finally:
+        active_tasks.pop(client_id, None)
+
+@app.get("/api/motor/products")
+async def get_products():
+    return JSONResponse(content={"products": products_data.get("products", [])})
+
 @app.get("/api/motor/sseusecase2/progress/{client_id}")
 async def sse_progress(client_id: str):
     logger.info(f"Starting SSE for client_id: {client_id}")
@@ -2480,6 +2765,30 @@ async def sse_progress(client_id: str):
             yield {"event": "progress", "data": json.dumps(progress)}
             await asyncio.sleep(1)
     return EventSourceResponse(event_generator())
+
+# Updated route to use Playwright
+@app.post("/scrape")
+async def scrape(data: dict):
+    url = data.get('url')
+    
+    if not url:
+        raise HTTPException(status_code=400, detail="URL is required")
+    
+    try:
+        # Call the async Playwright function
+        scraped_data = await scrape_with_playwright(url)
+        
+        if not scraped_data:
+            raise HTTPException(status_code=500, detail="Failed to scrape the URL")
+        
+        # Generate PDF with the scraped data
+        pdf_path = generate_pdf(scraped_data)
+        
+        # Return the PDF or a download link
+        return {"success": True, "pdf_path": pdf_path}
+    except Exception as e:
+        logger.error(f"Error in scrape endpoint: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 # UseCase 3
 
@@ -2958,332 +3267,6 @@ async def extract_text(template_file: UploadFile = File(...)) -> Dict[str, Any]:
         
         return {"extractedText": extracted_text, "entities": entities}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-# ---------------------------
-# Replace Playwright imports with Selenium and set up global driver path
-# ---------------------------
-
-import time
-
-# Install ChromeDriver only once and store the path globally
-
-
-# Replace the async Selenium function with a synchronous version
-
-
-# Update the endpoint to use the synchronous Selenium function
-
-
-# Add this helper function to clean HTML tags before PDF generation
-def clean_html_for_reportlab(text):
-    """
-    Clean HTML tags from text or convert them to ReportLab-compatible format.
-    ReportLab's basic paragraph handling doesn't support many HTML tags.
-    """
-    if not text or not isinstance(text, str):
-        return text
-        
-    # Replace <br> tags with newlines
-    text = re.sub(r'<br\s*/?>', '\n', text)
-    
-    # Remove paragraph tags but keep their content
-    text = re.sub(r'<para>(.*?)</para>', r'\1', text)
-    
-    # Remove other HTML tags but keep their content
-    text = re.sub(r'<[^>]*>', '', text)
-    
-    # Fix any double spaces or excessive newlines
-    text = re.sub(r'\s+', ' ', text)
-    text = re.sub(r'\n\s*\n', '\n\n', text)
-    
-    return text.strip()
-
-# Find the generate_pdf function and update it to use this cleaning function
-# Modify the format_detailed_text function to clean HTML from paragraphs
-def format_detailed_text(detailed_text: str) -> List:
-    flowables = []
-    for line in detailed_text.split("\n"):
-        line = line.strip()
-        if not line:
-            flowables.append(Spacer(1, 0.1 * inch))
-            continue
-        line = convert_markdown_to_html(line)
-        # Clean HTML tags from the line
-        line = clean_html_for_reportlab(line)
-        if line.startswith("###"):
-            text = line.lstrip("#").strip()
-            flowables.append(Paragraph(text, STYLES['Heading3']))
-        elif re.match(r'^\d+\.', line):
-            numbered_style = ParagraphStyle('Numbered', parent=STYLES['Normal'], leftIndent=20)
-            flowables.append(Paragraph(line, numbered_style))
-        elif line.startswith("-"):
-            text = line.lstrip("-").strip()
-            flowables.append(Paragraph("• " + text, STYLES['Bullet']))
-        else:
-            flowables.append(Paragraph(line, STYLES['Normal']))
-        flowables.append(Spacer(1, 0.05 * inch))
-    return flowables
-
-# Add this class to better handle network issues with the RAG system
-class NetworkResilientRAG:
-    """A wrapper for RAG functionality with improved network error handling"""
-    
-    def __init__(self):
-        self.max_retries = 3
-        self.retry_delay = 2  # base seconds
-        self.cached_results = {}  # Simple in-memory cache
-    
-    def query_with_fallback(self, query_text, retry=0):
-        """Query RAG system with fallbacks for network errors"""
-        # First check cache
-        if query_text in self.cached_results:
-            logger.info(f"Using cached results for query: '{query_text}'")
-            return self.cached_results[query_text]
-            
-        try:
-            # Try to use the Azure RAG system
-            rag_system = RAGSystem()
-            result = rag_system.query(query_text)
-            
-            # Cache successful result
-            if result and 'error' not in result:
-                self.cached_results[query_text] = result
-            return result
-        except Exception as e:
-            logger.warning(f"RAG query failed (attempt {retry+1}/{self.max_retries}): {str(e)}")
-            
-            # Retry with exponential backoff
-            if retry < self.max_retries - 1:
-                wait_time = self.retry_delay * (2 ** retry)
-                logger.info(f"Retrying RAG query in {wait_time} seconds...")
-                time.sleep(wait_time)
-                return self.query_with_fallback(query_text, retry + 1)
-            
-            # If all retries fail, return a graceful fallback
-            logger.error(f"All RAG query attempts failed, using fallback for: '{query_text}'")
-            return {
-                'answer': f"I couldn't retrieve specific information about {query_text} due to connection issues. Here's some general information based on common properties of this type of product.",
-                'sources': [],
-                'error': str(e)
-            }
-
-# Update the retrieve_azure_blob_content function to use the resilient wrapper
-def retrieve_azure_blob_content(product_query: str) -> str:
-    """Retrieve content from Azure Blob Storage with improved error handling"""
-    try:
-        resilient_rag = NetworkResilientRAG()
-        result = resilient_rag.query_with_fallback(product_query)
-        
-        if result and 'answer' in result:
-            return result['answer']
-        return ""
-    except Exception as e:
-        logger.error(f"Error retrieving Azure Blob content: {str(e)}")
-        return ""
-
-# Add a more robust version of the parallel_content_generation function
-async def robust_content_generation(prompts: Dict[str, str], language: str, client_id: str) -> Dict[str, str]:
-    """Generate content with multiple fallback strategies and better error handling"""
-    max_concurrent = 2  # Limit concurrent requests to avoid overwhelming the network
-    
-    try:
-        # First try sequential processing with fewer concurrent requests
-        result_dict = {}
-        batches = list(_create_batches(prompts.items(), max_concurrent))
-        
-        for batch_idx, batch in enumerate(batches):
-            batch_size = len(batch)
-            await update_progress(client_id, f"Generating content (batch {batch_idx+1}/{len(batches)})...", 70 + (batch_idx * 10 // len(batches)))
-            
-            # Process this batch concurrently
-            with concurrent.futures.ThreadPoolExecutor(max_workers=max_concurrent) as executor:
-                batch_futures = []
-                for title, prompt in batch:
-                    future = asyncio.get_event_loop().run_in_executor(
-                        executor,
-                        _generate_with_retry,
-                        title,
-                        prompt,
-                        language
-                    )
-                    batch_futures.append(future)
-                
-                # Wait for all batch tasks to complete
-                batch_results = await asyncio.gather(*batch_futures, return_exceptions=True)
-                
-                # Process batch results
-                for result in batch_results:
-                    if isinstance(result, Exception):
-                        logger.error(f"Error in batch content generation: {str(result)}")
-                        continue
-                    if isinstance(result, tuple) and len(result) == 2:
-                        section_title, content = result
-                        if content and content.strip():
-                            result_dict[section_title] = content
-        
-        # If we have results, return them
-        if result_dict:
-            return result_dict
-        
-        # If no results, try one-by-one with explicit delays
-        logger.warning("Batch generation failed, trying sequential generation with delays")
-        return await sequential_content_generation(prompts, language)
-        
-    except Exception as e:
-        logger.error(f"Error in robust content generation: {str(e)}")
-        return await sequential_content_generation(prompts, language)
-
-def _create_batches(items, batch_size):
-    """Helper to create batches of items for processing"""
-    batch = []
-    for item in items:
-        batch.append(item)
-        if len(batch) >= batch_size:
-            yield batch
-            batch = []
-    if batch:  # yield any remaining items
-        yield batch
-
-def _generate_with_retry(section_title, prompt, language, max_retries=3):
-    """Generate content with explicit retries and backoff"""
-    retry_delay = 2  # base seconds
-    last_error = None
-    
-    for attempt in range(max_retries):
-        try:
-            generate_content = Predict(GenerateContent)
-            result = generate_content(
-                section_title=section_title,
-                prompt=prompt,
-                language=language,
-                temperature=0.3
-            )
-            return section_title, result.output
-        except Exception as e:
-            last_error = e
-            logger.warning(f"Content generation for '{section_title}' failed (attempt {attempt+1}/{max_retries}): {str(e)}")
-            time.sleep(retry_delay * (2 ** attempt))
-    
-    # If all retries fail, use fallback content generation
-    logger.error(f"All content generation attempts failed for '{section_title}', using fallback")
-    return section_title, _generate_fallback_content(section_title, prompt)
-
-def _generate_fallback_content(section_title, prompt):
-    """Generate fallback content when all API calls fail"""
-    if "Introduction" in section_title:
-        return "This section provides an introduction to the product, including its purpose and main applications."
-    elif "Key Features" in section_title:
-        return "This product comes with several important features designed for reliability and performance."
-    elif "Technical Specifications" in section_title:
-        return "This section details the technical specifications of the product, including dimensions, materials, and operating parameters."
-    elif "Safety" in section_title:
-        return "Important safety information for proper installation, use, and maintenance of this product."
-    elif "Setup" in section_title or "Installation" in section_title:
-        return "This section provides guidance on proper setup and installation procedures."
-    elif "Maintenance" in section_title:
-        return "Regular maintenance ensures optimal performance and longevity of your product."
-    elif "Troubleshooting" in section_title:
-        return "This section helps identify and resolve common issues that may occur."
-    else:
-        return f"Information for {section_title}."
-
-# ---------------------------
-# Playwright Setup for Web Scraping
-# ---------------------------
-from playwright.async_api import async_playwright
-import asyncio
-
-async def scrape_with_playwright(url, wait_time=10):
-    """
-    Scrape the given URL using Playwright asynchronously.
-    """
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
-        page = await browser.new_page()
-        
-        try:
-            # Navigate to the URL
-            await page.goto(url, wait_until="networkidle", timeout=30000)
-            
-            # Wait for the page to load completely
-            await asyncio.sleep(wait_time)
-            
-            # Extract data
-            data = {}
-            
-            # Extract title
-            try:
-                h1_element = await page.query_selector('h1')
-                if h1_element:
-                    data['title'] = clean_html_for_reportlab(await h1_element.inner_text())
-                else:
-                    data['title'] = clean_html_for_reportlab(await page.title())
-            except Exception as e:
-                logger.warning(f"Error extracting title: {e}")
-                data['title'] = clean_html_for_reportlab(await page.title())
-            
-            # Extract paragraphs
-            try:
-                paragraphs = await page.query_selector_all('p')
-                content = []
-                for p in paragraphs:
-                    text = await p.inner_text()
-                    if text.strip():
-                        content.append(clean_html_for_reportlab(text))
-                
-                data['content'] = content
-                
-                # If no paragraphs found, get all visible text
-                if not data.get('content'):
-                    body_text = await page.evaluate('() => document.body.innerText')
-                    data['content'] = [clean_html_for_reportlab(line) for line in body_text.split('\n') if line.strip()]
-            except Exception as e:
-                logger.warning(f"Error extracting paragraphs: {e}")
-                data['content'] = []
-            
-            # Extract images
-            try:
-                images = await page.query_selector_all('img')
-                image_srcs = []
-                for img in images:
-                    src = await img.get_attribute('src')
-                    if src and src.strip():
-                        image_srcs.append(src)
-                data['images'] = image_srcs
-            except Exception as e:
-                logger.warning(f"Error extracting images: {e}")
-                data['images'] = []
-            
-            return data
-        except Exception as e:
-            logger.error(f"Error scraping with Playwright: {e}")
-            return None
-        finally:
-            await browser.close()
-
-# Updated route to use Playwright
-@app.post('/scrape')
-async def scrape(data: dict):
-    url = data.get('url')
-    
-    if not url:
-        raise HTTPException(status_code=400, detail="URL is required")
-    
-    try:
-        # Call the async Playwright function
-        scraped_data = await scrape_with_playwright(url)
-        
-        if not scraped_data:
-            raise HTTPException(status_code=500, detail="Failed to scrape the URL")
-        
-        # Generate PDF with the scraped data
-        pdf_path = generate_pdf(scraped_data)
-        
-        # Return the PDF or a download link
-        return {"success": True, "pdf_path": pdf_path}
-    except Exception as e:
-        logger.error(f"Error in scrape endpoint: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
