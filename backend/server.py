@@ -2963,128 +2963,17 @@ async def extract_text(template_file: UploadFile = File(...)) -> Dict[str, Any]:
 # ---------------------------
 # Replace Playwright imports with Selenium and set up global driver path
 # ---------------------------
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from webdriver_manager.chrome import ChromeDriverManager
+
 import time
 
 # Install ChromeDriver only once and store the path globally
-CHROME_DRIVER_PATH = ChromeDriverManager().install()
+
 
 # Replace the async Selenium function with a synchronous version
-def scrape_with_selenium(url, wait_time=10):
-    """
-    Scrape the given URL using Selenium.
-    This is a synchronous function since Selenium doesn't support async operations.
-    """
-    # Set up Chrome options
-    chrome_options = Options()
-    chrome_options.add_argument("--headless")
-    chrome_options.add_argument("--no-sandbox")
-    chrome_options.add_argument("--disable-dev-shm-usage")
-    chrome_options.add_argument("--disable-gpu")
-    chrome_options.add_argument("--window-size=1920,1080")
-    
-    driver = None
-    try:
-        # Initialize the Chrome driver using the global path
-        driver = webdriver.Chrome(service=Service(CHROME_DRIVER_PATH), options=chrome_options)
-        
-        # Navigate to the page
-        driver.get(url)
-        
-        # Use WebDriverWait instead of time.sleep for more efficient waiting
-        wait = WebDriverWait(driver, wait_time)
-        
-        # Wait for page to be fully loaded
-        wait.until(lambda d: d.execute_script("return document.readyState") == "complete")
-        
-        # Additional wait for any JavaScript rendering
-        try:
-            # Wait for a common element that should be present in most pages
-            wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
-        except:
-            # If the specific element isn't found, continue anyway
-            pass
-        
-        # Extract the data with improved error handling
-        data = {}
-        
-        # Extract title
-        try:
-            wait.until(EC.presence_of_element_located((By.TAG_NAME, "h1")))
-            h1_elements = driver.find_elements(By.TAG_NAME, 'h1')
-            if h1_elements:
-                data['title'] = clean_html_for_reportlab(h1_elements[0].text)
-            else:
-                # Fallback to page title if no h1 is found
-                data['title'] = clean_html_for_reportlab(driver.title)
-        except Exception as e:
-            logger.warning(f"Error extracting title: {e}")
-            data['title'] = clean_html_for_reportlab(driver.title)
-        
-        # Extract paragraphs with improved waiting
-        try:
-            wait.until(EC.presence_of_element_located((By.TAG_NAME, "p")))
-            paragraphs = driver.find_elements(By.TAG_NAME, 'p')
-            data['content'] = [clean_html_for_reportlab(p.text) for p in paragraphs if p.text.strip()]
-            
-            # If no paragraphs are found, try to get any visible text
-            if not data.get('content'):
-                body_text = driver.find_element(By.TAG_NAME, 'body').text
-                data['content'] = [clean_html_for_reportlab(line) for line in body_text.split('\n') if line.strip()]
-        except Exception as e:
-            logger.warning(f"Error extracting paragraphs: {e}")
-            data['content'] = []
-        
-        # Extract images with improved error handling
-        try:
-            images = driver.find_elements(By.TAG_NAME, 'img')
-            data['images'] = []
-            for img in images:
-                src = img.get_attribute('src')
-                if src and src.strip():
-                    data['images'].append(src)
-        except Exception as e:
-            logger.warning(f"Error extracting images: {e}")
-            data['images'] = []
-        
-        return data
-    except Exception as e:
-        logger.error(f"Error scraping with Selenium: {e}")
-        return None
-    finally:
-        if driver:
-            driver.quit()
+
 
 # Update the endpoint to use the synchronous Selenium function
-@app.route('/scrape', methods=['POST'])
-def scrape():
-    data = request.json
-    url = data.get('url')
-    
-    if not url:
-        return jsonify({'error': 'URL is required'}), 400
-    
-    try:
-        # Directly call the synchronous function (no asyncio.run needed)
-        scraped_data = scrape_with_selenium(url)
-        
-        if not scraped_data:
-            return jsonify({'error': 'Failed to scrape the URL'}), 500
-        
-        # Generate PDF with the scraped data
-        pdf_path = generate_pdf(scraped_data)
-        
-        # Return the PDF or a download link
-        return jsonify({'success': True, 'pdf_path': pdf_path})
-    except Exception as e:
-        logger.error(f"Error in scrape endpoint: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+
 
 # Add this helper function to clean HTML tags before PDF generation
 def clean_html_for_reportlab(text):
@@ -3298,6 +3187,104 @@ def _generate_fallback_content(section_title, prompt):
         return "This section helps identify and resolve common issues that may occur."
     else:
         return f"Information for {section_title}."
+
+# ---------------------------
+# Playwright Setup for Web Scraping
+# ---------------------------
+from playwright.async_api import async_playwright
+import asyncio
+
+async def scrape_with_playwright(url, wait_time=10):
+    """
+    Scrape the given URL using Playwright asynchronously.
+    """
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        page = await browser.new_page()
+        
+        try:
+            # Navigate to the URL
+            await page.goto(url, wait_until="networkidle", timeout=30000)
+            
+            # Wait for the page to load completely
+            await asyncio.sleep(wait_time)
+            
+            # Extract data
+            data = {}
+            
+            # Extract title
+            try:
+                h1_element = await page.query_selector('h1')
+                if h1_element:
+                    data['title'] = clean_html_for_reportlab(await h1_element.inner_text())
+                else:
+                    data['title'] = clean_html_for_reportlab(await page.title())
+            except Exception as e:
+                logger.warning(f"Error extracting title: {e}")
+                data['title'] = clean_html_for_reportlab(await page.title())
+            
+            # Extract paragraphs
+            try:
+                paragraphs = await page.query_selector_all('p')
+                content = []
+                for p in paragraphs:
+                    text = await p.inner_text()
+                    if text.strip():
+                        content.append(clean_html_for_reportlab(text))
+                
+                data['content'] = content
+                
+                # If no paragraphs found, get all visible text
+                if not data.get('content'):
+                    body_text = await page.evaluate('() => document.body.innerText')
+                    data['content'] = [clean_html_for_reportlab(line) for line in body_text.split('\n') if line.strip()]
+            except Exception as e:
+                logger.warning(f"Error extracting paragraphs: {e}")
+                data['content'] = []
+            
+            # Extract images
+            try:
+                images = await page.query_selector_all('img')
+                image_srcs = []
+                for img in images:
+                    src = await img.get_attribute('src')
+                    if src and src.strip():
+                        image_srcs.append(src)
+                data['images'] = image_srcs
+            except Exception as e:
+                logger.warning(f"Error extracting images: {e}")
+                data['images'] = []
+            
+            return data
+        except Exception as e:
+            logger.error(f"Error scraping with Playwright: {e}")
+            return None
+        finally:
+            await browser.close()
+
+# Updated route to use Playwright
+@app.post('/scrape')
+async def scrape(data: dict):
+    url = data.get('url')
+    
+    if not url:
+        raise HTTPException(status_code=400, detail="URL is required")
+    
+    try:
+        # Call the async Playwright function
+        scraped_data = await scrape_with_playwright(url)
+        
+        if not scraped_data:
+            raise HTTPException(status_code=500, detail="Failed to scrape the URL")
+        
+        # Generate PDF with the scraped data
+        pdf_path = generate_pdf(scraped_data)
+        
+        # Return the PDF or a download link
+        return {"success": True, "pdf_path": pdf_path}
+    except Exception as e:
+        logger.error(f"Error in scrape endpoint: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     import uvicorn
